@@ -1,0 +1,385 @@
+<resources>
+    <string name="app_name">Hyper Bridge</string>
+
+    <string name="back">Wstecz</string>
+    <string name="next">Dalej</string>
+    <string name="finish">Ukończ</string>
+    <string name="done">Gotowe</string>
+    <string name="logo_desc">Logo aplikacji</string>
+    <string name="settings">Ustawienia</string>
+    <string name="info">Informacje</string>
+    <string name="configure">Skonfiguruj</string>
+    <string name="clear">Wyczyść</string>
+    <string name="sort_order">Kolejność sortowania</string>
+
+    <string name="welcome_title">Witamy w\nHyper Bridge</string>
+    <string name="welcome_subtitle">Bezproblemowo integruj wyspę HyperIsland z HyperOS.</string>
+    <string name="get_started">Rozpocznij</string>
+
+    <string name="how_it_works">Jak to działa</string>
+    <string name="how_it_works_desc">Wybierz swoje ulubione aplikacje (np. Spotify, Mapy czy Timer), a HyperBridge przekształci ich powiadomienia w elegancką wyspę HyperIsland.</string>
+    <string name="early_development">Wczesny rozwój</string>
+    <string name="beta_warning">Uwaga: Ta aplikacja jest w wersji Beta. Możesz napotkać błędy lub nieprawidłowe informacje wizualne.</string>
+
+    <string name="device_compatible">Urządzenie kompatybilne</string>
+    <string name="unsupported_device">Nieobsługiwane urządzenie</string>
+    <string name="compatible_msg">Twoje urządzenie działa na HyperOS/MIUI. Możesz korzystać z aplikacji!</string>
+    <string name="incompatible_msg">HyperBridge opiera się na specyficznych funkcjach nakładki HyperOS. Producent Twojego urządzenia to nie Xiaomi/POCO/Redmi.</string>
+    <string name="system_detected">✅ Wykryto nakładkę</string>
+    <string name="app_wont_work">⚠️ Aplikacja może nie działać</string>
+
+    <string name="show_island">Wyświetlanie wysp</string>
+    <string name="perm_post_desc">Aby wyświetlać powiadomienia z wysp na Twoim ekranie, potrzebujemy uprawnienia.</string>
+    <string name="perm_granted">✅ Przyznano uprawnienie</string>
+    <string name="allow_notifications">Zezwól na powiadomienia</string>
+
+    <string name="read_data">Odczyt danych</string>
+    <string name="perm_listener_desc">Aby połączyć Twoje aplikacje z wyspą, musimy odczytać ich powiadomienia.</string>
+    <string name="open_settings">Otwórz ustawienia</string>
+
+    <string name="keep_alive">Utrzymaj aktywność</string>
+    <string name="optimization_desc">HyperOS wyłącza aplikacje działające w tle. Aby wyspa była aktywna, włącz Autostart i zmień ustawienia baterii.</string>
+    <string name="enable_autostart">1. Włącz autostart</string>
+    <string name="set_battery_no_restrictions">2. Ustaw \"Brak ograniczeń\"</string>
+
+    <string name="tab_active">Aktywne</string>
+    <string name="tab_library">Biblioteka</string>
+    <string name="title_active_bridges">Aktywne mosty</string>
+    <string name="title_library">Biblioteka aplikacji</string>
+    <string name="search_hint">Szukaj aplikacje...</string>
+    <string name="sort_az">Sortuj: A-Z</string>
+    <string name="sort_za">Sortuj: Z-A</string>
+
+    <string name="no_active_bridges">Brak aktywnych mostów</string>
+    <string name="no_active_bridges_desc">Przejdź do Biblioteki, aby włączyć wyspy dla aplikacji.</string>
+    <string name="no_apps_found">Nie znaleziono aplikacji</string>
+
+    <string name="about">O aplikacji</string>
+    <string name="version_template">Wersja %s</string>
+    <string name="developer_credit">autor: D4vidDf</string>
+
+    <string name="group_configuration">Konfiguracja</string>
+    <string name="system_setup">Ustawienia systemu</string>
+    <string name="system_setup_subtitle">Sprawdź poprawność uprawnień</string>
+
+    <string name="group_about">O aplikacji</string>
+    <string name="developer">Autor</string>
+    <string name="developer_subtitle">Odwiedź d4viddf.com</string>
+    <string name="source_code">Kod źródłowy</string>
+    <string name="source_code_subtitle">Repozytorium GitHub</string>
+    <string name="licenses">Licencje open source</string>
+    <string name="licenses_subtitle">Oprogramowanie stron trzecich</string>
+    <string name="footer_made_with_love">Zrobione z ❤️ w Hiszpanii</string>
+
+    <string name="app_health">Stan aplikacji</string>
+    <string name="app_health_desc">Aby aplikacja działała poprawnie w tle, upewnij się, że wszystkie ustawienia są zaznaczone na zielono.</string>
+    <string name="req_permissions">Wymagane uprawnienia</string>
+    <string name="notif_access">Dostęp do powiadomień</string>
+    <string name="notif_access_desc">Wymagany do odczytu zdarzeń aplikacji</string>
+    <string name="perm_display_desc">Wyświetlanie nad innymi aplikacjami</string>
+    <string name="device_optimization">Optymalizacja urządzenia</string>
+    <string name="xiaomi_autostart">Autostart</string>
+    <string name="autostart_desc">Zezwól aplikacji na uruchamianie się przy uruchamianiu urządzenia</string>
+    <string name="battery_unrestricted">Brak ograniczeń baterii</string>
+    <string name="battery_desc">Zapobiegaj zabijaniu aplikacji przez system</string>
+    <string name="recents_note">Uwaga: Zablokuj również aplikację w menu Ostatnio otwartych aplikacji (kłódką).</string>
+    <string name="status_active">OK</string>
+    <string name="action_needed">Wymagane działanie</string>
+
+    <string name="cat_all">Wszystkie</string>
+    <string name="cat_music">Muzyka</string>
+    <string name="cat_nav">Nawigacja</string>
+    <string name="cat_timer">Produktywność</string>
+    <string name="cat_other">Inne</string>
+
+    <string name="select_active_notifs">Wybierz aktywne powiadomienia</string>
+    <string name="type_standard">Wiadomości i ogólne</string>
+    <string name="type_progress">Pobieranie i postęp</string>
+    <string name="type_media">Muzyka i multimedia</string>
+    <string name="type_nav">Mapy i GPS</string>
+    <string name="type_call">Połączenia</string>
+    <string name="type_timer">Minutniki i alarmy</string>
+
+    <string name="service_active">Aktywna</string>
+    <string name="download_complete">Pobieranie zakończone</string>
+    <string name="pending">Oczekiwanie...</string>
+    <string name="finished">Zakończone</string>
+    <string name="downloading">Pobieranie</string>
+    <string name="waiting">Oczekiwanie...</string>
+    <string name="now_playing">Teraz odtwarzane</string>
+    <string name="unknown_caller">Nieznany rozmówca</string>
+    <string name="incoming_call">Połączenie</string>
+    <string name="maps_title">Mapy</string>
+    <string name="timer_title">Minutnik</string>
+
+    <string-array name="progress_finish_keywords">
+        <item>pobrano</item>
+        <item>ukończono</item>
+        <item>zakończono</item>
+        <item>zainstalowano</item>
+        <item>gotowe</item>
+        <item>udane</item>
+        <item>powodzenie</item>
+        <item>pomyślnie</item>
+        <item>zainstalowana</item>
+        <item>ukończona</item>
+        <item>zakończona</item>
+    </string-array>
+
+    <string name="status_download_complete">Pobieranie ukończone</string>
+    <string name="status_downloading">Pobieranie</string>
+    <string name="status_pending">Oczekiwanie...</string>
+    <string name="status_finished">Zakończone</string>
+    <string name="status_now_playing">Teraz odtwarzane</string>
+    <string name="status_incoming_call">Połączenie</string>
+    <string name="caller_unknown">Nieznany rozmówca</string>
+
+    <string name="fallback_maps">Mapy</string>
+    <string name="fallback_timer">Minutnik</string>
+    <string name="fallback_stopwatch">Stoper</string>
+
+    <string name="whats_new_title">Co nowego w %s?</string>
+    <string name="awesome">Świetnie!</string>
+
+
+    <string name="island_behavior">Zachowanie wysp</string>
+    <string name="limit_strategy">Osiągnięcie limitu</string>
+    <string name="limit_desc">Co ma się wydarzyć, gdy będziesz mieć 9 wysp?</string>
+    <string name="mode_fcfs_title">Kto pierwszy, ten lepszy</string>
+    <string name="mode_fcfs_desc">Zachowuje pierwsze 9 aplikacji. Nowe aplikacje są ignorowane, dopóki nie zwolni się miejsce (poprzez usunięcie którejś z wysp).</string>
+    <string name="mode_recent_title">Najnowsze (domyślne)</string>
+    <string name="mode_recent_desc">Nowe powiadomienia zastępują najstarsze.</string>
+    <string name="mode_priority_title">Własny priorytet</string>
+    <string name="mode_priority_desc">Określ, które typy (np. połączenia) są ważniejsze.</string>
+    <string name="priority_order">Kolejność priorytetów</string>
+    <string name="priority_order_desc">Wysoki priorytet (góra) zastępuje niski priorytet (dół).</string>
+    <string name="move_up">Przesuń w górę</string>
+    <string name="move_down">Przesuń w dół</string>
+    <string name="configure_order">Konfiguruj kolejność aplikacji</string>
+
+    <string name="global_settings">Ustawienia globalne</string>
+    <string name="island_appearance">Pojawianie się wysp</string>
+    <string name="setting_float">Popup typu heads-up</string>
+    <string name="setting_float_desc">Pokaż powiadomienie, które zostanie potem zminimalizowane do formy wyspy.</string>
+
+    <string name="setting_shade">Panel powiadomień</string>
+    <string name="setting_shade_desc">Zachowaj powiadomienie w Panelu powiadomień. Jeśli opcja jest wyłączona, pojawi się ono tylko jako wyspa.</string>
+
+    <string name="setting_timeout">Czas wyświetlania</string>
+    <string name="seconds_suffix">%ds</string>
+
+    <string name="use_global_default">Użyj ustawień globalnych</string>
+    <string name="customize_app">Dostosuj</string>
+    <string name="override_settings">Nadpisz ustawienia</string>
+
+    <string name="hint_options">Opcje</string>
+
+    <string name="version_history">Historia wersji</string>
+
+    <string name="title_0_2_0">Aktualizacja informacji</string>
+    <string name="changelog_0_2_0">
+        • &lt;b&gt;Zaawansowany progres:&lt;/b&gt; Dodano wsparcie dla "Postępu krokowego" (np. 1 z 3) oraz pasków postępu z ikonami wewnątrz panelu powiadomień.\n
+        • &lt;b&gt;System priorytetów:&lt;/b&gt; Nowe ustawienia "Zachowanie wysp". Możesz wybrać "Najnowsze", "Kto pierwszy, ten lepszy" lub własną listę priorytetów aplikacji.\n
+        • &lt;b&gt;Inteligentne filtrowanie:&lt;/b&gt; Ulepszono wykrywanie duplikatów powiadomień i grupowanie pobrań.\n
+        • &lt;b&gt;Ulepszenia wizualne:&lt;/b&gt; Naprawiono problemy z układem instrukcji nawigacji.\n
+        • &lt;b&gt;Konfiguracja per aplikacja:&lt;/b&gt; Dostosuj czas wyświetlania i zachowanie pływającej wyspy dla każdej aplikacji.
+    </string>
+
+    <string name="title_0_1_0">Aktualizacja ekspresyjna</string>
+    <string name="changelog_0_1_0">
+        • &lt;b&gt;Odmieniony wygląd:&lt;/b&gt; Nowy design Material 3 Expressive z płynnymi animacjami.\n
+        • &lt;b&gt;Lepsza wyspa:&lt;/b&gt; Tekst pojawia się teraz po prawej stronie. Dodano zielony znacznik dla zakończonych pobrań.\n
+        • &lt;b&gt;Konfiguracja per aplikacja:&lt;/b&gt; Wybierz konkretne typy powiadomień (muzyka, mapy, połączenia) dla każdej aplikacji.\n
+        • &lt;b&gt;Inteligentne filtry:&lt;/b&gt; Blokuj duplikaty powiadomień i oszczędzaj baterię.\n
+        • &lt;b&gt;Nowa biblioteka:&lt;/b&gt; Filtruj aplikacje według kategorii i kolejności sortowania.\n
+        • &lt;b&gt;Tłumaczenie:&lt;/b&gt; Dodano wsparcie dla języka hiszpańskiego.
+    </string>
+
+    <string name="priority_edu_title">Nowość: Kontrola wysp</string>
+    <string name="priority_edu_desc">HyperBridge może teraz zarządzać zachowaniem powiadomień, gdy osiągnięty zostanie limit 9 wysp.\n\n&lt;b&gt;Domyślnie: Najnowsze&lt;/b&gt;\nNowe powiadomienia automatycznie zastępują najstarsze.</string>
+    <string name="keep_default">Zachowaj domyślne</string>
+    <string name="configure_now">Skonfiguruj</string>
+
+    <string name="badge_new">NOWA</string>
+
+    <string name="custom_design">Custom Design</string>
+    <string name="nav_layout_title">Układ wyspy nawigacji</string>
+    <string name="nav_layout_desc">Wybierz informację, która pojawi się w danej części wyspy</string>
+    <string name="left_content">Lewa strona</string>
+    <string name="right_content">Prawa strona</string>
+
+    <string name="nav_content_instruction">Instrukcja</string>
+    <string name="nav_content_distance">Odległość</string>
+    <string name="nav_content_eta">Czas przybycia</string>
+    <string name="nav_content_distance_eta">Odległość i czas</string>
+    <string name="nav_content_none">Puste</string>
+
+    <string name="channel_active_islands">Aktywne wyspy</string>
+
+    <string name="cd_toggle_app">Przełącz %s</string>
+    <string name="cd_configure_app">Konfiguruj %s</string>
+    <string name="cd_enable_type">Włącz powiadomienia %s</string>
+    <string name="cd_disable_type">Wyłącz powiadomienia %s</string>
+    <string name="cd_nav_edit">Edytuj układ nawigacji</string>
+    <string name="cd_app_state_active">Aktywny</string>
+    <string name="cd_app_state_inactive">Nieaktywny</string>
+
+    <string name="cd_move_up">Przenieś element w górę</string>
+    <string name="cd_move_down">Przenieś element w dół</string>
+    <string name="cd_drag_handle">Uchwyt przeciągania. Dotknij dwa razy i przytrzymaj, aby zmienić kolejność, lub użyj akcji, aby przenieść.</string>
+    <string name="cd_app_icon">Ikona aplikacji dla %s</string>
+    <string name="cd_nav_preview">Podgląd nawigacji: %1$s po lewej, %2$s po prawej</string>
+    <string name="cd_expand_changelog">Rozwiń szczegóły wersji</string>
+    <string name="cd_collapse_changelog">Zwiń szczegóły wersji</string>
+    <string name="cd_configuration_group">Ustawienia konfiguracji</string>
+    <string name="cd_about_group">Informacje o aplikacji</string>
+
+    <string name="nav_preview_instruction">Skręć w prawo</string>
+    <string name="nav_preview_distance">200 m</string>
+    <string name="nav_preview_time">10:30</string>
+
+    <string name="blocked_terms">Blokowane frazy</string>
+    <string name="blocked_terms_desc">Powiadomienia zawierające te słowa będą ignorowane.</string>
+    <string name="add_blocked_word">Dodaj słowo (np. \"Spoiler\")</string>
+    <string name="add">Dodaj</string>
+    <string name="remove">Usuń</string>
+    <string name="tap_to_configure_rules">Dotknij aplikacji, aby skonfigurować konkretne zasady blokowania.</string>
+    <string name="spoiler_subtitle">Zarządzaj ochroną przed spoilerami i filtrami</string>
+
+    <string name="active_notifications_title">Typy powiadomień</string>
+    <string name="active_notifications_subtitle">Aktywne: %d</string>
+    <string name="appearance_use_defaults_desc">Aplikacja będzie używać domyślnych ustawień systemu dot. prędkości animacji i zachowania pływającego powiadomienia.</string>
+    <string name="blocked_terms_active_count">Aktywne reguły: %d</string>
+
+    <string name="global_rules">Reguły globalne</string>
+    <string name="app_specific_rules">Reguły konkretnej aplikacji</string>
+    <string name="manage_app_rules_desc">Dostosuj filtry dla konkretnych aplikacji</string>
+    <string name="blocked_terms_count">Zablokowane frazy: %d</string>
+    <string name="no_active_rules">Brak aktywnych reguł</string>
+
+    <string name="setup_health_title">Kompatybilność systemu</string>
+    <string name="check_device">Urządzenie: %s</string>
+    <string name="check_os_version">OS: %s</string>
+    <string name="req_hyperos">Wymaga HyperOS 3.0+ (Android 15+)</string>
+    <string name="req_xiaomi">Wymagane urządzenie Xiaomi/Redmi/POCO</string>
+    <string name="check_autostart">Autostart w tle</string>
+    <string name="check_autostart_desc">Wymagany, aby usługa uruchomiła się ponownie po restarcie urządzenia.</string>
+    <string name="grant_permission">Przyznaj</string>
+    <string name="status_ok">Kompatybilny</string>
+    <string name="status_fail">Niekompatybilny</string>
+    <string name="status_unknown">Nieznany</string>
+
+    <string name="warning_cn_rom_title">Wykryto ROM China</string>
+    <string name="warning_cn_rom_desc">Twoje urządzenie wydaje się działać na ROM-ie China. Xiaomi znacznie modyfikuje powiadomienia w ROM-ach CN. Funkcje mogą być niestabilne lub w ogóle nie działać.</string>
+
+    <string name="system_version">Wersja systemu</string>
+
+    <string name="call_incoming">Połączenie przychodzące</string>
+    <string name="call_ongoing">Aktywne połączenie</string>
+
+    <string-array name="call_keywords_hangup">
+        <item>zawieś</item>
+        <item>zakończ</item>
+        <item>odrzuć</item>
+        <item>odmów</item>
+    </string-array>
+    <string-array name="call_keywords_answer">
+        <item>odbierz</item>
+        <item>zaakceptuj</item>
+    </string-array>
+    <string-array name="call_keywords_speaker">
+        <item>głośnik</item>
+        <item>audio</item>
+    </string-array>
+
+    <string name="title_0_3_0">Globalna aktualizacja</string>
+    <string name="changelog_0_3_0">
+        <b>Ukrywanie powiadomień 👻</b>\n
+        Nowa opcja ukrywania powiadomień z Panelu powiadomień przy zachowaniu ich na wyspie. Sprawdź Ustawienia globalne!\n\n
+        <b>Nowe języki 🌍</b>\n
+        Specjalne podziękowania dla naszej społeczności za tłumaczenia na języki:\n
+        • 🇧🇷 portugalski (Brazylia),\n
+        • 🇵🇱 polski\n
+        • 🇰🇷 koreański\n\n
+        • 🇺🇦 ukraiński\n\n
+        <b>Dostosowywanie nawigacji 🧭</b>\n
+        Możesz teraz wybrać, jakie informacje pojawią się po lewej i prawej stronie wyspy nawigacji (np. odległość, czas przybycia czy polecenia dot. jazdy).\n\n
+        <b>Ochrona przed spoilerami 🛡️</b>\n
+        Nowa funkcja \"Blokowane frazy\". Zdefiniuj słowa globalnie lub dla poszczególnych aplikacji, aby zapobiec wyświetlaniu określonych powiadomień na wyspie.\n\n
+        <b>Ulepszenia dot. połączeń 📞</b>\n
+        Poprawiono logikę wykrywania powiadomień, aby wspierać większą liczbę aplikacji dialerów i VoIP.\n\n
+        <b>Poprawki i ulepszenia 🛠️</b>\n
+        • Naprawiono krytyczny błąd, który powodował zawieszanie się aplikacji podczas ładowania po restarcie.\n
+        • Naprawiono powiadomienia czasami pokazujące surowe nazwy pakietów (np. "com.google...") zamiast treści.\n
+        • Przeprojektowano arkusz konfiguracji aplikacji dla lepszej użyteczności.\n
+        • Ulepszono ekran sprawdzania kompatybilności z szczegółowymi informacjami o urządzeniu.
+    </string>
+
+    <string name="privacy_title">W 100% offline i bezpieczne</string> 
+    <string name="privacy_desc">Hyper Bridge przetwarza dane bezpośrednio na Twoim telefonie.\n\nAplikacja NIE wymaga dostępu do Internetu, co oznacza, że Twoje powiadomienia i dane osobiste nigdy nie opuszczają urządzenia.</string>
+    
+    <string name="language">Język</string>
+    <string name="language_desc">Zmień język aplikacji</string>
+    <string name="system_default">Domyślny (systemowy)</string>
+    <string name="save">Zapisz</string>
+    
+    <string name="backup_restore_title">Kopia zapasowa i przywracanie</string>
+    <string name="backup_section_title">Zarządzanie danymi</string>
+    <string name="backup_options_subtitle">Wybierz dane do uwzględnienia w operacji</string>
+    
+    <string name="option_app_settings">Ustawienia aplikacji</string>
+    <string name="option_app_settings_desc">Status konfiguracji, motyw, tryby działania</string>
+    
+    <string name="option_blocklist">Baza listy blokad</string>
+    <string name="option_blocklist_desc">Twoje zablokowane słowa kluczowe i aplikacje</string>
+    
+    <string name="option_priorities">Reguły priorytetów</string>
+    <string name="option_priorities_desc">Własne konfiguracje priorytetów powiadomień</string>
+    
+    <string name="action_export">Utwórz kopię zapasową</string>
+    <string name="action_import">Przywróć kopię zapasową</string>
+    
+    <string name="export_success">Kopia zapasowa została zapisana pomyślnie</string>
+    <string name="export_failed">Błąd eksportu: %s</string>
+    <string name="import_success">Dane zostały pomyślnie przywrócone</string>
+    <string name="import_failed">Błąd importu: %s</string>
+    <string name="invalid_backup_file">Nieprawidłowy plik kopii zapasowej HyperBridge</string>
+    <string name="db_version_mismatch">Ostrzeżenie: Kopia zapasowa pochodzi z innej wersji bazy danych</string>
+    
+    <string name="autostart_manual_check">Nie można automatycznie zweryfikować statusu.\nAby usługa dzialała poprawnie, sprawdź go ręcznie</string>
+    
+    <string name="backup_info_title">Informacje o kopii zapasowej</string>
+    <string name="backup_meta_date">Data</string>
+    <string name="backup_meta_device">Urządzenie</string>
+    <string name="backup_meta_version">Wersja</string>
+    <string name="backup_meta_keys">Łączna liczba elementów</string>
+    <string name="backup_empty_suffix"> (Puste)</string>
+    <string name="action_restore_selected">Przywróć wybrane dane</string>
+    
+    <string name="optimization_title">Optymalizacja urządzenia</string>
+    <string name="no_restrictions">Ustaw „Brak ograniczeń”</string>
+    
+    <string name="privacy_card_title">Działa offline</string>
+    <string name="privacy_card_desc">Połączenie z Internetem nie jest wymagane.</string>
+    
+    <string name="title_0_3_1">Aktualizacja: Kopia zapasowa i Wielojęzyczność</string>
+    <string name="changelog_0_3_1">
+            <b>Kopia zapasowa i przywracanie 📦</b>\n
+            Nowa funkcja dla zaawansowanych użytkowników! Bezpiecznie eksportuj swoje ustawienia, listy blokad i priorytety aplikacji do pliku .hbr i przywracaj je w dowolnym momencie.\n\n
+            <b>Nowe języki 🌍</b>\n
+            Dodano obsługę języków:\n
+            • 🇩🇪 niemieckiego\n
+            • 🇷🇺 rosyjskiego\n
+            • 🇺🇦 ukraińskiego (ulepszonego)\n
+            <i>Dodatkowo: nowy selektor języka w aplikacji, który pozwala zmienić język bez modyfikowania ustawień systemowych.</i>\n\n
+            <b>Odświeżenie wizualne 🎨</b>\n
+            Aplikacja została zaktualizowana do stylu <b>Material 3 Expressive</b>. Ciesz się większymi nagłówkami, bardziej zaokrąglonymi kształtami i płynniejszą obsługą.\n\n
+            <b>Prywatność i konfiguracja 🛡️</b>\n
+            • Ulepszony onboarding z dedykowaną stroną prywatności wyjaśniającą architekturę offline-first.\n
+            • Zaostrzone kontrole kompatybilności dla lepszego działania na HyperOS 3.0.\n\n
+            <b>Poprawki 🛠️</b>\n
+            • Naprawiono krytyczny problem powodujący utratę ustawień po ponownym uruchomieniu urządzenia (przeniesiono je do bazy danych).\n
+            • Naprawiono przycisk „Wyjście” w wyspie nawigacji – teraz wyświetla on tekst, a nie ikonę.\n
+            • Naprawiono ładowanie ikon aplikacji w Ustawieniach.\n
+    </string>
+</resources>
