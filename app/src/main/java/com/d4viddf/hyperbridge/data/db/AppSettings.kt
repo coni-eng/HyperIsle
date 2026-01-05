@@ -74,4 +74,10 @@ object SettingsKeys {
     // Dynamic keys (not constants):
     // priority_dismiss_{pkg}_{type}_{yyyyMMdd} - daily dismiss counter
     // priority_throttle_until_{pkg}_{type} - throttle expiry timestamp
+
+    // Context-Aware Islands (v0.7.0)
+    const val CONTEXT_AWARE_ENABLED = "context_aware_enabled"
+    const val CONTEXT_SCREEN_OFF_ONLY_IMPORTANT = "context_screen_off_only_important"
+    const val CONTEXT_SCREEN_OFF_IMPORTANT_TYPES = "context_screen_off_important_types"
+    const val CONTEXT_CHARGING_SUPPRESS_BATTERY_BANNERS = "context_charging_suppress_battery_banners"
 }

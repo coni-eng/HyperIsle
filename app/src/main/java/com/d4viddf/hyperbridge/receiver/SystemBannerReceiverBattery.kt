@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.annotation.RequiresPermission
 import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.data.AppPreferences
+import com.d4viddf.hyperbridge.util.ContextStateManager
 import com.d4viddf.hyperbridge.util.Haptics
 import com.d4viddf.hyperbridge.util.SystemHyperIslandPoster
 import kotlinx.coroutines.flow.first
@@ -40,6 +41,14 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
         val isEnabled = runBlocking { preferences.bannerBatteryLowEnabledFlow.first() }
         if (!isEnabled) {
             Log.d(TAG, "Battery banner disabled, ignoring")
+            return
+        }
+
+        // Context-Aware: Suppress battery banners while charging (v0.7.0)
+        val contextAwareEnabled = runBlocking { preferences.contextAwareEnabledFlow.first() }
+        val suppressWhileCharging = runBlocking { preferences.contextChargingSuppressBatteryBannersFlow.first() }
+        if (contextAwareEnabled && suppressWhileCharging && ContextStateManager.getCharging()) {
+            Log.d(TAG, "Context-aware: Suppressing battery banner (device is charging)")
             return
         }
 
