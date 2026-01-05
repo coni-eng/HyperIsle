@@ -26,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -35,6 +36,7 @@ import com.d4viddf.hyperbridge.data.db.AppDatabase
 import com.d4viddf.hyperbridge.data.db.NotificationDigestItem
 import com.d4viddf.hyperbridge.models.IslandConfig
 import com.d4viddf.hyperbridge.util.Haptics
+import com.d4viddf.hyperbridge.util.IslandActivityStateMachine
 import com.d4viddf.hyperbridge.util.IslandCooldownManager
 
 class NotificationReaderService : NotificationListenerService() {
@@ -409,7 +411,35 @@ class NotificationReaderService : NotificationListenerService() {
                 if (previousIsland.lastContentHash == newContentHash) return
             }
 
-            postNotification(sbn, bridgeId, groupKey, type.name, data)
+            // --- LIVE ACTIVITY STATE MACHINE ---
+            val progress = if (type == NotificationType.PROGRESS) {
+                val progressMax = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
+                val progressCurrent = extras.getInt(Notification.EXTRA_PROGRESS, 0)
+                if (progressMax > 0) ((progressCurrent.toFloat() / progressMax.toFloat()) * 100).toInt() else null
+            } else null
+
+            val activityResult = IslandActivityStateMachine.processUpdate(groupKey, bridgeId, progress)
+
+            when (activityResult) {
+                is IslandActivityStateMachine.ActivityResult.Completed -> {
+                    postNotification(sbn, bridgeId, groupKey, type.name, data)
+                    Haptics.hapticOnIslandSuccess(applicationContext)
+                    serviceScope.launch {
+                        delay(activityResult.timeoutMs)
+                        try {
+                            NotificationManagerCompat.from(this@NotificationReaderService).cancel(bridgeId)
+                            activeIslands.remove(groupKey)
+                            activeTranslations.remove(groupKey)
+                            IslandActivityStateMachine.remove(groupKey)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to dismiss completed island: ${e.message}")
+                        }
+                    }
+                }
+                else -> {
+                    postNotification(sbn, bridgeId, groupKey, type.name, data)
+                }
+            }
 
             activeIslands[groupKey] = ActiveIsland(
                 id = bridgeId,
