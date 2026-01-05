@@ -24,10 +24,42 @@
     * **🧭 Navigation:** Real-time turn-by-turn instructions (Google Maps, Waze). Customize the split layout (Distance, ETA, or Instruction).
     * **⬇️ Downloads:** Circular progress ring with a satisfying "Green Tick" animation upon completion.
     * **📞 Calls:** Dedicated layout for incoming and active calls with timers.
+    * **🔕 System Notifications:** DND, Silent mode is visible from island.
 * **🛡️ Spoiler Protection:** Define blocked terms globally or per-app to prevent specific notifications (e.g., message spoilers) from popping up on the Island.
 * **👻 Ghost Mode:** Option to hide the persistent service notification from the system shade while keeping the Island fully active.
 * **Total Control:** Choose exactly which apps trigger the island, customize timeouts, and toggle floating behavior per app.
 * ** MUCH MORE TO COME**
+
+
+## **🎵 Media Music Island Mode Update:**
+* HyperIsle allows you to control how Music Island behaves on Xiaomi / HyperOS devices.
+By default, the system’s native (HyperOS) music island is used, and the app does not create duplicate islands.
+
+* **Modes**
+* 🟢 SYSTEM_ONLY (Default)**
+
+    * Uses the native HyperOS music island.
+
+    * HyperIsle does not generate any music island.
+
+    * Most stable and recommended mode.
+
+    * Lock screen and notification media controls remain intact.
+
+* **🔴 BLOCK_SYSTEM (Advanced)**
+
+    * Suppresses the HyperOS native music island for selected music apps.
+
+    * This is done by cancelling the app’s MediaStyle notification.
+
+* **⚠️ IMPORTANT WARNING**
+    * When this mode is enabled:
+    * Lock screen and notification shade media controls (play / pause / skip) may disappear.
+    * Selecting at least one music app is mandatory.
+    * Misconfiguration may negatively affect the lock screen music experience.
+
+
+
 ## 🌐 Supported Languages
 
 * 🇹🇷 **Turkish** (Default)
@@ -53,9 +85,41 @@
 2. **Critical:** Follow the in-app guide to enable **Autostart** and **No Restrictions** (Battery) to prevent the system from killing the background service.
 
 
-## 📜 License
 
-Distributed under the **Apache 2.0 License**. See `LICENSE` for more information.
+
+## 📜 Open Source & License (Apache 2.0) 
+
+This project is built on top of the following open-source projects:
+
+### HyperBridge
+
+* Author: D4vidDf
+
+* License: Apache License 2.0
+
+* Source: https://github.com/D4vidDf/HyperBridge
+
+### HyperIsland ToolKit
+
+* Author: D4vidDf
+
+* License: Apache License 2.0
+
+* Source: https://github.com/D4vidDf/HyperIsland-ToolKit
+
+### Under the Apache 2.0 license, HyperIsle:
+
+* Copyright 2023 D4vidDf
+
+* Distributed under the Apache 2.0 License. See LICENSE for more information
+
+* Properly attributes the original authors
+
+* Complies with all license terms
+
+* Clearly separates modified and original work
+
+### This project is based on the above work but is developed and maintained independently.
 
 ## 🙏 Attribution
 
