@@ -499,7 +499,7 @@
     <string name="smart_priority_title">Akıllı Öncelik</string>
     <string name="smart_priority_desc">Spam bildirimleri otomatik olarak azalt</string>
     <string name="smart_priority_aggressiveness">Agresiflik Seviyesi</string>
-    <string name="smart_priority_info">Yüksek kapatma oranına sahip uygulamalar otomatik olarak kısıtlanır. Aramalar, zamanlayıcılar ve navigasyon her zaman gösterilir.</string>
+    <string name="smart_priority_info">Öncelik öğrenimi: 3 günlük ağırlıklı geçmiş, sessiz saat eğilimi, tür bazlı hassasiyet. Aramalar, zamanlayıcılar ve navigasyon her zaman gösterilir.</string>
     <string name="aggressiveness_low">Düşük</string>
     <string name="aggressiveness_medium">Orta</string>
     <string name="aggressiveness_high">Yüksek</string>

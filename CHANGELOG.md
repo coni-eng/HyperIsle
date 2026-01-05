@@ -2,6 +2,19 @@
 
 
 
+\## \[v0.8.0] - POLISHES
+
+A) Live Activity final polish:
+- minVisibleMs (default 700ms)
+- same-content dedupe window (default 1500ms)
+B) Smart Priority learning improvements:
+- weighted decay across last 3 days (1.0/0.6/0.3)
+- quiet-hours bias (22:00–07:00): stronger short-term throttle, weaker long-term penalty
+- per-type multipliers (CALL/TIMER/NAV lenient, STANDARD stricter)
+- Decision reasonCodes list for debugging (in-memory only)
+
+
+
 \## \[v0.7.0] - CONTEXT-AWARE ISLANDS
 
 \### Added
