@@ -5,6 +5,7 @@ import com.d4viddf.hyperbridge.data.AppPreferences
 import com.d4viddf.hyperbridge.models.NotificationType
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
+import java.time.LocalTime
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -34,6 +35,18 @@ object PriorityEngine {
         NotificationType.TIMER.name,
         NotificationType.NAVIGATION.name
     )
+
+    // v0.8.0: Per-type multipliers (lenient vs strict)
+    private val TYPE_MULTIPLIERS = mapOf(
+        NotificationType.CALL.name to 1.5f,      // More lenient
+        NotificationType.TIMER.name to 1.3f,     // More lenient
+        NotificationType.NAVIGATION.name to 1.3f, // More lenient
+        NotificationType.STANDARD.name to 0.8f   // Stricter
+    )
+
+    // v0.8.0: Quiet hours definition (22:00-07:00)
+    private const val QUIET_HOURS_START = 22
+    private const val QUIET_HOURS_END = 7
 
     // Aggressiveness levels
     const val AGGRESSIVENESS_LOW = 0
@@ -71,11 +84,12 @@ object PriorityEngine {
 
     /**
      * Decision result from the priority engine.
+     * v0.8.0: Added reasonCodes for debugging.
      */
     sealed class Decision {
-        object Allow : Decision()
-        object BlockBurst : Decision()
-        object BlockThrottle : Decision()
+        data class Allow(val reasonCodes: List<String> = emptyList()) : Decision()
+        data class BlockBurst(val reasonCodes: List<String> = emptyList()) : Decision()
+        data class BlockThrottle(val reasonCodes: List<String> = emptyList()) : Decision()
     }
 
     /**
@@ -97,25 +111,39 @@ object PriorityEngine {
         smartPriorityEnabled: Boolean,
         aggressiveness: Int
     ): Decision {
+        val reasonCodes = mutableListOf<String>()
+
         // If disabled, always allow
-        if (!smartPriorityEnabled) return Decision.Allow
+        if (!smartPriorityEnabled) {
+            reasonCodes.add("DISABLED")
+            return Decision.Allow(reasonCodes)
+        }
 
         // Priority types always allowed
-        if (PRIORITY_TYPES.contains(typeName)) return Decision.Allow
+        if (PRIORITY_TYPES.contains(typeName)) {
+            reasonCodes.add("PRIORITY_TYPE")
+            return Decision.Allow(reasonCodes)
+        }
 
         val groupKey = "${packageName}:${typeName}"
+        val isQuietHours = isInQuietHours()
 
-        // Check throttle first
+        // Check throttle first (with quiet-hours bias)
         if (isThrottled(preferences, packageName, typeName)) {
-            return Decision.BlockThrottle
+            reasonCodes.add("THROTTLED")
+            if (isQuietHours) reasonCodes.add("QUIET_HOURS")
+            return Decision.BlockThrottle(reasonCodes)
         }
 
-        // Check burst
-        if (isBurst(groupKey, aggressiveness)) {
-            return Decision.BlockBurst
+        // Check burst (with type multiplier)
+        if (isBurst(groupKey, aggressiveness, typeName)) {
+            reasonCodes.add("BURST")
+            reasonCodes.add("TYPE:${typeName}")
+            return Decision.BlockBurst(reasonCodes)
         }
 
-        return Decision.Allow
+        reasonCodes.add("ALLOWED")
+        return Decision.Allow(reasonCodes)
     }
 
     /**
@@ -138,15 +166,20 @@ object PriorityEngine {
 
     /**
      * Checks if we're in a burst scenario for this groupKey.
+     * v0.8.0: Added per-type multipliers.
      */
-    private fun isBurst(groupKey: String, aggressiveness: Int): Boolean {
+    private fun isBurst(groupKey: String, aggressiveness: Int, typeName: String): Boolean {
         val timestamps = burstTracker[groupKey] ?: return false
         val now = System.currentTimeMillis()
         val windowMs = getBurstWindowMs(aggressiveness)
-        val threshold = getBurstThreshold(aggressiveness)
+        val baseThreshold = getBurstThreshold(aggressiveness)
+
+        // v0.8.0: Apply type multiplier
+        val typeMultiplier = TYPE_MULTIPLIERS[typeName] ?: 1.0f
+        val adjustedThreshold = (baseThreshold * typeMultiplier).toInt().coerceAtLeast(1)
 
         val recentCount = timestamps.count { now - it < windowMs }
-        return recentCount >= threshold
+        return recentCount >= adjustedThreshold
     }
 
     /**
@@ -164,6 +197,7 @@ object PriorityEngine {
     /**
      * Increments the dismiss counter for today.
      * Called from IslandActionReceiver on DISMISS action.
+     * v0.8.0: Added weighted decay across last 3 days and quiet-hours bias.
      */
     suspend fun recordDismiss(
         preferences: AppPreferences,
@@ -179,10 +213,35 @@ object PriorityEngine {
         val newCount = currentCount + 1
         preferences.setPriorityDismissCount(packageName, typeName, today, newCount)
 
-        // Check if we should auto-throttle
-        val threshold = getDismissThreshold(aggressiveness)
-        if (newCount >= threshold) {
-            val throttleDuration = getThrottleDurationMs(aggressiveness)
+        // v0.8.0: Weighted decay across last 3 days (1.0/0.6/0.3)
+        val yesterday = getTodayKey(-1)
+        val twoDaysAgo = getTodayKey(-2)
+        
+        val countToday = newCount
+        val countYesterday = preferences.getPriorityDismissCount(packageName, typeName, yesterday)
+        val countTwoDaysAgo = preferences.getPriorityDismissCount(packageName, typeName, twoDaysAgo)
+        
+        val weightedScore = (countToday * 1.0f) + (countYesterday * 0.6f) + (countTwoDaysAgo * 0.3f)
+
+        // v0.8.0: Quiet-hours bias
+        val isQuietHours = isInQuietHours()
+        val baseThreshold = getDismissThreshold(aggressiveness)
+        
+        // During quiet hours: stronger short-term throttle, weaker long-term penalty
+        val adjustedThreshold = if (isQuietHours) {
+            (baseThreshold * 0.7f).toInt().coerceAtLeast(3) // Lower threshold = faster throttle
+        } else {
+            baseThreshold
+        }
+
+        // Check if we should auto-throttle based on weighted score
+        if (weightedScore >= adjustedThreshold) {
+            val throttleDuration = if (isQuietHours) {
+                // Shorter throttle during quiet hours
+                (getThrottleDurationMs(aggressiveness) * 0.5).toLong()
+            } else {
+                getThrottleDurationMs(aggressiveness)
+            }
             val throttleUntil = System.currentTimeMillis() + throttleDuration
             preferences.setPriorityThrottleUntil(packageName, typeName, throttleUntil)
         }
@@ -251,8 +310,26 @@ object PriorityEngine {
         burstTracker.clear()
     }
 
-    private fun getTodayKey(): String {
+    /**
+     * v0.8.0: Added offset parameter for weighted decay calculation.
+     */
+    private fun getTodayKey(daysOffset: Int = 0): String {
         val sdf = SimpleDateFormat("yyyyMMdd", Locale.US)
-        return sdf.format(Date())
+        val calendar = java.util.Calendar.getInstance()
+        calendar.add(java.util.Calendar.DAY_OF_YEAR, daysOffset)
+        return sdf.format(calendar.time)
+    }
+
+    /**
+     * v0.8.0: Check if current time is in quiet hours (22:00-07:00).
+     */
+    private fun isInQuietHours(): Boolean {
+        return try {
+            val now = LocalTime.now()
+            val hour = now.hour
+            hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END
+        } catch (e: Exception) {
+            false
+        }
     }
 }

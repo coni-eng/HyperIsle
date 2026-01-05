@@ -17,7 +17,9 @@ object IslandActivityStateMachine {
         val notificationId: Int,
         val lastUpdateMs: Long,
         val progress: Int? = null,
-        val completed: Boolean = false
+        val completed: Boolean = false,
+        val contentHash: Int = 0,
+        val firstShownMs: Long = 0L
     )
 
     /**
@@ -38,20 +40,48 @@ object IslandActivityStateMachine {
     private const val COMPLETION_TIMEOUT_MIN = 1500L
     private const val COMPLETION_TIMEOUT_MAX = 2500L
 
+    // v0.8.0: Live Activity polish
+    private const val MIN_VISIBLE_MS = 700L // Minimum time island must be visible
+    private const val SAME_CONTENT_DEDUPE_WINDOW_MS = 1500L // Dedupe window for same content
+
     /**
      * Process an activity update.
      * @param groupKey Unique key for the activity (pkg:type)
      * @param notificationId The bridge notification ID
      * @param progress Optional progress value (0-100)
+     * @param contentHash Hash of the content for dedupe
      * @return ActivityResult indicating how to handle this update
      */
     fun processUpdate(
         groupKey: String,
         notificationId: Int,
-        progress: Int? = null
+        progress: Int? = null,
+        contentHash: Int = 0
     ): ActivityResult {
         val now = System.currentTimeMillis()
         val existing = activeActivities[groupKey]
+
+        // v0.8.0: Same-content dedupe within window
+        if (existing != null) {
+            val timeSinceLastUpdate = now - existing.lastUpdateMs
+            if (timeSinceLastUpdate < SAME_CONTENT_DEDUPE_WINDOW_MS && existing.contentHash == contentHash) {
+                // Same content within dedupe window - skip update
+                return ActivityResult.Update(existing)
+            }
+
+            // v0.8.0: Enforce minimum visible time before allowing completion
+            val timeSinceFirstShown = now - existing.firstShownMs
+            if (timeSinceFirstShown < MIN_VISIBLE_MS) {
+                // Too soon to complete - keep showing
+                val updatedState = existing.copy(
+                    lastUpdateMs = now,
+                    progress = progress,
+                    contentHash = contentHash
+                )
+                activeActivities[groupKey] = updatedState
+                return ActivityResult.Update(updatedState)
+            }
+        }
 
         // Check for completion
         val isCompleted = progress != null && progress >= 100
@@ -61,7 +91,9 @@ object IslandActivityStateMachine {
             notificationId = notificationId,
             lastUpdateMs = now,
             progress = progress,
-            completed = isCompleted
+            completed = isCompleted,
+            contentHash = contentHash,
+            firstShownMs = existing?.firstShownMs ?: now
         )
 
         activeActivities[groupKey] = newState

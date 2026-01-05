@@ -483,7 +483,7 @@ class NotificationReaderService : NotificationListenerService() {
                 if (progressMax > 0) ((progressCurrent.toFloat() / progressMax.toFloat()) * 100).toInt() else null
             } else null
 
-            val activityResult = IslandActivityStateMachine.processUpdate(groupKey, bridgeId, progress)
+            val activityResult = IslandActivityStateMachine.processUpdate(groupKey, bridgeId, progress, contentHash)
 
             when (activityResult) {
                 is IslandActivityStateMachine.ActivityResult.Completed -> {
