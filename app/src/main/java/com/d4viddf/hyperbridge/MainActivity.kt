@@ -46,6 +46,7 @@ import com.d4viddf.hyperbridge.ui.screens.settings.GlobalBlocklistScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.GlobalSettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.ImportPreviewScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.InfoScreen
+import com.d4viddf.hyperbridge.ui.screens.settings.IslandQuickActionsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.LicensesScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.MusicIslandSettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.NavCustomizationScreen
@@ -61,10 +62,18 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Check for quick actions intent
+        val openQuickActions = intent?.getBooleanExtra("openQuickActions", false) ?: false
+        val quickActionsPackage = intent?.getStringExtra("quickActionsPackage")
+        
         setContent {
             HyperBridgeTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainRootNavigation()
+                    MainRootNavigation(
+                        initialOpenQuickActions = openQuickActions,
+                        initialQuickActionsPackage = quickActionsPackage
+                    )
                 }
             }
         }
@@ -77,11 +86,15 @@ enum class Screen(val depth: Int) {
     NAV_CUSTOMIZATION(4), APP_PRIORITY(4), GLOBAL_BLOCKLIST(4), BLOCKLIST_APPS(5),
     MUSIC_ISLAND(3), // Music Island Settings
     SMART_FEATURES(3), // Smart Silence, Focus, Summary settings
-    NOTIFICATION_SUMMARY(4) // Summary list screen
+    NOTIFICATION_SUMMARY(4), // Summary list screen
+    ISLAND_QUICK_ACTIONS(3) // Quick actions for island (mute/block app)
 }
 
 @Composable
-fun MainRootNavigation() {
+fun MainRootNavigation(
+    initialOpenQuickActions: Boolean = false,
+    initialQuickActionsPackage: String? = null
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferences = remember { AppPreferences(context) }
@@ -107,6 +120,8 @@ fun MainRootNavigation() {
     var showChangelog by remember { mutableStateOf(false) }
     var showPriorityEdu by remember { mutableStateOf(false) }
     var navConfigPackage by remember { mutableStateOf<String?>(null) }
+    var quickActionsPackage by remember { mutableStateOf(initialQuickActionsPackage) }
+    var pendingQuickActions by remember { mutableStateOf(initialOpenQuickActions) }
 
     // State to hold the parsed backup file before restoring
     var pendingImportBackup by remember { mutableStateOf<HyperBridgeBackup?>(null) }
@@ -119,10 +134,16 @@ fun MainRootNavigation() {
     LaunchedEffect(isSetupComplete) {
         if (isSetupComplete != null) {
             if (currentScreen == null) {
-                currentScreen = if (isSetupComplete == true) Screen.HOME else Screen.ONBOARDING
+                // Check if we should open Quick Actions directly
+                if (pendingQuickActions && isSetupComplete == true && quickActionsPackage != null) {
+                    currentScreen = Screen.ISLAND_QUICK_ACTIONS
+                    pendingQuickActions = false
+                } else {
+                    currentScreen = if (isSetupComplete == true) Screen.HOME else Screen.ONBOARDING
+                }
             }
 
-            if (isSetupComplete == true) {
+            if (isSetupComplete == true && !pendingQuickActions) {
                 if (currentVersionCode > lastSeenVersion) {
                     showChangelog = true
                 } else if (!isPriorityEduShown && !showChangelog) {
@@ -216,6 +237,18 @@ fun MainRootNavigation() {
                     onSummaryListClick = { currentScreen = Screen.NOTIFICATION_SUMMARY }
                 )
                 Screen.NOTIFICATION_SUMMARY -> NotificationSummaryScreen(onBack = { currentScreen = Screen.SMART_FEATURES })
+
+                // --- ISLAND QUICK ACTIONS ---
+                Screen.ISLAND_QUICK_ACTIONS -> {
+                    if (quickActionsPackage != null) {
+                        IslandQuickActionsScreen(
+                            packageName = quickActionsPackage!!,
+                            onBack = { currentScreen = Screen.HOME }
+                        )
+                    } else {
+                        LaunchedEffect(Unit) { currentScreen = Screen.HOME }
+                    }
+                }
 
                 Screen.GLOBAL_BLOCKLIST -> GlobalBlocklistScreen(
                     onBack = { currentScreen = Screen.INFO },

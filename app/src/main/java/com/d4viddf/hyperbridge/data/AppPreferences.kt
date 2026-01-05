@@ -282,4 +282,53 @@ class AppPreferences(context: Context) {
 
     suspend fun setSummaryEnabled(enabled: Boolean) = save(SettingsKeys.SUMMARY_ENABLED, enabled.toString())
     suspend fun setSummaryHour(hour: Int) = save(SettingsKeys.SUMMARY_HOUR, hour.toString())
+
+    // --- HAPTICS ---
+    val hapticsEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.HAPTICS_ENABLED).map { it.toBoolean(true) }
+
+    suspend fun setHapticsEnabled(enabled: Boolean) = save(SettingsKeys.HAPTICS_ENABLED, enabled.toString())
+
+    // --- DISMISS COOLDOWN ---
+    val dismissCooldownSecondsFlow: Flow<Int> = dao.getSettingFlow(SettingsKeys.DISMISS_COOLDOWN_SECONDS).map { it.toInt(30) }
+
+    suspend fun setDismissCooldownSeconds(seconds: Int) = save(SettingsKeys.DISMISS_COOLDOWN_SECONDS, seconds.toString())
+
+    // --- PER-APP MUTE/BLOCK ---
+    val perAppMutedFlow: Flow<Set<String>> = dao.getSettingFlow(SettingsKeys.PER_APP_MUTED).map { it.deserializeSet() }
+    val perAppBlockedFlow: Flow<Set<String>> = dao.getSettingFlow(SettingsKeys.PER_APP_BLOCKED).map { it.deserializeSet() }
+
+    suspend fun setPerAppMuted(apps: Set<String>) = save(SettingsKeys.PER_APP_MUTED, apps.serialize())
+    suspend fun setPerAppBlocked(apps: Set<String>) = save(SettingsKeys.PER_APP_BLOCKED, apps.serialize())
+
+    suspend fun muteApp(packageName: String) {
+        val current = dao.getSetting(SettingsKeys.PER_APP_MUTED).deserializeSet()
+        save(SettingsKeys.PER_APP_MUTED, (current + packageName).serialize())
+    }
+
+    suspend fun unmuteApp(packageName: String) {
+        val current = dao.getSetting(SettingsKeys.PER_APP_MUTED).deserializeSet()
+        save(SettingsKeys.PER_APP_MUTED, (current - packageName).serialize())
+    }
+
+    suspend fun blockAppIslands(packageName: String) {
+        val current = dao.getSetting(SettingsKeys.PER_APP_BLOCKED).deserializeSet()
+        save(SettingsKeys.PER_APP_BLOCKED, (current + packageName).serialize())
+    }
+
+    suspend fun unblockAppIslands(packageName: String) {
+        val current = dao.getSetting(SettingsKeys.PER_APP_BLOCKED).deserializeSet()
+        save(SettingsKeys.PER_APP_BLOCKED, (current - packageName).serialize())
+    }
+
+    fun isAppMuted(packageName: String): Flow<Boolean> = perAppMutedFlow.map { it.contains(packageName) }
+    fun isAppBlocked(packageName: String): Flow<Boolean> = perAppBlockedFlow.map { it.contains(packageName) }
+
+    // --- SYSTEM BANNERS (AirPods-style) ---
+    val bannerBtConnectedEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.BANNER_BT_CONNECTED_ENABLED).map { it.toBoolean(false) }
+    val bannerBatteryLowEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.BANNER_BATTERY_LOW_ENABLED).map { it.toBoolean(false) }
+    val bannerCopiedEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.BANNER_COPIED_ENABLED).map { it.toBoolean(false) }
+
+    suspend fun setBannerBtConnectedEnabled(enabled: Boolean) = save(SettingsKeys.BANNER_BT_CONNECTED_ENABLED, enabled.toString())
+    suspend fun setBannerBatteryLowEnabled(enabled: Boolean) = save(SettingsKeys.BANNER_BATTERY_LOW_ENABLED, enabled.toString())
+    suspend fun setBannerCopiedEnabled(enabled: Boolean) = save(SettingsKeys.BANNER_COPIED_ENABLED, enabled.toString())
 }

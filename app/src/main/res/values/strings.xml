@@ -461,4 +461,37 @@
     <string name="summary_notification_title">Günlük Bildirim Özeti</string>
     <string name="summary_notification_text">Bugün: %d bildirim - %s</string>
     <string name="channel_summary">Bildirim Özeti</string>
+
+    <!-- Haptics & Interactions -->
+    <string name="haptics_title">Dokunsal Geri Bildirim</string>
+    <string name="haptics_desc">Ada gösterildiğinde ve işlemler tamamlandığında titreşim</string>
+
+    <!-- Dismiss Cooldown -->
+    <string name="cooldown_title">Kapatma Bekleme Süresi</string>
+    <string name="cooldown_desc">Kapatılan adaların tekrar gösterilmeden önce bekleyeceği süre</string>
+    <string name="cooldown_seconds">%d saniye</string>
+
+    <!-- Quick Actions -->
+    <string name="quick_actions_title">Hızlı İşlemler</string>
+    <string name="quick_actions_mute_title">Bu uygulamayı sessize al</string>
+    <string name="quick_actions_mute_desc">Geçici olarak bu uygulamadan ada gösterme</string>
+    <string name="quick_actions_block_title">Bu uygulamayı engelle</string>
+    <string name="quick_actions_block_desc">Bu uygulamadan kalıcı olarak ada gösterme</string>
+    <string name="quick_actions_info">Sessize alma geçicidir ve bekleme süresine bağlıdır. Engelleme kalıcıdır.</string>
+    <string name="action_options">Seçenekler</string>
+    <string name="action_dismiss">Kapat</string>
+
+    <!-- System Banners -->
+    <string name="banners_title">Sistem Afişleri</string>
+    <string name="banners_desc">Sistem olayları için kısa afişler göster</string>
+    <string name="banners_warning">Bazı HyperOS sürümleri zaten yerel afişler gösterir; yalnızca HyperIsle afişleri de istiyorsanız etkinleştirin.</string>
+    <string name="banner_bt_title">Bluetooth Bağlandı</string>
+    <string name="banner_bt_desc">Bir Bluetooth cihazı bağlandığında afiş göster</string>
+    <string name="banner_battery_title">Düşük Pil</string>
+    <string name="banner_battery_desc">Pil düşük olduğunda afiş göster</string>
+    <string name="banner_copied_title">Kopyalandı</string>
+    <string name="banner_copied_desc">Metin kopyalandığında afiş göster (henüz uygulanmadı)</string>
+    <string name="banner_bt_connected">Bluetooth bağlandı: %s</string>
+    <string name="banner_bt_unknown_device">Bilinmeyen Cihaz</string>
+    <string name="banner_battery_low">Pil düşük</string>
 </resources>

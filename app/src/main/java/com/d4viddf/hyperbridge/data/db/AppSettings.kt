@@ -52,4 +52,19 @@ object SettingsKeys {
     // Notification Summary
     const val SUMMARY_ENABLED = "summary_enabled"
     const val SUMMARY_HOUR = "summary_hour"
+
+    // Haptics
+    const val HAPTICS_ENABLED = "haptics_enabled"
+
+    // Dismiss Cooldown
+    const val DISMISS_COOLDOWN_SECONDS = "dismiss_cooldown_seconds"
+
+    // Per-App Mute/Block
+    const val PER_APP_MUTED = "per_app_muted"
+    const val PER_APP_BLOCKED = "per_app_blocked"
+
+    // System Banners (AirPods-style)
+    const val BANNER_BT_CONNECTED_ENABLED = "banner_bt_connected_enabled"
+    const val BANNER_BATTERY_LOW_ENABLED = "banner_battery_low_enabled"
+    const val BANNER_COPIED_ENABLED = "banner_copied_enabled"
 }

@@ -25,6 +25,15 @@
     * **⬇️ Downloads:** Circular progress ring with a satisfying "Green Tick" animation upon completion.
     * **📞 Calls:** Dedicated layout for incoming and active calls with timers.
     * **🔕 System Notifications:** DND, Silent mode is visible from island.
+    * **✨ Smart Silence:** Prevents spammy repeats within a configurable time window.
+    * **🎯 Focus Mode:** Quiet-hours rules can override floating/timeout behavior and restrict which types are shown.
+    * **🧾 Notification Summary:** Optional daily digest notification (iOS-style summary).
+    * **📳 Haptics:** Subtle “shown” haptic on island display + distinct “success” haptic on dismiss.
+    * **🧩 Standard Actions:** Consistent island interactions:
+  	 * Tap: opens the source app (with safe fallback)
+   	 * Options: opens Quick Actions (mute/block per app)
+  	 * Dismiss: closes the island and applies cooldown (prevents immediate re-appearing)
+
 * **🛡️ Spoiler Protection:** Define blocked terms globally or per-app to prevent specific notifications (e.g., message spoilers) from popping up on the Island.
 * **👻 Ghost Mode:** Option to hide the persistent service notification from the system shade while keeping the Island fully active.
 * **Total Control:** Choose exactly which apps trigger the island, customize timeouts, and toggle floating behavior per app.

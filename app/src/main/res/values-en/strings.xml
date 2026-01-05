@@ -452,4 +452,37 @@
     <string name="summary_notification_title">Daily Notification Summary</string>
     <string name="summary_notification_text">Today: %d notifications - %s</string>
     <string name="channel_summary">Notification Summary</string>
+
+    <!-- Haptics & Interactions -->
+    <string name="haptics_title">Haptic Feedback</string>
+    <string name="haptics_desc">Vibrate when islands are shown and actions complete</string>
+
+    <!-- Dismiss Cooldown -->
+    <string name="cooldown_title">Dismiss Cooldown</string>
+    <string name="cooldown_desc">Time before dismissed islands can appear again</string>
+    <string name="cooldown_seconds">%d seconds</string>
+
+    <!-- Quick Actions -->
+    <string name="quick_actions_title">Quick Actions</string>
+    <string name="quick_actions_mute_title">Mute this app</string>
+    <string name="quick_actions_mute_desc">Temporarily stop showing islands from this app</string>
+    <string name="quick_actions_block_title">Block this app</string>
+    <string name="quick_actions_block_desc">Permanently stop showing islands from this app</string>
+    <string name="quick_actions_info">Muting is temporary and based on cooldown. Blocking is permanent.</string>
+    <string name="action_options">Options</string>
+    <string name="action_dismiss">Dismiss</string>
+
+    <!-- System Banners -->
+    <string name="banners_title">System Banners</string>
+    <string name="banners_desc">Show short banners for system events</string>
+    <string name="banners_warning">Some HyperOS versions already show native banners; enable only if you want HyperIsle banners too.</string>
+    <string name="banner_bt_title">Bluetooth Connected</string>
+    <string name="banner_bt_desc">Show banner when a Bluetooth device connects</string>
+    <string name="banner_battery_title">Battery Low</string>
+    <string name="banner_battery_desc">Show banner when battery is low</string>
+    <string name="banner_copied_title">Copied</string>
+    <string name="banner_copied_desc">Show banner when text is copied (not yet implemented)</string>
+    <string name="banner_bt_connected">Bluetooth connected: %s</string>
+    <string name="banner_bt_unknown_device">Unknown Device</string>
+    <string name="banner_battery_low">Battery low</string>
 </resources>
