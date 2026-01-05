@@ -53,7 +53,7 @@ import com.d4viddf.hyperbridge.ui.screens.settings.NavCustomizationScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.PrioritySettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.SetupHealthScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.SmartFeaturesScreen
-import com.d4viddf.hyperbridge.ui.screens.settings.NotificationSummaryScreen
+import com.d4viddf.hyperbridge.ui.screens.settings.NotificationSummaryScreenV2
 import com.d4viddf.hyperbridge.ui.theme.HyperBridgeTheme
 import com.d4viddf.hyperbridge.util.BackupManager
 import com.d4viddf.hyperbridge.worker.NotificationSummaryWorker
@@ -236,7 +236,7 @@ fun MainRootNavigation(
                     onBack = { currentScreen = Screen.INFO },
                     onSummaryListClick = { currentScreen = Screen.NOTIFICATION_SUMMARY }
                 )
-                Screen.NOTIFICATION_SUMMARY -> NotificationSummaryScreen(onBack = { currentScreen = Screen.SMART_FEATURES })
+                Screen.NOTIFICATION_SUMMARY -> NotificationSummaryScreenV2(onBack = { currentScreen = Screen.SMART_FEATURES })
 
                 // --- ISLAND QUICK ACTIONS ---
                 Screen.ISLAND_QUICK_ACTIONS -> {

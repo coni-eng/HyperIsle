@@ -1,13 +1,25 @@
 \## \[Unreleased]
 
 
+\## \[v0.9.0] - Context Presets & Summary Upgrades
+
+1) Context presets: OFF/MEETING/DRIVING/HEADPHONES
+- store preset in AppPreferences
+- apply rules in NotificationReaderService (non-media only)
+- keep Focus as strongest override
+
+2) Summary upgrades:
+- time-bucket grouping view (morning/noon/evening) (UI grouping is enough; scheduling optional)
+- top 3 apps by count (last 24h)
+- inline actions in summary list: mute/block app (reuse existing Quick Actions logic)
+
 
 \## \[v0.8.0] - POLISHES
 
-A) Live Activity final polish:
+1) Live Activity final polish:
 - minVisibleMs (default 700ms)
 - same-content dedupe window (default 1500ms)
-B) Smart Priority learning improvements:
+2) Smart Priority learning improvements:
 - weighted decay across last 3 days (1.0/0.6/0.3)
 - quiet-hours bias (22:00–07:00): stronger short-term throttle, weaker long-term penalty
 - per-type multipliers (CALL/TIMER/NAV lenient, STANDARD stricter)

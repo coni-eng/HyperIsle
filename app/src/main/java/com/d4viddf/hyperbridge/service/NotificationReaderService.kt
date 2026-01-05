@@ -347,16 +347,25 @@ class NotificationReaderService : NotificationListenerService() {
 
             // --- PER-APP BLOCK CHECK ---
             if (perAppBlocked.contains(sbn.packageName)) {
+                if (summaryEnabled) {
+                    insertDigestItem(sbn.packageName, title, text, type.name)
+                }
                 return
             }
 
             // --- PER-APP MUTE CHECK (uses cooldown) ---
             if (perAppMuted.contains(sbn.packageName)) {
+                if (summaryEnabled) {
+                    insertDigestItem(sbn.packageName, title, text, type.name)
+                }
                 return
             }
 
             // --- COOLDOWN CHECK (after explicit dismiss) ---
             if (IslandCooldownManager.isInCooldown(applicationContext, sbn.packageName, type.name)) {
+                if (summaryEnabled) {
+                    insertDigestItem(sbn.packageName, title, text, type.name)
+                }
                 return
             }
 
@@ -607,8 +616,21 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
+    // Deduplication cache: "pkg:title:text" -> timestamp
+    private val digestDedupeCache = ConcurrentHashMap<String, Long>()
+    private val DIGEST_DEDUPE_WINDOW_MS = 2000L
+
     private suspend fun insertDigestItem(packageName: String, title: String, text: String, type: String) {
         try {
+            // Deduplication: skip if same pkg+title+text within 2 seconds
+            val dedupeKey = "$packageName:$title:$text"
+            val now = System.currentTimeMillis()
+            val lastInsert = digestDedupeCache[dedupeKey]
+            if (lastInsert != null && (now - lastInsert) < DIGEST_DEDUPE_WINDOW_MS) {
+                return
+            }
+            digestDedupeCache[dedupeKey] = now
+
             database.digestDao().insert(
                 NotificationDigestItem(
                     packageName = packageName,
