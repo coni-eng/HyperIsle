@@ -1,6 +1,23 @@
 \## \[Unreleased]
 
 
+\## \[v0.9.1] - Summary Digest
+
+1) Navigation / entrypoint
+- Ensure Settings screen has a clear entry “Notification Summary” that opens NotificationSummaryScreenV2.kt.
+- If navigation graph exists, add route and hook from settings list item.
+- If using simple Compose navigation in MainActivity, add route there.
+
+2) Digest recording for suppressed notifications
+- In NotificationReaderService.kt, identify all early-return suppression points:
+  - Cooldown deny
+  - Focus deny
+  - Context deny
+  - Priority deny (burst/throttle)
+  - Spoiler protection deny
+
+
+
 \## \[v0.9.0] - Context Presets & Summary Upgrades
 
 1) Context presets: OFF/MEETING/DRIVING/HEADPHONES
