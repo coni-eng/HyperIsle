@@ -29,6 +29,7 @@ fun LicensesScreen(onBack: () -> Unit) {
     val uriHandler = LocalUriHandler.current
 
     val libs = listOf(
+        Library("HyperBridge (Original App)", "D4vidDf", "Apache 2.0", "https://github.com/D4vidDf/HyperBridge"),
         Library("HyperIsland-ToolKit", "D4vidDf", "Apache 2.0", "https://github.com/D4vidDf/HyperIsland-ToolKit"),
         Library("Jetpack Compose", "Google", "Apache 2.0", "https://developer.android.com/jetpack/compose"),
         Library("Material 3", "Google", "Apache 2.0", "https://m3.material.io/"),

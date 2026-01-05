@@ -68,7 +68,7 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
             )
         }
 
-        builder.setSmallIslandIcon(picKey)
+        builder.setSmallIsland(picKey)
 
         actions.forEach {
             builder.addAction(it.action)

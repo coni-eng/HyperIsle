@@ -65,7 +65,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    implementation(libs.hyperisland.kit)
+    implementation("io.github.d4viddf:hyperisland_kit:0.4.4") // Resolved from toolkit submodule via composite build
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 

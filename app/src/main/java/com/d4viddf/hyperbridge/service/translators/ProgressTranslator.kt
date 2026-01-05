@@ -79,7 +79,7 @@ class ProgressTranslator(context: Context) : BaseTranslator(context) {
                 left = ImageTextInfoLeft(1, PicInfo(1, hiddenKey), TextInfo("", "")),
                 right = ImageTextInfoRight(1, PicInfo(1, tickKey), TextInfo("Finished", title))
             )
-            builder.setSmallIslandIcon(tickKey)
+            builder.setSmallIsland(tickKey)
         } else {
             builder.setBigIslandInfo(
                 left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo("", "")),
@@ -95,9 +95,9 @@ class ProgressTranslator(context: Context) : BaseTranslator(context) {
                     blueColor,
                     true,
                 )
-                builder.setSmallIslandCircularProgress(picKey, percent, blueColor, true)
+                builder.setSmallIslandCircularProgress(picKey, percent, blueColor, isCCW = true)
             } else {
-                builder.setSmallIslandIcon(picKey)
+                builder.setSmallIsland(picKey)
             }
         }
 

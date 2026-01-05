@@ -93,7 +93,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             right = ImageTextInfoRight(2, PicInfo(1, hiddenKey), TextInfo(rightText, ""))
         )
 
-        builder.setSmallIslandIcon(picKey)
+        builder.setSmallIsland(picKey)
 
         return HyperIslandData(builder.buildResourceBundle(), builder.buildJsonParam())
     }
@@ -173,10 +173,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
                 icon = actionIcon,
                 pendingIntent = action.actionIntent,
                 actionIntentType = 1,
-                false,
-                0,
-                null,
-                bgColor
+                actionBgColor = bgColor
             )
 
             results.add(BridgeAction(hyperAction, hyperPic))

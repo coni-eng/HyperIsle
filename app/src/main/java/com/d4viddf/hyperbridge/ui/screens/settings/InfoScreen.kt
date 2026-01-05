@@ -215,11 +215,11 @@ fun InfoScreen(
                     SettingsGroupCard {
                         SettingsItem(Icons.Default.Language, stringResource(R.string.language), stringResource(R.string.language_desc)) { showLanguageDialog = true }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.Person, stringResource(R.string.developer), stringResource(R.string.developer_subtitle)) { uriHandler.openUri("https://d4viddf.com") }
+                        SettingsItem(Icons.Default.Person, stringResource(R.string.developer), stringResource(R.string.developer_subtitle)) { uriHandler.openUri("https://github.com/coni-eng") }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
                         SettingsItem(Icons.Default.History, stringResource(R.string.version_history), "0.1.0 - $appVersion", onHistoryClick)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.Code, stringResource(R.string.source_code), stringResource(R.string.source_code_subtitle)) { uriHandler.openUri("https://github.com/D4vidDf/HyperBridge") }
+                        SettingsItem(Icons.Default.Code, stringResource(R.string.source_code), stringResource(R.string.source_code_subtitle)) { uriHandler.openUri("https://github.com/coni-eng/HyperIsle") }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
                         SettingsItem(Icons.Default.Description, stringResource(R.string.licenses), stringResource(R.string.licenses_subtitle), onLicensesClick)
                     }
@@ -248,15 +248,8 @@ fun InfoScreen(
 fun LanguageSelectorDialog(onDismiss: () -> Unit) {
     val languages = mapOf(
         stringResource(R.string.system_default) to "",
-        "Deutsch" to "de",
-        "English" to "en",
-        "Español" to "es",
-        "Português (BR)" to "pt-BR",
-        "Polski" to "pl",
-        "Korean" to "ko",
-        "Русский" to "ru",
-        "Українська" to "uk"
-
+        "Türkçe" to "tr",
+        "English" to "en"
     )
     val currentAppLocales = AppCompatDelegate.getApplicationLocales()
     val initialTag = if (!currentAppLocales.isEmpty) currentAppLocales.toLanguageTags().split(",")[0] else ""

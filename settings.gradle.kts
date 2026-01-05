@@ -19,6 +19,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Hyper Bridge"
+rootProject.name = "HyperIsle"
 include(":app")
+includeBuild("toolkit")
+
  

@@ -1,9 +1,9 @@
 ---
 name: 🐛 Bug Report
-about: Create a report to help us improve HyperBridge
+about: Create a report to help us improve HyperIsle
 title: "[BUG] "
 labels: "type: bug"
-assignees: D4vidDf
+assignees: ''
 ---
 
 **Device Information**
