@@ -494,4 +494,15 @@
     <string name="banner_bt_connected">Bluetooth bağlandı: %s</string>
     <string name="banner_bt_unknown_device">Bilinmeyen Cihaz</string>
     <string name="banner_battery_low">Pil düşük</string>
+
+    <!-- Smart Priority (v0.6.0) -->
+    <string name="smart_priority_title">Akıllı Öncelik</string>
+    <string name="smart_priority_desc">Spam bildirimleri otomatik olarak azalt</string>
+    <string name="smart_priority_aggressiveness">Agresiflik Seviyesi</string>
+    <string name="smart_priority_info">Yüksek kapatma oranına sahip uygulamalar otomatik olarak kısıtlanır. Aramalar, zamanlayıcılar ve navigasyon her zaman gösterilir.</string>
+    <string name="aggressiveness_low">Düşük</string>
+    <string name="aggressiveness_medium">Orta</string>
+    <string name="aggressiveness_high">Yüksek</string>
+    <string name="quick_actions_throttle_title">Bu uygulamayı kısıtla</string>
+    <string name="quick_actions_throttle_desc">2 saat boyunca bu uygulamadan bildirimleri azalt</string>
 </resources>

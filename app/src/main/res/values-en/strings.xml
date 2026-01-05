@@ -485,4 +485,15 @@
     <string name="banner_bt_connected">Bluetooth connected: %s</string>
     <string name="banner_bt_unknown_device">Unknown Device</string>
     <string name="banner_battery_low">Battery low</string>
+
+    <!-- Smart Priority (v0.6.0) -->
+    <string name="smart_priority_title">Smart Priority</string>
+    <string name="smart_priority_desc">Automatically reduce notification spam</string>
+    <string name="smart_priority_aggressiveness">Aggressiveness Level</string>
+    <string name="smart_priority_info">Apps with high dismiss rates are auto-throttled. Calls, timers, and navigation always show.</string>
+    <string name="aggressiveness_low">Low</string>
+    <string name="aggressiveness_medium">Medium</string>
+    <string name="aggressiveness_high">High</string>
+    <string name="quick_actions_throttle_title">Throttle this app</string>
+    <string name="quick_actions_throttle_desc">Reduce notifications from this app for 2 hours</string>
 </resources>

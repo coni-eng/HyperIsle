@@ -33,6 +33,11 @@
       * **Tap:**  opens the source app (with safe fallback)
       * **Options:** opens Quick Actions (mute/block per app)
   	  * **Dismiss:**  closes the island and applies cooldown (prevents immediate re-appearing)
+    *  **🧠 Smart UX:**
+       * **🧠 Live Activity Engine:** Islands update smoothly instead of stacking.
+       * **⚡ Smart Priority:** Spam detection and auto-throttling based on user behavior.
+       * **📱 Context-Aware Islands:** Adapts behavior based on screen and charging state.
+       * **🎨 Adaptive Visuals:** App-based accent colors and polished progress animations.
 
 * **🛡️ Spoiler Protection:** Define blocked terms globally or per-app to prevent specific notifications (e.g., message spoilers) from popping up on the Island.
 * **👻 Ghost Mode:** Option to hide the persistent service notification from the system shade while keeping the Island fully active.

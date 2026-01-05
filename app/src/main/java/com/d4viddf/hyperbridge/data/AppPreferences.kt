@@ -331,4 +331,37 @@ class AppPreferences(context: Context) {
     suspend fun setBannerBtConnectedEnabled(enabled: Boolean) = save(SettingsKeys.BANNER_BT_CONNECTED_ENABLED, enabled.toString())
     suspend fun setBannerBatteryLowEnabled(enabled: Boolean) = save(SettingsKeys.BANNER_BATTERY_LOW_ENABLED, enabled.toString())
     suspend fun setBannerCopiedEnabled(enabled: Boolean) = save(SettingsKeys.BANNER_COPIED_ENABLED, enabled.toString())
+
+    // --- SMART PRIORITY (v0.6.0) ---
+    val smartPriorityEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SMART_PRIORITY_ENABLED).map { it.toBoolean(true) }
+    val smartPriorityAggressivenessFlow: Flow<Int> = dao.getSettingFlow(SettingsKeys.SMART_PRIORITY_AGGRESSIVENESS).map { it.toInt(1) }
+
+    suspend fun setSmartPriorityEnabled(enabled: Boolean) = save(SettingsKeys.SMART_PRIORITY_ENABLED, enabled.toString())
+    suspend fun setSmartPriorityAggressiveness(level: Int) = save(SettingsKeys.SMART_PRIORITY_AGGRESSIVENESS, level.toString())
+
+    // Dynamic keys for dismiss counts and throttle
+    suspend fun getPriorityDismissCount(packageName: String, typeName: String, dateKey: String): Int {
+        val key = "priority_dismiss_${packageName}_${typeName}_$dateKey"
+        return dao.getSetting(key).toInt(0)
+    }
+
+    suspend fun setPriorityDismissCount(packageName: String, typeName: String, dateKey: String, count: Int) {
+        val key = "priority_dismiss_${packageName}_${typeName}_$dateKey"
+        save(key, count.toString())
+    }
+
+    suspend fun getPriorityThrottleUntil(packageName: String, typeName: String): Long {
+        val key = "priority_throttle_until_${packageName}_$typeName"
+        return dao.getSetting(key).toLong(0L)
+    }
+
+    suspend fun setPriorityThrottleUntil(packageName: String, typeName: String, timestamp: Long) {
+        val key = "priority_throttle_until_${packageName}_$typeName"
+        save(key, timestamp.toString())
+    }
+
+    suspend fun clearPriorityThrottleUntil(packageName: String, typeName: String) {
+        val key = "priority_throttle_until_${packageName}_$typeName"
+        remove(key)
+    }
 }

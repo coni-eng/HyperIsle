@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.BedtimeOff
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,6 +59,10 @@ fun SmartFeaturesScreen(
     // Dismiss Cooldown
     val dismissCooldownSeconds by preferences.dismissCooldownSecondsFlow.collectAsState(initial = 30)
 
+    // Smart Priority
+    val smartPriorityEnabled by preferences.smartPriorityEnabledFlow.collectAsState(initial = true)
+    val smartPriorityAggressiveness by preferences.smartPriorityAggressivenessFlow.collectAsState(initial = 1)
+
     // System Banners
     val bannerBtEnabled by preferences.bannerBtConnectedEnabledFlow.collectAsState(initial = false)
     val bannerBatteryEnabled by preferences.bannerBatteryLowEnabledFlow.collectAsState(initial = false)
@@ -82,6 +87,82 @@ fun SmartFeaturesScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // --- SMART PRIORITY ---
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Speed,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    stringResource(R.string.smart_priority_title),
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    stringResource(R.string.smart_priority_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = smartPriorityEnabled,
+                            onCheckedChange = { scope.launch { preferences.setSmartPriorityEnabled(it) } }
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = smartPriorityEnabled,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column {
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(12.dp))
+
+                            Text(
+                                stringResource(R.string.smart_priority_aggressiveness),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                            Spacer(Modifier.height(4.dp))
+
+                            val aggressivenessLabels = listOf(
+                                stringResource(R.string.aggressiveness_low),
+                                stringResource(R.string.aggressiveness_medium),
+                                stringResource(R.string.aggressiveness_high)
+                            )
+                            Text(
+                                aggressivenessLabels.getOrElse(smartPriorityAggressiveness) { aggressivenessLabels[1] },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Slider(
+                                value = smartPriorityAggressiveness.toFloat(),
+                                onValueChange = { scope.launch { preferences.setSmartPriorityAggressiveness(it.toInt()) } },
+                                valueRange = 0f..2f,
+                                steps = 1
+                            )
+                            Text(
+                                stringResource(R.string.smart_priority_info),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             // --- SMART SILENCE ---
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.padding(16.dp)) {

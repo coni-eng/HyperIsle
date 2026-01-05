@@ -67,4 +67,11 @@ object SettingsKeys {
     const val BANNER_BT_CONNECTED_ENABLED = "banner_bt_connected_enabled"
     const val BANNER_BATTERY_LOW_ENABLED = "banner_battery_low_enabled"
     const val BANNER_COPIED_ENABLED = "banner_copied_enabled"
+
+    // Smart Priority (v0.6.0)
+    const val SMART_PRIORITY_ENABLED = "smart_priority_enabled"
+    const val SMART_PRIORITY_AGGRESSIVENESS = "smart_priority_aggressiveness"
+    // Dynamic keys (not constants):
+    // priority_dismiss_{pkg}_{type}_{yyyyMMdd} - daily dismiss counter
+    // priority_throttle_until_{pkg}_{type} - throttle expiry timestamp
 }

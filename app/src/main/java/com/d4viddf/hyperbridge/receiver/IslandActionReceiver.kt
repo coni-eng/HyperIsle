@@ -6,8 +6,14 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.d4viddf.hyperbridge.MainActivity
+import com.d4viddf.hyperbridge.data.AppPreferences
 import com.d4viddf.hyperbridge.util.Haptics
 import com.d4viddf.hyperbridge.util.IslandCooldownManager
+import com.d4viddf.hyperbridge.util.PriorityEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * BroadcastReceiver for handling island action button clicks.
@@ -94,6 +100,18 @@ class IslandActionReceiver : BroadcastReceiver() {
         if (targetPackage != null && targetType != null) {
             IslandCooldownManager.recordDismissal(targetPackage, targetType)
             Log.d(TAG, "Recorded cooldown for $targetPackage:$targetType")
+            
+            // Increment dismiss counter for PriorityEngine (auto-throttle)
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val preferences = AppPreferences(context)
+                    val aggressiveness = preferences.smartPriorityAggressivenessFlow.first()
+                    PriorityEngine.recordDismiss(preferences, targetPackage, targetType, aggressiveness)
+                    Log.d(TAG, "Recorded PriorityEngine dismiss for $targetPackage:$targetType")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to record PriorityEngine dismiss: ${e.message}")
+                }
+            }
         }
         
         // Clear meta for this notification ID

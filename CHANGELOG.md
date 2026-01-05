@@ -1,48 +1,96 @@
-\## Unreleased
+\## \[Unreleased]
 
 
+
+\## \[v0.7.0] - CONTEXT-AWARE ISLANDS
+
+\### Added
+
+\- Context-Aware Islands support (screen-off filtering for important notification types).
+
+\- Battery-charging suppression for HyperIsle battery banners.
+
+\- ContextSignalsReceiver for screen and power broadcasts.
+
+\- Settings UI for context-aware options.
+
+\- Persistent context state via AppPreferences.
+
+
+
+\### Changed
+
+\- NotificationReaderService respects context before posting islands.
+
+\- Smart Features updated with context toggles and descriptions.
+
+
+
+---
+
+
+
+\## \[v0.6.0] - SMART PRIORITY ENGINE
+
+\### Added
+
+\- PriorityEngine for spam detection and throttling.
+
+\- Smart Priority settings + aggressiveness slider.
+
+\- Auto-throttle option in Quick Actions per app.
+
+\- Dismiss counters integrated with PriorityEngine.
+
+
+
+\### Changed
+
+\- NotificationReaderService consults PriorityEngine before posting.
+
+\- IslandActionReceiver increments dismiss counters.
+
+
+
+---
+
+
+
+\## \[v0.5.0] - LIVE ACTIVITY \& ADAPTIVE VISUALS
+
+\### Added
+
+\- Live Activity state machine (CREATED → UPDATED → COMPLETED).
+
+\- IslandActivityStateMachine to manage island lifecycle.
+
+\- Adaptive accent color extraction from app icons.
+
+\- Progress smoothing and completion visuals + haptics.
+
+
+
+\### Changed
+
+\- ProgressTranslator improved for smoother updates.
+
+\- StandardTranslator integrates adaptive visuals.
+
+
+
+---
+
+
+
+\## \[Unreleased Before v0.5.0]
 
 \- Music Island:
 
-&nbsp; - SYSTEM\_ONLY (default): Uses HyperOS native music island only.
+&nbsp; - SYSTEM\_ONLY (default): Uses HyperOS native music island.
 
-&nbsp; - BLOCK\_SYSTEM (advanced): Suppresses HyperOS music island by cancelling MediaStyle notifications for selected apps (may remove lockscreen controls).
-
-
+&nbsp; - BLOCK\_SYSTEM (advanced): Cancels MediaStyle notifications for selected apps.
 
 \- System states (DND / Silent):
 
-&nbsp; - App-generated islands are disabled by default when meaningful customization is not possible.
-
-&nbsp; - HyperOS native behavior is preferred.
-
-
-
-\- iOS-like Smart UX:
-
-&nbsp; - Smart Silence: Suppresses repeated islands within a configurable time window.
-
-&nbsp; - Focus Mode: Quiet-hours rules to reduce interruptions (override float/timeout; restrict allowed types).
-
-&nbsp; - Notification Summary: Optional daily digest notification.
-
-&nbsp; - Haptics: Light “shown” feedback and distinct “success” feedback on dismiss.
-
-&nbsp; - Standard Actions + Cooldown:
-
-&nbsp;   - Tap opens source app (fallback to App Info if needed).
-
-&nbsp;   - Options opens Quick Actions (mute/block per app).
-
-&nbsp;   - Dismiss closes the correct island and starts cooldown for that app/type.
-
-&nbsp;   - Fix: Dismiss is now per-island safe using unique action keys + explicit receiver binding (prevents wrong-island dismiss). :contentReference\[oaicite:1]{index=1}
-
-
-
-\- System Banners (optional):
-
-&nbsp; - AirPods-style short banners for Bluetooth connected and Battery low (default OFF to avoid duplicating HyperOS native UI).
-
-
+&nbsp; - App islands disabled when HyperOS native behavior is preferred.
 

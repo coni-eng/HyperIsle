@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,6 +23,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.data.AppPreferences
 import com.d4viddf.hyperbridge.util.IslandCooldownManager
+import com.d4viddf.hyperbridge.util.PriorityEngine
 import kotlinx.coroutines.launch
 
 /**
@@ -60,6 +62,12 @@ fun IslandQuickActionsScreen(
     // State
     val isMuted by preferences.isAppMuted(packageName).collectAsState(initial = false)
     val isBlocked by preferences.isAppBlocked(packageName).collectAsState(initial = false)
+    var isThrottled by remember { mutableStateOf(false) }
+
+    // Check throttle status on launch
+    LaunchedEffect(packageName) {
+        isThrottled = PriorityEngine.isAppThrottled(preferences, packageName)
+    }
 
     Scaffold(
         topBar = {
@@ -210,6 +218,56 @@ fun IslandQuickActionsScreen(
                                 } else {
                                     preferences.unblockAppIslands(packageName)
                                 }
+                            }
+                        }
+                    )
+                }
+            }
+
+            // Auto-throttle Option
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Speed,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary
+                        )
+                        Column {
+                            Text(
+                                stringResource(R.string.quick_actions_throttle_title),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                stringResource(R.string.quick_actions_throttle_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isThrottled,
+                        onCheckedChange = { checked ->
+                            scope.launch {
+                                if (checked) {
+                                    PriorityEngine.manualThrottle(preferences, packageName)
+                                } else {
+                                    PriorityEngine.clearThrottle(preferences, packageName)
+                                }
+                                isThrottled = checked
                             }
                         }
                     )

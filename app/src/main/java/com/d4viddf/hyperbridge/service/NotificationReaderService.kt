@@ -38,6 +38,7 @@ import com.d4viddf.hyperbridge.models.IslandConfig
 import com.d4viddf.hyperbridge.util.Haptics
 import com.d4viddf.hyperbridge.util.IslandActivityStateMachine
 import com.d4viddf.hyperbridge.util.IslandCooldownManager
+import com.d4viddf.hyperbridge.util.PriorityEngine
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -74,6 +75,10 @@ class NotificationReaderService : NotificationListenerService() {
     // Per-app mute/block cache
     private var perAppMuted: Set<String> = emptySet()
     private var perAppBlocked: Set<String> = emptySet()
+
+    // Smart Priority cache
+    private var smartPriorityEnabled = true
+    private var smartPriorityAggressiveness = 1
 
     // --- CACHES ---
     // Replace Policy: groupKey -> ActiveIsland (instead of sbn.key)
@@ -136,6 +141,10 @@ class NotificationReaderService : NotificationListenerService() {
         // Per-app mute/block observers
         serviceScope.launch { preferences.perAppMutedFlow.collectLatest { perAppMuted = it } }
         serviceScope.launch { preferences.perAppBlockedFlow.collectLatest { perAppBlocked = it } }
+
+        // Smart Priority observers
+        serviceScope.launch { preferences.smartPriorityEnabledFlow.collectLatest { smartPriorityEnabled = it } }
+        serviceScope.launch { preferences.smartPriorityAggressivenessFlow.collectLatest { smartPriorityAggressiveness = it } }
 
         // Database for digest
         database = AppDatabase.getDatabase(applicationContext)
@@ -331,6 +340,27 @@ class NotificationReaderService : NotificationListenerService() {
                 return
             }
 
+            // --- SMART PRIORITY CHECK ---
+            val priorityDecision = PriorityEngine.evaluate(
+                applicationContext,
+                preferences,
+                sbn.packageName,
+                type.name,
+                smartPriorityEnabled,
+                smartPriorityAggressiveness
+            )
+            when (priorityDecision) {
+                is PriorityEngine.Decision.BlockBurst,
+                is PriorityEngine.Decision.BlockThrottle -> {
+                    // Log to digest if enabled, but don't show island
+                    if (summaryEnabled) {
+                        insertDigestItem(sbn.packageName, title, text, type.name)
+                    }
+                    return
+                }
+                is PriorityEngine.Decision.Allow -> { /* continue */ }
+            }
+
             // --- REPLACE POLICY: Use groupKey instead of sbn.key ---
             val groupKey = "${sbn.packageName}:${type.name}"
             val bridgeId = groupKey.hashCode()
@@ -457,6 +487,40 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    private fun postNotification(sbn: StatusBarNotification, bridgeId: Int, groupKey: String, notificationType: String, data: HyperIslandData) {
+        val notificationBuilder = NotificationCompat.Builder(this, ISLAND_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.service_active))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .addExtras(data.resources)
+
+        // Set contentIntent: prefer original, fallback to app launch intent
+        val contentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
+        contentIntent?.let { notificationBuilder.setContentIntent(it) }
+
+        val notification = notificationBuilder.build()
+        notification.extras.putString("miui.focus.param", data.jsonParam)
+
+        NotificationManagerCompat.from(this).notify(bridgeId, notification)
+        activeTranslations[groupKey] = bridgeId
+
+        // Record shown for PriorityEngine burst tracking
+        PriorityEngine.recordShown(sbn.packageName, notificationType)
+
+        // Store island meta for per-island action handling
+        IslandCooldownManager.setIslandMeta(bridgeId, sbn.packageName, notificationType)
+
+        // Store last active island info for receiver usage (fallback)
+        IslandCooldownManager.setLastActiveIsland(bridgeId, sbn.packageName, notificationType)
+
+        // Haptic feedback when island is shown
+        Haptics.hapticOnIslandShown(applicationContext)
+    }
+
     private fun isInQuietHours(): Boolean {
         return try {
             val now = LocalTime.now()
@@ -513,37 +577,6 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             }
         }
-    }
-
-    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    private fun postNotification(sbn: StatusBarNotification, bridgeId: Int, groupKey: String, notificationType: String, data: HyperIslandData) {
-        val notificationBuilder = NotificationCompat.Builder(this, ISLAND_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.service_active))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .addExtras(data.resources)
-
-        // Set contentIntent: prefer original, fallback to app launch intent
-        val contentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
-        contentIntent?.let { notificationBuilder.setContentIntent(it) }
-
-        val notification = notificationBuilder.build()
-        notification.extras.putString("miui.focus.param", data.jsonParam)
-
-        NotificationManagerCompat.from(this).notify(bridgeId, notification)
-        activeTranslations[groupKey] = bridgeId
-
-        // Store island meta for per-island action handling
-        IslandCooldownManager.setIslandMeta(bridgeId, sbn.packageName, notificationType)
-
-        // Store last active island info for receiver usage (fallback)
-        IslandCooldownManager.setLastActiveIsland(bridgeId, sbn.packageName, notificationType)
-
-        // Haptic feedback when island is shown
-        Haptics.hapticOnIslandShown(applicationContext)
     }
 
     private fun createLaunchIntent(packageName: String): android.app.PendingIntent? {
