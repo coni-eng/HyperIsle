@@ -369,6 +369,38 @@
     <string name="privacy_card_title">Offline First</string>
     <string name="privacy_card_desc">No internet connection required.</string>
 
+    <!-- System Modes Notifications -->
+    <string name="mode_silent_enabled">Silent mode enabled</string>
+    <string name="mode_vibrate_enabled">Vibrate mode enabled</string>
+    <string name="mode_sound_enabled">Sound mode enabled</string>
+    <string name="dnd_enabled">Do Not Disturb enabled</string>
+    <string name="dnd_priority">Do Not Disturb: Priority only</string>
+    <string name="dnd_alarms">Do Not Disturb: Alarms only</string>
+    <string name="dnd_disabled">Do Not Disturb disabled</string>
+    <string name="dnd_changed_generic">Do Not Disturb state changed (permission may be required)</string>
+    <string name="channel_system_island">System State Island</string>
+    <string name="channel_system_modes">System Mode Notifications</string>
+
+    <!-- Music Island Settings -->
+    <string name="music_island_title">Music Island</string>
+    <string name="music_island_desc">Configure island behavior for music notifications</string>
+    <string name="music_mode_system_only">System (Default)</string>
+    <string name="music_mode_system_only_desc">HyperOS handles music island natively. HyperIsle will not generate islands for music.</string>
+    <string name="music_mode_block_system">Block System (Advanced)</string>
+    <string name="music_mode_block_system_desc">Hide HyperOS music island by canceling music notifications from selected apps.</string>
+    <string name="music_block_warning_title">Warning: Lockscreen Controls</string>
+    <string name="music_block_warning_message">This mode cancels music notifications from selected apps.\n\nThis may cause your lockscreen music controls to disappear. You may need to select at least one music app to avoid breaking your lockscreen experience.</string>
+    <string name="music_select_apps">Select Apps to Block</string>
+    <string name="music_select_apps_desc">Music notifications from these apps will be canceled</string>
+    <string name="music_no_apps_selected">You must select at least one app</string>
+    <string name="music_block_enabled_toast">System music island disabled for selected apps</string>
+    <string name="music_system_only_info">HyperOS handles music island natively. HyperIsle will not duplicate it.</string>
+
+    <!-- System State Islands -->
+    <string name="system_state_islands_title">System State Islands</string>
+    <string name="system_state_islands_desc">Show islands for ringer mode and Do Not Disturb changes</string>
+    <string name="system_state_info_message">HyperOS handles these states natively. Custom island customization is limited.</string>
+
     <string name="title_0_3_1">Backup &amp; Polyglot Update</string>
     <string name="changelog_0_3_1">
         <b>Backup &amp; Restore 📦</b>\n

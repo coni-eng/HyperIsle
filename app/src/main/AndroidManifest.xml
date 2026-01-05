@@ -41,6 +41,16 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".receiver.SystemModesReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.media.RINGER_MODE_CHANGED" />
+                <action android:name="android.app.action.INTERRUPTION_FILTER_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".service.NotificationReaderService"
             android:label="HyperBridge Listener"

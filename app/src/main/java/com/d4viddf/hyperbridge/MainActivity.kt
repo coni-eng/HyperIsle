@@ -47,6 +47,7 @@ import com.d4viddf.hyperbridge.ui.screens.settings.GlobalSettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.ImportPreviewScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.InfoScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.LicensesScreen
+import com.d4viddf.hyperbridge.ui.screens.settings.MusicIslandSettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.NavCustomizationScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.PrioritySettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.SetupHealthScreen
@@ -70,7 +71,8 @@ class MainActivity : AppCompatActivity() {
 enum class Screen(val depth: Int) {
     ONBOARDING(0), HOME(1), INFO(2), SETUP(3), LICENSES(3), BEHAVIOR(3), GLOBAL_SETTINGS(3), HISTORY(3),
     BACKUP(3), IMPORT_PREVIEW(4), // Backup Flow
-    NAV_CUSTOMIZATION(4), APP_PRIORITY(4), GLOBAL_BLOCKLIST(4), BLOCKLIST_APPS(5)
+    NAV_CUSTOMIZATION(4), APP_PRIORITY(4), GLOBAL_BLOCKLIST(4), BLOCKLIST_APPS(5),
+    MUSIC_ISLAND(3) // Music Island Settings
 }
 
 @Composable
@@ -132,7 +134,7 @@ fun MainRootNavigation() {
             Screen.GLOBAL_SETTINGS -> Screen.INFO
             Screen.APP_PRIORITY -> Screen.BEHAVIOR
             Screen.HISTORY -> Screen.INFO
-            Screen.BEHAVIOR, Screen.SETUP, Screen.LICENSES -> Screen.INFO
+            Screen.BEHAVIOR, Screen.SETUP, Screen.LICENSES, Screen.MUSIC_ISLAND -> Screen.INFO
             Screen.INFO -> Screen.HOME
             else -> Screen.HOME
         }
@@ -176,7 +178,8 @@ fun MainRootNavigation() {
                     onGlobalSettingsClick = { currentScreen = Screen.GLOBAL_SETTINGS },
                     onHistoryClick = { currentScreen = Screen.HISTORY },
                     onBlocklistClick = { currentScreen = Screen.GLOBAL_BLOCKLIST },
-                    onBackupClick = { currentScreen = Screen.BACKUP }
+                    onBackupClick = { currentScreen = Screen.BACKUP },
+                    onMusicIslandClick = { currentScreen = Screen.MUSIC_ISLAND }
                 )
                 Screen.GLOBAL_SETTINGS -> GlobalSettingsScreen(onBack = { currentScreen = Screen.INFO }, onNavSettingsClick = { navConfigPackage = null; currentScreen = Screen.NAV_CUSTOMIZATION })
                 Screen.NAV_CUSTOMIZATION -> NavCustomizationScreen(onBack = { currentScreen = if (navConfigPackage != null) Screen.HOME else Screen.GLOBAL_SETTINGS }, packageName = navConfigPackage)
@@ -185,6 +188,7 @@ fun MainRootNavigation() {
                 Screen.BEHAVIOR -> PrioritySettingsScreen(onBack = { currentScreen = Screen.INFO }, onNavigateToPriorityList = { currentScreen = Screen.APP_PRIORITY })
                 Screen.APP_PRIORITY -> AppPriorityScreen(onBack = { currentScreen = Screen.BEHAVIOR })
                 Screen.HISTORY -> ChangelogHistoryScreen(onBack = { currentScreen = Screen.INFO })
+                Screen.MUSIC_ISLAND -> MusicIslandSettingsScreen(onBack = { currentScreen = Screen.INFO })
 
                 Screen.GLOBAL_BLOCKLIST -> GlobalBlocklistScreen(
                     onBack = { currentScreen = Screen.INFO },

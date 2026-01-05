@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
@@ -89,7 +90,8 @@ fun InfoScreen(
     onGlobalSettingsClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onBlocklistClick: () -> Unit,
-    onBackupClick: () -> Unit
+    onBackupClick: () -> Unit,
+    onMusicIslandClick: () -> Unit
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -203,6 +205,8 @@ fun InfoScreen(
                         SettingsItem(Icons.Default.Block, stringResource(R.string.blocked_terms), stringResource(R.string.spoiler_subtitle), onBlocklistClick)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
                         SettingsItem(Icons.Default.Save, stringResource(R.string.backup_restore_title), stringResource(R.string.backup_section_title), onBackupClick)
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+                        SettingsItem(Icons.Default.MusicNote, stringResource(R.string.music_island_title), stringResource(R.string.music_island_desc), onMusicIslandClick)
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                 }

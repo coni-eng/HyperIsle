@@ -10,6 +10,7 @@ import com.d4viddf.hyperbridge.data.db.AppSetting
 import com.d4viddf.hyperbridge.data.db.SettingsKeys
 import com.d4viddf.hyperbridge.models.IslandConfig
 import com.d4viddf.hyperbridge.models.IslandLimitMode
+import com.d4viddf.hyperbridge.models.MusicIslandMode
 import com.d4viddf.hyperbridge.models.NavContent
 import com.d4viddf.hyperbridge.models.NotificationType
 import kotlinx.coroutines.CoroutineScope
@@ -230,4 +231,28 @@ class AppPreferences(context: Context) {
         if (left != null) save(lKey, left.name) else remove(lKey)
         if (right != null) save(rKey, right.name) else remove(rKey)
     }
+
+    // --- MUSIC ISLAND ---
+    val musicIslandModeFlow: Flow<MusicIslandMode> = dao.getSettingFlow(SettingsKeys.MUSIC_ISLAND_MODE).map {
+        try { MusicIslandMode.valueOf(it ?: MusicIslandMode.SYSTEM_ONLY.name) } catch (e: Exception) { MusicIslandMode.SYSTEM_ONLY }
+    }
+
+    val musicBlockAppsFlow: Flow<Set<String>> = dao.getSettingFlow(SettingsKeys.MUSIC_BLOCK_APPS).map { it.deserializeSet() }
+
+    val musicBlockWarningShownFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.MUSIC_BLOCK_WARNING_SHOWN).map { it.toBoolean(false) }
+
+    suspend fun setMusicIslandMode(mode: MusicIslandMode) = save(SettingsKeys.MUSIC_ISLAND_MODE, mode.name)
+
+    suspend fun setMusicBlockApps(apps: Set<String>) = save(SettingsKeys.MUSIC_BLOCK_APPS, apps.serialize())
+
+    suspend fun setMusicBlockWarningShown(shown: Boolean) = save(SettingsKeys.MUSIC_BLOCK_WARNING_SHOWN, shown.toString())
+
+    // --- SYSTEM STATE ISLANDS ---
+    val systemStateIslandsEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SYSTEM_STATE_ISLANDS_ENABLED).map { it.toBoolean(false) }
+
+    val systemStateInfoShownFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SYSTEM_STATE_INFO_SHOWN).map { it.toBoolean(false) }
+
+    suspend fun setSystemStateIslandsEnabled(enabled: Boolean) = save(SettingsKeys.SYSTEM_STATE_ISLANDS_ENABLED, enabled.toString())
+
+    suspend fun setSystemStateInfoShown(shown: Boolean) = save(SettingsKeys.SYSTEM_STATE_INFO_SHOWN, shown.toString())
 }

@@ -26,7 +26,15 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
 
         val displayTitle = title
         val displayContent = when {
-            isMedia -> context.getString(R.string.status_now_playing)
+            isMedia -> {
+                // For media, prefer actual metadata over static "Now Playing"
+                when {
+                    text.isNotEmpty() && subText.isNotEmpty() -> "$text • $subText"
+                    text.isNotEmpty() -> text
+                    subText.isNotEmpty() -> subText
+                    else -> context.getString(R.string.status_now_playing)
+                }
+            }
             isCall && subText.isNotEmpty() -> "$text • $subText"
             subText.isNotEmpty() -> if (text.isNotEmpty()) "$text • $subText" else subText
             else -> text
@@ -59,15 +67,12 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
             actionKeys = actionKeys
         )
 
-        if (isMedia) {
-            builder.setBigIslandInfo(left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo("", "")))
-        } else {
-            builder.setBigIslandInfo(
-                left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo("", "")),
-                right = ImageTextInfoRight(1, PicInfo(1, hiddenKey), TextInfo(displayTitle, displayContent))
-            )
-        }
-
+        // Standard layout for all non-media notifications
+        // Note: Media notifications are handled by HyperOS natively (SYSTEM_ONLY mode)
+        builder.setBigIslandInfo(
+            left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo("", "")),
+            right = ImageTextInfoRight(1, PicInfo(1, hiddenKey), TextInfo(displayTitle, displayContent))
+        )
         builder.setSmallIsland(picKey)
 
         actions.forEach {

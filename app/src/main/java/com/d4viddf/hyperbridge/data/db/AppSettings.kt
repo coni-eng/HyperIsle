@@ -29,4 +29,13 @@ object SettingsKeys {
     // Nav
     const val NAV_LEFT = "nav_left_content"
     const val NAV_RIGHT = "nav_right_content"
+
+    // Music Island
+    const val MUSIC_ISLAND_MODE = "music_island_mode"
+    const val MUSIC_BLOCK_APPS = "music_block_apps"
+    const val MUSIC_BLOCK_WARNING_SHOWN = "music_block_warning_shown"
+
+    // System State Islands
+    const val SYSTEM_STATE_ISLANDS_ENABLED = "system_state_islands_enabled"
+    const val SYSTEM_STATE_INFO_SHOWN = "system_state_info_shown"
 }

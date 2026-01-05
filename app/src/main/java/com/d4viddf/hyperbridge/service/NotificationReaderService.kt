@@ -15,6 +15,7 @@ import com.d4viddf.hyperbridge.data.AppPreferences
 import com.d4viddf.hyperbridge.models.ActiveIsland
 import com.d4viddf.hyperbridge.models.HyperIslandData
 import com.d4viddf.hyperbridge.models.IslandLimitMode
+import com.d4viddf.hyperbridge.models.MusicIslandMode
 import com.d4viddf.hyperbridge.models.NotificationType
 import com.d4viddf.hyperbridge.service.translators.CallTranslator
 import com.d4viddf.hyperbridge.service.translators.NavTranslator
@@ -32,8 +33,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 class NotificationReaderService : NotificationListenerService() {
 
-    private val TAG = "HyperBridgeService"
-    private val ISLAND_CHANNEL_ID = "hyper_bridge_island_channel"
+    private val TAG = "HyperIsleService"
+    private val ISLAND_CHANNEL_ID = "hyper_isle_island_channel"
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
@@ -44,6 +45,10 @@ class NotificationReaderService : NotificationListenerService() {
 
     // NEW: Cache for Global Blocked Terms (for synchronous check)
     private var globalBlockedTerms: Set<String> = emptySet()
+
+    // Music Island Mode cache
+    private var musicIslandMode = MusicIslandMode.SYSTEM_ONLY
+    private var musicBlockApps: Set<String> = emptySet()
 
     // --- CACHES ---
     private val activeIslands = ConcurrentHashMap<String, ActiveIsland>()
@@ -78,11 +83,15 @@ class NotificationReaderService : NotificationListenerService() {
 
         // NEW: Observe Global Blocklist
         serviceScope.launch { preferences.globalBlockedTermsFlow.collectLatest { globalBlockedTerms = it } }
+
+        // Music Island Mode observers
+        serviceScope.launch { preferences.musicIslandModeFlow.collectLatest { musicIslandMode = it } }
+        serviceScope.launch { preferences.musicBlockAppsFlow.collectLatest { musicBlockApps = it } }
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        Log.i(TAG, "HyperBridge Connected")
+        Log.i(TAG, "HyperIsle Connected")
     }
 
     override fun onDestroy() {
@@ -225,6 +234,28 @@ class NotificationReaderService : NotificationListenerService() {
                     sbn.notification.category == Notification.CATEGORY_ALARM ||
                     sbn.notification.category == Notification.CATEGORY_STOPWATCH) && chronometerBase > 0
             val isMedia = extras.getString(Notification.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
+
+            // --- MUSIC ISLAND MODE HANDLING ---
+            if (isMedia) {
+                when (musicIslandMode) {
+                    MusicIslandMode.SYSTEM_ONLY -> {
+                        // Do not generate any HyperIsle island for media; let HyperOS handle it natively
+                        return
+                    }
+                    MusicIslandMode.BLOCK_SYSTEM -> {
+                        // Cancel MediaStyle notifications from selected apps to suppress HyperOS native island
+                        if (musicBlockApps.contains(sbn.packageName)) {
+                            try {
+                                cancelNotification(sbn.key)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to cancel media notification: ${e.message}")
+                            }
+                        }
+                        // Do not generate HyperIsle island either way
+                        return
+                    }
+                }
+            }
 
             // FIX: Media before Progress priority
             val type = when {

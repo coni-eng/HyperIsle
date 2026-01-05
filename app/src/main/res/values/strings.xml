@@ -378,6 +378,38 @@
     <string name="privacy_card_title">Önce Çevrimdışı</string>
     <string name="privacy_card_desc">İnternet bağlantısı gerekmez.</string>
 
+    <!-- System Modes Notifications -->
+    <string name="mode_silent_enabled">Sessiz mod açıldı</string>
+    <string name="mode_vibrate_enabled">Titreşim modu açıldı</string>
+    <string name="mode_sound_enabled">Sesli mod açıldı</string>
+    <string name="dnd_enabled">Rahatsız Etmeyin açıldı</string>
+    <string name="dnd_priority">Rahatsız Etmeyin: Öncelikli</string>
+    <string name="dnd_alarms">Rahatsız Etmeyin: Sadece alarmlar</string>
+    <string name="dnd_disabled">Rahatsız Etmeyin kapatıldı</string>
+    <string name="dnd_changed_generic">Rahatsız Etmeyin durumu değişti (izin gerekli olabilir)</string>
+    <string name="channel_system_island">Sistem Durumu Adası</string>
+    <string name="channel_system_modes">Sistem Mod Bildirimleri</string>
+
+    <!-- Music Island Settings -->
+    <string name="music_island_title">Müzik Adası</string>
+    <string name="music_island_desc">Müzik bildirimleri için ada davranışını yapılandır</string>
+    <string name="music_mode_system_only">Sistem (Varsayılan)</string>
+    <string name="music_mode_system_only_desc">HyperOS müzik adasını yerel olarak yönetir. HyperIsle müzik için ada oluşturmaz.</string>
+    <string name="music_mode_block_system">Sistemi Engelle (Gelişmiş)</string>
+    <string name="music_mode_block_system_desc">Seçili uygulamaların müzik bildirimlerini iptal ederek HyperOS müzik adasını gizler.</string>
+    <string name="music_block_warning_title">Uyarı: Kilit Ekranı Kontrolleri</string>
+    <string name="music_block_warning_message">Bu mod, seçili uygulamaların müzik bildirimlerini iptal eder.\n\nBu, kilit ekranı müzik kontrollerinizin kaybolmasına neden olabilir. Kilit ekranı deneyiminizi bozmamak için en az bir müzik uygulaması seçmeniz gerekebilir.</string>
+    <string name="music_select_apps">Engellenecek Uygulamaları Seç</string>
+    <string name="music_select_apps_desc">Bu uygulamaların müzik bildirimleri iptal edilecek</string>
+    <string name="music_no_apps_selected">En az bir uygulama seçmelisiniz</string>
+    <string name="music_block_enabled_toast">Seçili uygulamalar için sistem müzik adası devre dışı bırakıldı</string>
+    <string name="music_system_only_info">HyperOS müzik adasını yerel olarak yönetir. HyperIsle bunu çoğaltmaz.</string>
+
+    <!-- System State Islands -->
+    <string name="system_state_islands_title">Sistem Durumu Adaları</string>
+    <string name="system_state_islands_desc">Zil modu ve Rahatsız Etmeyin değişiklikleri için ada göster</string>
+    <string name="system_state_info_message">HyperOS bu durumları yerel olarak yönetir. Özel ada özelleştirmesi sınırlıdır.</string>
+
     <string name="title_0_3_1">Yedekleme ve Çok Dilli Güncelleme</string>
     <string name="changelog_0_3_1">
         <b>Yedekleme ve Geri Yükleme 📦</b>\n
