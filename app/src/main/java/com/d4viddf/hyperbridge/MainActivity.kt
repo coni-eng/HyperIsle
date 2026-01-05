@@ -51,8 +51,11 @@ import com.d4viddf.hyperbridge.ui.screens.settings.MusicIslandSettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.NavCustomizationScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.PrioritySettingsScreen
 import com.d4viddf.hyperbridge.ui.screens.settings.SetupHealthScreen
+import com.d4viddf.hyperbridge.ui.screens.settings.SmartFeaturesScreen
+import com.d4viddf.hyperbridge.ui.screens.settings.NotificationSummaryScreen
 import com.d4viddf.hyperbridge.ui.theme.HyperBridgeTheme
 import com.d4viddf.hyperbridge.util.BackupManager
+import com.d4viddf.hyperbridge.worker.NotificationSummaryWorker
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -72,7 +75,9 @@ enum class Screen(val depth: Int) {
     ONBOARDING(0), HOME(1), INFO(2), SETUP(3), LICENSES(3), BEHAVIOR(3), GLOBAL_SETTINGS(3), HISTORY(3),
     BACKUP(3), IMPORT_PREVIEW(4), // Backup Flow
     NAV_CUSTOMIZATION(4), APP_PRIORITY(4), GLOBAL_BLOCKLIST(4), BLOCKLIST_APPS(5),
-    MUSIC_ISLAND(3) // Music Island Settings
+    MUSIC_ISLAND(3), // Music Island Settings
+    SMART_FEATURES(3), // Smart Silence, Focus, Summary settings
+    NOTIFICATION_SUMMARY(4) // Summary list screen
 }
 
 @Composable
@@ -106,6 +111,10 @@ fun MainRootNavigation() {
     // State to hold the parsed backup file before restoring
     var pendingImportBackup by remember { mutableStateOf<HyperBridgeBackup?>(null) }
 
+    // Observe summary settings for worker scheduling
+    val summaryEnabled by preferences.summaryEnabledFlow.collectAsState(initial = false)
+    val summaryHour by preferences.summaryHourFlow.collectAsState(initial = 21)
+
     // --- 3. ROUTING LOGIC ---
     LaunchedEffect(isSetupComplete) {
         if (isSetupComplete != null) {
@@ -123,6 +132,15 @@ fun MainRootNavigation() {
         }
     }
 
+    // Schedule/cancel summary worker based on settings
+    LaunchedEffect(summaryEnabled, summaryHour) {
+        if (summaryEnabled) {
+            NotificationSummaryWorker.schedule(context, summaryHour)
+        } else {
+            NotificationSummaryWorker.cancel(context)
+        }
+    }
+
     // --- 4. BACK HANDLER ---
     BackHandler(enabled = currentScreen != Screen.HOME && currentScreen != Screen.ONBOARDING) {
         currentScreen = when (currentScreen) {
@@ -134,7 +152,8 @@ fun MainRootNavigation() {
             Screen.GLOBAL_SETTINGS -> Screen.INFO
             Screen.APP_PRIORITY -> Screen.BEHAVIOR
             Screen.HISTORY -> Screen.INFO
-            Screen.BEHAVIOR, Screen.SETUP, Screen.LICENSES, Screen.MUSIC_ISLAND -> Screen.INFO
+            Screen.BEHAVIOR, Screen.SETUP, Screen.LICENSES, Screen.MUSIC_ISLAND, Screen.SMART_FEATURES -> Screen.INFO
+            Screen.NOTIFICATION_SUMMARY -> Screen.SMART_FEATURES
             Screen.INFO -> Screen.HOME
             else -> Screen.HOME
         }
@@ -179,7 +198,8 @@ fun MainRootNavigation() {
                     onHistoryClick = { currentScreen = Screen.HISTORY },
                     onBlocklistClick = { currentScreen = Screen.GLOBAL_BLOCKLIST },
                     onBackupClick = { currentScreen = Screen.BACKUP },
-                    onMusicIslandClick = { currentScreen = Screen.MUSIC_ISLAND }
+                    onMusicIslandClick = { currentScreen = Screen.MUSIC_ISLAND },
+                    onSmartFeaturesClick = { currentScreen = Screen.SMART_FEATURES }
                 )
                 Screen.GLOBAL_SETTINGS -> GlobalSettingsScreen(onBack = { currentScreen = Screen.INFO }, onNavSettingsClick = { navConfigPackage = null; currentScreen = Screen.NAV_CUSTOMIZATION })
                 Screen.NAV_CUSTOMIZATION -> NavCustomizationScreen(onBack = { currentScreen = if (navConfigPackage != null) Screen.HOME else Screen.GLOBAL_SETTINGS }, packageName = navConfigPackage)
@@ -189,6 +209,13 @@ fun MainRootNavigation() {
                 Screen.APP_PRIORITY -> AppPriorityScreen(onBack = { currentScreen = Screen.BEHAVIOR })
                 Screen.HISTORY -> ChangelogHistoryScreen(onBack = { currentScreen = Screen.INFO })
                 Screen.MUSIC_ISLAND -> MusicIslandSettingsScreen(onBack = { currentScreen = Screen.INFO })
+
+                // --- SMART FEATURES ---
+                Screen.SMART_FEATURES -> SmartFeaturesScreen(
+                    onBack = { currentScreen = Screen.INFO },
+                    onSummaryListClick = { currentScreen = Screen.NOTIFICATION_SUMMARY }
+                )
+                Screen.NOTIFICATION_SUMMARY -> NotificationSummaryScreen(onBack = { currentScreen = Screen.SMART_FEATURES })
 
                 Screen.GLOBAL_BLOCKLIST -> GlobalBlocklistScreen(
                     onBack = { currentScreen = Screen.INFO },

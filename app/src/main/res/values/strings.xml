@@ -17,7 +17,7 @@
     <string name="get_started">Başla</string>
 
     <string name="how_it_works">Nasıl Çalışır</string>
-    <string name="how_it_works_desc">Favori uygulamalarınızı seçin (Spotify, Haritalar, Zamanlayıcı). HyperIsle bildirimlerini şık bir adaya dönüştürür.</string>
+    <string name="how_it_works_desc">Favori uygulamalarınızı seçin (Müzik, Haritalar, Zamanlayıcı ...). HyperIsle bildirimlerini şık bir adaya dönüştürür.</string>
     <string name="early_development">Erken Geliştirme</string>
     <string name="beta_warning">Not: Bu uygulama geliştirme aşamasındadır. Hatalar veya yanlış görsel bilgilerle karşılaşabilirsiniz.</string>
 
@@ -38,7 +38,7 @@
     <string name="open_settings">Ayarları Aç</string>
 
     <string name="keep_alive">Canlı Tut</string>
-    <string name="optimization_desc">HyperOS arka plan uygulamalarını kapatır. Adayı aktif tutmak için Otomatik Başlatma ve Kısıtlama Yok\'u etkinleştirin.</string>
+    <string name="optimization_desc">HyperOS arka plan uygulamalarını kapatır. Adayı aktif tutmak için Otomatik Başlatma izni verin ve pil seçeneklerinden Kısıtlama Yok\'u etkinleştirin.</string>
     <string name="enable_autostart">1. Otomatik Başlatmayı Etkinleştir</string>
     <string name="set_battery_no_restrictions">2. Pil \'Kısıtlama Yok\' Ayarla</string>
 
@@ -51,7 +51,7 @@
     <string name="sort_za">Sırala: Z-A</string>
 
     <string name="no_active_bridges">Aktif Uygulama Yok</string>
-    <string name="no_active_bridges_desc">Uygulamaları etkinleştirmek için Kütüphane\'ye gidin.</string>
+    <string name="no_active_bridges_desc">Uygulamaları seçmek ve etkinleştirmek için Kütüphane\'ye gidin.</string>
     <string name="no_apps_found">Uygulama bulunamadı</string>
 
     <string name="about">Hakkında</string>
@@ -430,4 +430,35 @@
         • Navigasyon ada\'sında "Çıkış" düğmesinin metin yerine simge olarak gösterilmesi düzeltildi.\n
         • Ayarlarda Uygulama Simgesi yüklemesi düzeltildi.\n
     </string>
+
+    <!-- Smart Features -->
+    <string name="smart_features_title">Akıllı Özellikler</string>
+    <string name="smart_features_desc">Sessizlik, odak modu ve özet</string>
+
+    <!-- Smart Silence -->
+    <string name="smart_silence_title">Akıllı Sessizlik</string>
+    <string name="smart_silence_desc">Aynı içerikli tekrarlayan bildirimleri engelle</string>
+    <string name="smart_silence_window">Sessizlik penceresi: %d saniye</string>
+
+    <!-- Focus Mode -->
+    <string name="focus_mode_title">Odak Modu</string>
+    <string name="focus_mode_desc">Sessiz saatlerde ada görünürlüğünü azalt</string>
+    <string name="focus_quiet_hours">Sessiz Saatler</string>
+    <string name="focus_start">Başlangıç</string>
+    <string name="focus_end">Bitiş</string>
+    <string name="focus_allowed_types">İzin Verilen Türler</string>
+
+    <!-- Notification Summary -->
+    <string name="summary_title">Bildirim Özeti</string>
+    <string name="summary_desc">Günlük bildirim özeti al</string>
+    <string name="summary_time">Özet Saati</string>
+    <string name="view_summary_history">Özet Geçmişini Görüntüle</string>
+    <string name="summary_history_title">Bildirim Geçmişi</string>
+    <string name="summary_empty">Henüz bildirim yok</string>
+    <string name="summary_empty_desc">Özet etkinleştirildiğinde bildirimler burada görünecek</string>
+    <string name="summary_count">%d bildirim</string>
+    <string name="summary_more">+%d daha fazla</string>
+    <string name="summary_notification_title">Günlük Bildirim Özeti</string>
+    <string name="summary_notification_text">Bugün: %d bildirim - %s</string>
+    <string name="channel_summary">Bildirim Özeti</string>
 </resources>

@@ -4,14 +4,32 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [AppSetting::class], version = 1, exportSchema = false)
+@Database(entities = [AppSetting::class, NotificationDigestItem::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
+    abstract fun digestDao(): NotificationDigestDao
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS notification_digest (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        packageName TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        postTime INTEGER NOT NULL,
+                        type TEXT NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -20,8 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hyperbridge_db"
                 )
-                    // Allow main thread queries for migration check (fast) if needed,
-                    // but we will use coroutines.
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration(false)
                     .build()
                 INSTANCE = instance

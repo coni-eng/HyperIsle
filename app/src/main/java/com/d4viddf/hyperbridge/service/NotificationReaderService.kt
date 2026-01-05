@@ -30,6 +30,12 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import java.time.LocalTime
+import com.d4viddf.hyperbridge.data.db.AppDatabase
+import com.d4viddf.hyperbridge.data.db.NotificationDigestItem
+import com.d4viddf.hyperbridge.models.IslandConfig
+import com.d4viddf.hyperbridge.util.Haptics
+import com.d4viddf.hyperbridge.util.IslandCooldownManager
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -50,10 +56,34 @@ class NotificationReaderService : NotificationListenerService() {
     private var musicIslandMode = MusicIslandMode.SYSTEM_ONLY
     private var musicBlockApps: Set<String> = emptySet()
 
+    // Smart Silence cache
+    private var smartSilenceEnabled = true
+    private var smartSilenceWindowMs = 10000L
+
+    // Focus Automation cache
+    private var focusEnabled = false
+    private var focusQuietStart = "00:00"
+    private var focusQuietEnd = "08:00"
+    private var focusAllowedTypes: Set<String> = setOf("CALL", "TIMER")
+
+    // Notification Summary cache
+    private var summaryEnabled = false
+
+    // Per-app mute/block cache
+    private var perAppMuted: Set<String> = emptySet()
+    private var perAppBlocked: Set<String> = emptySet()
+
     // --- CACHES ---
+    // Replace Policy: groupKey -> ActiveIsland (instead of sbn.key)
     private val activeIslands = ConcurrentHashMap<String, ActiveIsland>()
     private val activeTranslations = ConcurrentHashMap<String, Int>()
     private val lastUpdateMap = ConcurrentHashMap<String, Long>()
+    // Smart Silence: groupKey -> (timestamp, contentHash)
+    private val lastShownMap = ConcurrentHashMap<String, Pair<Long, Int>>()
+    // Map original sbn.key to groupKey for cleanup
+    private val sbnKeyToGroupKey = ConcurrentHashMap<String, String>()
+
+    private lateinit var database: AppDatabase
 
     private val UPDATE_INTERVAL_MS = 200L
     private val MAX_ISLANDS = 9
@@ -87,6 +117,26 @@ class NotificationReaderService : NotificationListenerService() {
         // Music Island Mode observers
         serviceScope.launch { preferences.musicIslandModeFlow.collectLatest { musicIslandMode = it } }
         serviceScope.launch { preferences.musicBlockAppsFlow.collectLatest { musicBlockApps = it } }
+
+        // Smart Silence observers
+        serviceScope.launch { preferences.smartSilenceEnabledFlow.collectLatest { smartSilenceEnabled = it } }
+        serviceScope.launch { preferences.smartSilenceWindowMsFlow.collectLatest { smartSilenceWindowMs = it } }
+
+        // Focus Automation observers
+        serviceScope.launch { preferences.focusEnabledFlow.collectLatest { focusEnabled = it } }
+        serviceScope.launch { preferences.focusQuietStartFlow.collectLatest { focusQuietStart = it } }
+        serviceScope.launch { preferences.focusQuietEndFlow.collectLatest { focusQuietEnd = it } }
+        serviceScope.launch { preferences.focusAllowedTypesFlow.collectLatest { focusAllowedTypes = it } }
+
+        // Summary observer
+        serviceScope.launch { preferences.summaryEnabledFlow.collectLatest { summaryEnabled = it } }
+
+        // Per-app mute/block observers
+        serviceScope.launch { preferences.perAppMutedFlow.collectLatest { perAppMuted = it } }
+        serviceScope.launch { preferences.perAppBlockedFlow.collectLatest { perAppBlocked = it } }
+
+        // Database for digest
+        database = AppDatabase.getDatabase(applicationContext)
     }
 
     override fun onListenerConnected() {
@@ -117,14 +167,17 @@ class NotificationReaderService : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         sbn?.let {
             val key = it.key
-            if (activeTranslations.containsKey(key)) {
-                val hyperId = activeTranslations[key] ?: return
+            val groupKey = sbnKeyToGroupKey[key]
+            if (groupKey != null && activeTranslations.containsKey(groupKey)) {
+                val hyperId = activeTranslations[groupKey] ?: return
                 try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
 
-                activeIslands.remove(key)
-                activeTranslations.remove(key)
-                lastUpdateMap.remove(key)
+                activeIslands.remove(groupKey)
+                activeTranslations.remove(groupKey)
+                lastUpdateMap.remove(groupKey)
+                lastShownMap.remove(groupKey)
             }
+            sbnKeyToGroupKey.remove(key)
         }
     }
 
@@ -212,14 +265,13 @@ class NotificationReaderService : NotificationListenerService() {
 
             val title = extras.getString(Notification.EXTRA_TITLE) ?: sbn.packageName
             val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
+            val subText = extras.getString(Notification.EXTRA_SUB_TEXT) ?: ""
 
-            // *** NEW: APP-SPECIFIC BLOCKLIST CHECK ***
-            // We do this here because reading per-app DB settings requires a suspend function
+            // *** APP-SPECIFIC BLOCKLIST CHECK ***
             val appBlockedTerms = preferences.getAppBlockedTerms(sbn.packageName).first()
             if (appBlockedTerms.isNotEmpty()) {
                 val content = "$title $text"
                 if (appBlockedTerms.any { term -> content.contains(term, ignoreCase = true) }) {
-                    // Log.d(TAG, "Skipping ${sbn.packageName}: Blocked term found")
                     return
                 }
             }
@@ -235,29 +287,21 @@ class NotificationReaderService : NotificationListenerService() {
                     sbn.notification.category == Notification.CATEGORY_STOPWATCH) && chronometerBase > 0
             val isMedia = extras.getString(Notification.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
 
-            // --- MUSIC ISLAND MODE HANDLING ---
+            // --- MUSIC ISLAND MODE HANDLING (unchanged) ---
             if (isMedia) {
                 when (musicIslandMode) {
-                    MusicIslandMode.SYSTEM_ONLY -> {
-                        // Do not generate any HyperIsle island for media; let HyperOS handle it natively
-                        return
-                    }
+                    MusicIslandMode.SYSTEM_ONLY -> return
                     MusicIslandMode.BLOCK_SYSTEM -> {
-                        // Cancel MediaStyle notifications from selected apps to suppress HyperOS native island
                         if (musicBlockApps.contains(sbn.packageName)) {
-                            try {
-                                cancelNotification(sbn.key)
-                            } catch (e: Exception) {
+                            try { cancelNotification(sbn.key) } catch (e: Exception) {
                                 Log.w(TAG, "Failed to cancel media notification: ${e.message}")
                             }
                         }
-                        // Do not generate HyperIsle island either way
                         return
                     }
                 }
             }
 
-            // FIX: Media before Progress priority
             val type = when {
                 isCall -> NotificationType.CALL
                 isNavigation -> NotificationType.NAVIGATION
@@ -270,10 +314,63 @@ class NotificationReaderService : NotificationListenerService() {
             val config = preferences.getAppConfig(sbn.packageName).first()
             if (!config.contains(type.name)) return
 
-            val key = sbn.key
-            val isUpdate = activeIslands.containsKey(key)
-            val bridgeId = sbn.key.hashCode()
+            // --- PER-APP BLOCK CHECK ---
+            if (perAppBlocked.contains(sbn.packageName)) {
+                return
+            }
 
+            // --- PER-APP MUTE CHECK (uses cooldown) ---
+            if (perAppMuted.contains(sbn.packageName)) {
+                return
+            }
+
+            // --- COOLDOWN CHECK (after explicit dismiss) ---
+            if (IslandCooldownManager.isInCooldown(applicationContext, sbn.packageName, type.name)) {
+                return
+            }
+
+            // --- REPLACE POLICY: Use groupKey instead of sbn.key ---
+            val groupKey = "${sbn.packageName}:${type.name}"
+            val bridgeId = groupKey.hashCode()
+            sbnKeyToGroupKey[sbn.key] = groupKey
+
+            val isUpdate = activeIslands.containsKey(groupKey)
+
+            // ... (rest of the code remains the same)
+            // --- SMART SILENCE (anti-spam) for non-media ---
+            val contentHash = "$title$text$subText${type.name}".hashCode()
+            if (smartSilenceEnabled && type != NotificationType.MEDIA) {
+                val lastShown = lastShownMap[groupKey]
+                val now = System.currentTimeMillis()
+                if (lastShown != null) {
+                    val (lastTime, lastHash) = lastShown
+                    if (now - lastTime < smartSilenceWindowMs && lastHash == contentHash) {
+                        // Same content within window - skip showing but still log to digest
+                        if (summaryEnabled) {
+                            insertDigestItem(sbn.packageName, title, text, type.name)
+                        }
+                        return
+                    }
+                }
+                lastShownMap[groupKey] = now to contentHash
+            }
+
+            // --- FOCUS AUTOMATION ---
+            val isFocusActive = focusEnabled && isInQuietHours()
+            if (isFocusActive && !focusAllowedTypes.contains(type.name)) {
+                // Type not allowed during focus - skip island but log to digest
+                if (summaryEnabled) {
+                    insertDigestItem(sbn.packageName, title, text, type.name)
+                }
+                return
+            }
+
+            // --- INSERT DIGEST ITEM (for summary) ---
+            if (summaryEnabled) {
+                insertDigestItem(sbn.packageName, title, text, type.name)
+            }
+
+            // --- MAX_ISLANDS check with replacement ---
             if (!isUpdate && activeIslands.size >= MAX_ISLANDS) {
                 handleLimitReached(type, sbn.packageName)
                 if (activeIslands.size >= MAX_ISLANDS) return
@@ -283,7 +380,16 @@ class NotificationReaderService : NotificationListenerService() {
 
             val appIslandConfig = preferences.getAppIslandConfig(sbn.packageName).first()
             val globalConfig = preferences.globalConfigFlow.first()
-            val finalConfig = appIslandConfig.mergeWith(globalConfig)
+            var finalConfig = appIslandConfig.mergeWith(globalConfig)
+
+            // --- FOCUS OVERRIDE: Reduce island visibility during quiet hours ---
+            if (isFocusActive) {
+                finalConfig = IslandConfig(
+                    isFloat = false,
+                    isShowShade = false,
+                    timeout = 3000L
+                )
+            }
 
             val data: HyperIslandData = when (type) {
                 NotificationType.CALL -> callTranslator.translate(sbn, picKey, finalConfig)
@@ -293,35 +399,63 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 NotificationType.TIMER -> timerTranslator.translate(sbn, picKey, finalConfig)
                 NotificationType.PROGRESS -> progressTranslator.translate(sbn, title, picKey, finalConfig)
-                else -> standardTranslator.translate(sbn, picKey, finalConfig)
+                else -> standardTranslator.translate(sbn, picKey, finalConfig, bridgeId)
             }
 
             val newContentHash = data.jsonParam.hashCode()
-            val previousIsland = activeIslands[key]
+            val previousIsland = activeIslands[groupKey]
 
             if (isUpdate && previousIsland != null) {
                 if (previousIsland.lastContentHash == newContentHash) return
             }
 
-            postNotification(sbn, bridgeId, data)
+            postNotification(sbn, bridgeId, groupKey, type.name, data)
 
-            val currTitle = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-            val currText = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-            val currSub = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
-
-            activeIslands[key] = ActiveIsland(
+            activeIslands[groupKey] = ActiveIsland(
                 id = bridgeId,
                 type = type,
                 postTime = System.currentTimeMillis(),
                 packageName = sbn.packageName,
-                title = currTitle,
-                text = currText,
-                subText = currSub,
+                title = title,
+                text = text,
+                subText = subText,
                 lastContentHash = newContentHash
             )
 
         } catch (e: Exception) {
             Log.e(TAG, "Error", e)
+        }
+    }
+
+    private fun isInQuietHours(): Boolean {
+        return try {
+            val now = LocalTime.now()
+            val start = LocalTime.parse(focusQuietStart)
+            val end = LocalTime.parse(focusQuietEnd)
+            if (start <= end) {
+                now in start..end
+            } else {
+                // Overnight range (e.g., 22:00 to 08:00)
+                now >= start || now <= end
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private suspend fun insertDigestItem(packageName: String, title: String, text: String, type: String) {
+        try {
+            database.digestDao().insert(
+                NotificationDigestItem(
+                    packageName = packageName,
+                    title = title,
+                    text = text,
+                    postTime = System.currentTimeMillis(),
+                    type = type
+                )
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to insert digest item: ${e.message}")
         }
     }
 
@@ -352,7 +486,7 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    private fun postNotification(sbn: StatusBarNotification, bridgeId: Int, data: HyperIslandData) {
+    private fun postNotification(sbn: StatusBarNotification, bridgeId: Int, groupKey: String, notificationType: String, data: HyperIslandData) {
         val notificationBuilder = NotificationCompat.Builder(this, ISLAND_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(getString(R.string.app_name))
@@ -362,12 +496,47 @@ class NotificationReaderService : NotificationListenerService() {
             .setOnlyAlertOnce(true)
             .addExtras(data.resources)
 
-        sbn.notification.contentIntent?.let { notificationBuilder.setContentIntent(it) }
+        // Set contentIntent: prefer original, fallback to app launch intent
+        val contentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
+        contentIntent?.let { notificationBuilder.setContentIntent(it) }
+
         val notification = notificationBuilder.build()
         notification.extras.putString("miui.focus.param", data.jsonParam)
 
         NotificationManagerCompat.from(this).notify(bridgeId, notification)
-        activeTranslations[sbn.key] = bridgeId
+        activeTranslations[groupKey] = bridgeId
+
+        // Store island meta for per-island action handling
+        IslandCooldownManager.setIslandMeta(bridgeId, sbn.packageName, notificationType)
+
+        // Store last active island info for receiver usage (fallback)
+        IslandCooldownManager.setLastActiveIsland(bridgeId, sbn.packageName, notificationType)
+
+        // Haptic feedback when island is shown
+        Haptics.hapticOnIslandShown(applicationContext)
+    }
+
+    private fun createLaunchIntent(packageName: String): android.app.PendingIntent? {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        return if (launchIntent != null) {
+            android.app.PendingIntent.getActivity(
+                this,
+                packageName.hashCode(),
+                launchIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+        } else {
+            // Fallback to app details settings
+            val settingsIntent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.parse("package:$packageName")
+            }
+            android.app.PendingIntent.getActivity(
+                this,
+                packageName.hashCode(),
+                settingsIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+        }
     }
 
     private fun shouldIgnore(packageName: String): Boolean {

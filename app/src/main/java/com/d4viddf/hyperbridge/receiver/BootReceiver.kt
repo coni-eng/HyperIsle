@@ -6,7 +6,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
+import com.d4viddf.hyperbridge.data.AppPreferences
 import com.d4viddf.hyperbridge.service.NotificationReaderService
+import com.d4viddf.hyperbridge.worker.NotificationSummaryWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -19,6 +25,20 @@ class BootReceiver : BroadcastReceiver() {
             // Trick: We toggle the component state to force the Notification Manager
             // to re-evaluate and re-bind to our service.
             toggleNotificationListener(context)
+
+            // Re-schedule summary worker if enabled
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val preferences = AppPreferences(context)
+                    val summaryEnabled = preferences.summaryEnabledFlow.first()
+                    if (summaryEnabled) {
+                        val summaryHour = preferences.summaryHourFlow.first()
+                        NotificationSummaryWorker.schedule(context, summaryHour)
+                    }
+                } catch (e: Exception) {
+                    Log.w("HyperBridge", "Failed to schedule summary worker on boot: ${e.message}")
+                }
+            }
         }
     }
 

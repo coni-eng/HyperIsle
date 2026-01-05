@@ -421,4 +421,35 @@
         • Fixed "Exit" button in Navigation island showing as an icon instead of text.\n
         • Fixed App Icon loading in Settings.\n
     </string>
+
+    <!-- Smart Features -->
+    <string name="smart_features_title">Smart Features</string>
+    <string name="smart_features_desc">Silence, focus mode, and summary</string>
+
+    <!-- Smart Silence -->
+    <string name="smart_silence_title">Smart Silence</string>
+    <string name="smart_silence_desc">Block repeated notifications with same content</string>
+    <string name="smart_silence_window">Silence window: %d seconds</string>
+
+    <!-- Focus Mode -->
+    <string name="focus_mode_title">Focus Mode</string>
+    <string name="focus_mode_desc">Reduce island visibility during quiet hours</string>
+    <string name="focus_quiet_hours">Quiet Hours</string>
+    <string name="focus_start">Start</string>
+    <string name="focus_end">End</string>
+    <string name="focus_allowed_types">Allowed Types</string>
+
+    <!-- Notification Summary -->
+    <string name="summary_title">Notification Summary</string>
+    <string name="summary_desc">Get daily notification digest</string>
+    <string name="summary_time">Summary Time</string>
+    <string name="view_summary_history">View Summary History</string>
+    <string name="summary_history_title">Notification History</string>
+    <string name="summary_empty">No notifications yet</string>
+    <string name="summary_empty_desc">Notifications will appear here when summary is enabled</string>
+    <string name="summary_count">%d notifications</string>
+    <string name="summary_more">+%d more</string>
+    <string name="summary_notification_title">Daily Notification Summary</string>
+    <string name="summary_notification_text">Today: %d notifications - %s</string>
+    <string name="channel_summary">Notification Summary</string>
 </resources>

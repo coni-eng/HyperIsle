@@ -51,14 +51,38 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".receiver.SystemBannerReceiverBT"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receiver.SystemBannerReceiverBattery"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BATTERY_LOW" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receiver.IslandActionReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <service
             android:name=".service.NotificationReaderService"
             android:label="HyperBridge Listener"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true"
-            android:directBootAware="true"> <intent-filter>
-            <action android:name="android.service.notification.NotificationListenerService" />
-        </intent-filter>
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
     </application>
 

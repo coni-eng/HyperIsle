@@ -38,4 +38,18 @@ object SettingsKeys {
     // System State Islands
     const val SYSTEM_STATE_ISLANDS_ENABLED = "system_state_islands_enabled"
     const val SYSTEM_STATE_INFO_SHOWN = "system_state_info_shown"
+
+    // Smart Silence (Anti-Spam)
+    const val SMART_SILENCE_ENABLED = "smart_silence_enabled"
+    const val SMART_SILENCE_WINDOW_MS = "smart_silence_window_ms"
+
+    // Focus Automation
+    const val FOCUS_ENABLED = "focus_enabled"
+    const val FOCUS_QUIET_START = "focus_quiet_start"
+    const val FOCUS_QUIET_END = "focus_quiet_end"
+    const val FOCUS_ALLOWED_TYPES = "focus_allowed_types"
+
+    // Notification Summary
+    const val SUMMARY_ENABLED = "summary_enabled"
+    const val SUMMARY_HOUR = "summary_hour"
 }

@@ -1,11 +1,15 @@
 package com.d4viddf.hyperbridge.service.translators
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.service.notification.StatusBarNotification
 import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.models.HyperIslandData
 import com.d4viddf.hyperbridge.models.IslandConfig
+import com.d4viddf.hyperbridge.receiver.IslandActionReceiver
+import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
@@ -14,7 +18,7 @@ import io.github.d4viddf.hyperisland_kit.models.TextInfo
 
 class StandardTranslator(context: Context) : BaseTranslator(context) {
 
-    fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig): HyperIslandData {
+    fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig, notificationId: Int = 0): HyperIslandData {
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE) ?: sbn.packageName
         val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
@@ -80,6 +84,60 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
             it.actionImage?.let { iconPic -> builder.addPicture(iconPic) }
         }
 
+        // Add Options and Dismiss actions for non-media notifications only
+        if (!isMedia) {
+            val optionsAction = createOptionsAction(notificationId)
+            val dismissAction = createDismissAction(notificationId)
+            builder.addAction(optionsAction)
+            builder.addAction(dismissAction)
+        }
+
         return HyperIslandData(builder.buildResourceBundle(), builder.buildJsonParam())
+    }
+
+    /**
+     * Creates the "Options" action that opens Quick Actions UI.
+     * Uses explicit receiver and unique key per island.
+     */
+    private fun createOptionsAction(notificationId: Int): HyperAction {
+        val actionString = "${IslandActionReceiver.ACTION_OPTIONS}_$notificationId"
+        val intent = Intent(context, IslandActionReceiver::class.java).apply {
+            action = actionString
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            "options_$notificationId".hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return HyperAction(
+            key = "options_$notificationId",
+            title = context.getString(R.string.action_options),
+            pendingIntent = pendingIntent,
+            actionIntentType = 2 // Broadcast
+        )
+    }
+
+    /**
+     * Creates the "Dismiss" action that cancels island + records cooldown.
+     * Uses explicit receiver and unique key per island.
+     */
+    private fun createDismissAction(notificationId: Int): HyperAction {
+        val actionString = "${IslandActionReceiver.ACTION_DISMISS}_$notificationId"
+        val intent = Intent(context, IslandActionReceiver::class.java).apply {
+            action = actionString
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            "dismiss_$notificationId".hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return HyperAction(
+            key = "dismiss_$notificationId",
+            title = context.getString(R.string.action_dismiss),
+            pendingIntent = pendingIntent,
+            actionIntentType = 2 // Broadcast
+        )
     }
 }

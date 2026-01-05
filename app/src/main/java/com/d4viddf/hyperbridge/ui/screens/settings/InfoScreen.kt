@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -91,7 +92,8 @@ fun InfoScreen(
     onHistoryClick: () -> Unit,
     onBlocklistClick: () -> Unit,
     onBackupClick: () -> Unit,
-    onMusicIslandClick: () -> Unit
+    onMusicIslandClick: () -> Unit,
+    onSmartFeaturesClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -207,6 +209,8 @@ fun InfoScreen(
                         SettingsItem(Icons.Default.Save, stringResource(R.string.backup_restore_title), stringResource(R.string.backup_section_title), onBackupClick)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
                         SettingsItem(Icons.Default.MusicNote, stringResource(R.string.music_island_title), stringResource(R.string.music_island_desc), onMusicIslandClick)
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+                        SettingsItem(Icons.Default.AutoAwesome, stringResource(R.string.smart_features_title), stringResource(R.string.smart_features_desc), onSmartFeaturesClick)
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                 }

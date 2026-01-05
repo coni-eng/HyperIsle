@@ -70,6 +70,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // WorkManager for scheduled tasks (Notification Summary)
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 }
 
 configurations.all {

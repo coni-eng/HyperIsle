@@ -255,4 +255,31 @@ class AppPreferences(context: Context) {
     suspend fun setSystemStateIslandsEnabled(enabled: Boolean) = save(SettingsKeys.SYSTEM_STATE_ISLANDS_ENABLED, enabled.toString())
 
     suspend fun setSystemStateInfoShown(shown: Boolean) = save(SettingsKeys.SYSTEM_STATE_INFO_SHOWN, shown.toString())
+
+    // --- SMART SILENCE (Anti-Spam) ---
+    val smartSilenceEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SMART_SILENCE_ENABLED).map { it.toBoolean(true) }
+    val smartSilenceWindowMsFlow: Flow<Long> = dao.getSettingFlow(SettingsKeys.SMART_SILENCE_WINDOW_MS).map { it.toLong(10000L) }
+
+    suspend fun setSmartSilenceEnabled(enabled: Boolean) = save(SettingsKeys.SMART_SILENCE_ENABLED, enabled.toString())
+    suspend fun setSmartSilenceWindowMs(windowMs: Long) = save(SettingsKeys.SMART_SILENCE_WINDOW_MS, windowMs.toString())
+
+    // --- FOCUS AUTOMATION ---
+    val focusEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.FOCUS_ENABLED).map { it.toBoolean(false) }
+    val focusQuietStartFlow: Flow<String> = dao.getSettingFlow(SettingsKeys.FOCUS_QUIET_START).map { it ?: "00:00" }
+    val focusQuietEndFlow: Flow<String> = dao.getSettingFlow(SettingsKeys.FOCUS_QUIET_END).map { it ?: "08:00" }
+    val focusAllowedTypesFlow: Flow<Set<String>> = dao.getSettingFlow(SettingsKeys.FOCUS_ALLOWED_TYPES).map {
+        it.deserializeSet().ifEmpty { setOf("CALL", "TIMER") }
+    }
+
+    suspend fun setFocusEnabled(enabled: Boolean) = save(SettingsKeys.FOCUS_ENABLED, enabled.toString())
+    suspend fun setFocusQuietStart(time: String) = save(SettingsKeys.FOCUS_QUIET_START, time)
+    suspend fun setFocusQuietEnd(time: String) = save(SettingsKeys.FOCUS_QUIET_END, time)
+    suspend fun setFocusAllowedTypes(types: Set<String>) = save(SettingsKeys.FOCUS_ALLOWED_TYPES, types.serialize())
+
+    // --- NOTIFICATION SUMMARY ---
+    val summaryEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SUMMARY_ENABLED).map { it.toBoolean(false) }
+    val summaryHourFlow: Flow<Int> = dao.getSettingFlow(SettingsKeys.SUMMARY_HOUR).map { it.toInt(21) }
+
+    suspend fun setSummaryEnabled(enabled: Boolean) = save(SettingsKeys.SUMMARY_ENABLED, enabled.toString())
+    suspend fun setSummaryHour(hour: Int) = save(SettingsKeys.SUMMARY_HOUR, hour.toString())
 }
