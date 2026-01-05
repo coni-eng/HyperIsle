@@ -4,17 +4,19 @@
 
 \- Music Island:
 
-&nbsp; - SYSTEM\_ONLY (default): Uses HyperOS native music island only (no duplicate islands from the app).
+&nbsp; - SYSTEM\_ONLY (default): Uses HyperOS native music island only.
 
-&nbsp; - BLOCK\_SYSTEM (advanced): Suppresses HyperOS music island by cancelling MediaStyle notifications for selected music apps.
+&nbsp; - BLOCK\_SYSTEM (advanced): Suppresses HyperOS music island by cancelling MediaStyle notifications
 
-&nbsp;   Note: This may remove lockscreen/shade media controls.
+&nbsp;   for selected apps (may remove lockscreen controls).
 
 
 
-\- System states (ringer/DND):
+\- System states (DND / Silent):
 
-&nbsp; - App-based islands are shown only if meaningful customization is available; otherwise HyperOS native behavior is preferred.
+&nbsp; - App-generated islands are disabled by default when meaningful customization is not possible.
+
+&nbsp; - HyperOS native behavior is preferred.
 
 
 
