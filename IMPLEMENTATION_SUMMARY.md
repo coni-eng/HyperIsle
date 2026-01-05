@@ -306,3 +306,94 @@ BUILD SUCCESSFUL in 20s
 ```
 
 All deprecation warnings are pre-existing and not introduced by this implementation.
+
+---
+
+## v0.7.0 - Context-Aware Islands
+
+### Overview
+Added context-aware island filtering based on screen state and charging status, without breaking existing behavior, music strategy, actions, cooldown, haptics, or summary.
+
+### Features Implemented
+
+#### 1. Context State Manager
+- **File**: `util/ContextStateManager.kt`
+- **Responsibilities**:
+  - Tracks `isScreenOn` and `isCharging` state in-memory
+  - Persists last-known values to Room via `ctx_screen_on`, `ctx_charging`, `ctx_last_updated_ms` keys
+  - Provides `getEffectiveScreenOn()` with PowerManager.isInteractive fallback for stale state (>5 min)
+  - No polling - only updates when broadcasts are received
+  - 1-second debounce for repeated same-state updates
+
+#### 2. Context Signals Receiver
+- **File**: `receiver/ContextSignalsReceiver.kt`
+- **Handles**:
+  - `Intent.ACTION_SCREEN_ON` → `isScreenOn = true`
+  - `Intent.ACTION_SCREEN_OFF` → `isScreenOn = false`
+  - `Intent.ACTION_POWER_CONNECTED` → `isCharging = true`
+  - `Intent.ACTION_POWER_DISCONNECTED` → `isCharging = false`
+- **Manifest**: Registered with `exported="false"` and appropriate intent-filters
+
+#### 3. Context-Aware Rules
+- **Settings** (in `AppPreferences.kt`):
+  - `contextAwareEnabled` (Boolean, default: false)
+  - `contextScreenOffOnlyImportant` (Boolean, default: true)
+  - `contextScreenOffImportantTypes` (Set<String>, default: "CALL,TIMER,NAVIGATION")
+  - `contextChargingSuppressBatteryBanners` (Boolean, default: true)
+
+- **Screen OFF Filtering** (in `NotificationReaderService.kt`):
+  - When `contextAwareEnabled` is true and screen is OFF:
+  - Only allows notification types in `contextScreenOffImportantTypes`
+  - Does NOT affect MediaStyle path (music behavior unchanged)
+  - Focus Mode takes precedence (if focus is active, focus rules win)
+
+- **Charging Suppression** (in `SystemBannerReceiverBattery.kt`):
+  - When `contextAwareEnabled` and `contextChargingSuppressBatteryBanners` are true:
+  - Suppresses HyperIsle battery banners while device is charging
+
+#### 4. Settings UI
+- **File**: `ui/screens/settings/SmartFeaturesScreen.kt`
+- **Added**: "Context-Aware Islands" card with:
+  - Main toggle for `contextAwareEnabled`
+  - Expandable options when enabled:
+    - Toggle: "Screen off: only important islands"
+    - Label: "Important types: Calls, Timers, Navigation"
+    - Toggle: "While charging: suppress battery banners"
+
+#### 5. Strings
+- Added TR + EN strings:
+  - `context_aware_title`
+  - `context_aware_desc`
+  - `context_screen_off_only_important`
+  - `context_charging_suppress_battery_banners`
+  - `context_important_types_label`
+
+### Files Created
+1. `util/ContextStateManager.kt` - In-memory + persisted context state tracking
+2. `receiver/ContextSignalsReceiver.kt` - Broadcast receiver for screen/charging events
+
+### Files Modified
+- `AndroidManifest.xml` - Registered ContextSignalsReceiver
+- `data/db/AppSettings.kt` - Added 4 new SettingsKeys
+- `data/AppPreferences.kt` - Added context-aware flows and setters
+- `service/NotificationReaderService.kt` - Added context-aware filtering logic
+- `receiver/SystemBannerReceiverBattery.kt` - Added charging suppression check
+- `ui/screens/settings/SmartFeaturesScreen.kt` - Added Context-Aware Islands UI card
+- `res/values/strings.xml` - Added TR strings
+- `res/values-en/strings.xml` - Added EN strings
+
+### Constraints Respected
+- ✅ Music Island behavior UNCHANGED (SYSTEM_ONLY / BLOCK_SYSTEM preserved)
+- ✅ Did NOT touch toolkit demo module
+- ✅ No polling loops, no foreground services, no accessibility services, no dangerous permissions
+- ✅ Focus Mode remains stronger override (focus rules win when active)
+- ✅ Only TR + EN strings edited/added
+- ✅ Build passes: `./gradlew :app:assembleDebug`
+
+### Testing Recommendations
+1. **Screen OFF filtering**: Enable context-aware, turn screen off, send message notification → NO island
+2. **Important types pass**: With screen off, place a call → island shows
+3. **Navigation passes**: With screen off, start navigation → island shows
+4. **Charging suppression**: Enable battery banner + context-aware, plug in charger → NO battery banner
+5. **Unplug behavior**: Unplug charger → battery banner can show again (if enabled)
+6. **Music unchanged**: Verify music behavior remains identical to before

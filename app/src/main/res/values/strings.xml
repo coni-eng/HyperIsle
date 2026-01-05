@@ -512,4 +512,23 @@
     <string name="context_screen_off_only_important">Ekran kapalıyken: sadece önemli adalar</string>
     <string name="context_charging_suppress_battery_banners">Şarj olurken: pil afişlerini gizle</string>
     <string name="context_important_types_label">Önemli türler: Aramalar, Zamanlayıcılar, Navigasyon</string>
+
+    <!-- Context Presets (v0.9.0) -->
+    <string name="context_preset_title">Bağlam Ön Ayarları</string>
+    <string name="context_preset_desc">Farklı senaryolar için bildirim filtrelerini hızlıca uygula</string>
+    <string name="preset_off">Kapalı</string>
+    <string name="preset_meeting">Toplantı</string>
+    <string name="preset_meeting_desc">Sadece aramalar, zamanlayıcılar ve navigasyon</string>
+    <string name="preset_driving">Sürüş</string>
+    <string name="preset_driving_desc">Sadece aramalar, zamanlayıcılar ve navigasyon</string>
+    <string name="preset_headphones">Kulaklık</string>
+    <string name="preset_headphones_desc">Aramaları engelle, içeriğin keyfini çıkar</string>
+
+    <!-- Summary Upgrades (v0.9.0) -->
+    <string name="summary_top_apps_title">En Çok Bildirim Gönderen Uygulamalar (Son 24 Saat)</string>
+    <string name="summary_by_time_title">Zamana Göre Bildirimler</string>
+    <string name="time_bucket_morning">Sabah (6:00–12:00)</string>
+    <string name="time_bucket_afternoon">Öğleden Sonra (12:00–18:00)</string>
+    <string name="time_bucket_evening">Akşam (18:00–6:00)</string>
+    <string name="summary_more_apps">+%d uygulama daha</string>
 </resources>
