@@ -30,22 +30,22 @@
     * **🧾 Notification Summary:** Optional daily digest notification (iOS-style summary).
     * **📳 Haptics:** Subtle “shown” haptic on island display + distinct “success” haptic on dismiss.
     * **🧩 Standard Actions:** Consistent island interactions:
-  	 * Tap: opens the source app (with safe fallback)
-   	 * Options: opens Quick Actions (mute/block per app)
-  	 * Dismiss: closes the island and applies cooldown (prevents immediate re-appearing)
+      * **Tap:**  opens the source app (with safe fallback)
+      * **Options:** opens Quick Actions (mute/block per app)
+  	  * **Dismiss:**  closes the island and applies cooldown (prevents immediate re-appearing)
 
 * **🛡️ Spoiler Protection:** Define blocked terms globally or per-app to prevent specific notifications (e.g., message spoilers) from popping up on the Island.
 * **👻 Ghost Mode:** Option to hide the persistent service notification from the system shade while keeping the Island fully active.
 * **Total Control:** Choose exactly which apps trigger the island, customize timeouts, and toggle floating behavior per app.
-* ** MUCH MORE TO COME**
+* **MUCH MORE TO COME**
 
 
 ## **🎵 Media Music Island Mode Update:**
 * HyperIsle allows you to control how Music Island behaves on Xiaomi / HyperOS devices.
 By default, the system’s native (HyperOS) music island is used, and the app does not create duplicate islands.
 
-* **Modes**
-* 🟢 SYSTEM_ONLY (Default)**
+* **MODES**
+* **🟢 SYSTEM_ONLY (Default)**
 
     * Uses the native HyperOS music island.
 
