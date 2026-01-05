@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BedtimeOff
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
@@ -67,6 +68,11 @@ fun SmartFeaturesScreen(
     val bannerBtEnabled by preferences.bannerBtConnectedEnabledFlow.collectAsState(initial = false)
     val bannerBatteryEnabled by preferences.bannerBatteryLowEnabledFlow.collectAsState(initial = false)
     val bannerCopiedEnabled by preferences.bannerCopiedEnabledFlow.collectAsState(initial = false)
+
+    // Context-Aware Islands (v0.7.0)
+    val contextAwareEnabled by preferences.contextAwareEnabledFlow.collectAsState(initial = false)
+    val contextScreenOffOnlyImportant by preferences.contextScreenOffOnlyImportantFlow.collectAsState(initial = true)
+    val contextChargingSuppressBatteryBanners by preferences.contextChargingSuppressBatteryBannersFlow.collectAsState(initial = true)
 
     Scaffold(
         topBar = {
@@ -158,6 +164,96 @@ fun SmartFeaturesScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                }
+            }
+
+            // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.DarkMode,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    stringResource(R.string.context_aware_title),
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    stringResource(R.string.context_aware_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = contextAwareEnabled,
+                            onCheckedChange = { scope.launch { preferences.setContextAwareEnabled(it) } }
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = contextAwareEnabled,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column {
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(12.dp))
+
+                            // Screen off: only important islands
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.context_screen_off_only_important),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        stringResource(R.string.context_important_types_label),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = contextScreenOffOnlyImportant,
+                                    onCheckedChange = { scope.launch { preferences.setContextScreenOffOnlyImportant(it) } }
+                                )
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+
+                            // Charging: suppress battery banners
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    stringResource(R.string.context_charging_suppress_battery_banners),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = contextChargingSuppressBatteryBanners,
+                                    onCheckedChange = { scope.launch { preferences.setContextChargingSuppressBatteryBanners(it) } }
+                                )
+                            }
                         }
                     }
                 }

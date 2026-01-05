@@ -496,4 +496,11 @@
     <string name="aggressiveness_high">High</string>
     <string name="quick_actions_throttle_title">Throttle this app</string>
     <string name="quick_actions_throttle_desc">Reduce notifications from this app for 2 hours</string>
+
+    <!-- Context-Aware Islands (v0.7.0) -->
+    <string name="context_aware_title">Context-Aware Islands</string>
+    <string name="context_aware_desc">Adjust island visibility based on screen and charging state</string>
+    <string name="context_screen_off_only_important">Screen off: only important islands</string>
+    <string name="context_charging_suppress_battery_banners">While charging: suppress battery banners</string>
+    <string name="context_important_types_label">Important types: Calls, Timers, Navigation</string>
 </resources>

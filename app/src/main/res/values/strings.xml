@@ -505,4 +505,11 @@
     <string name="aggressiveness_high">Yüksek</string>
     <string name="quick_actions_throttle_title">Bu uygulamayı kısıtla</string>
     <string name="quick_actions_throttle_desc">2 saat boyunca bu uygulamadan bildirimleri azalt</string>
+
+    <!-- Context-Aware Islands (v0.7.0) -->
+    <string name="context_aware_title">Bağlam Duyarlı Adalar</string>
+    <string name="context_aware_desc">Ekran ve şarj durumuna göre ada görünürlüğünü ayarla</string>
+    <string name="context_screen_off_only_important">Ekran kapalıyken: sadece önemli adalar</string>
+    <string name="context_charging_suppress_battery_banners">Şarj olurken: pil afişlerini gizle</string>
+    <string name="context_important_types_label">Önemli türler: Aramalar, Zamanlayıcılar, Navigasyon</string>
 </resources>
