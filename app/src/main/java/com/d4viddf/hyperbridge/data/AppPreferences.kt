@@ -364,4 +364,17 @@ class AppPreferences(context: Context) {
         val key = "priority_throttle_until_${packageName}_$typeName"
         remove(key)
     }
+
+    // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
+    val contextAwareEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CONTEXT_AWARE_ENABLED).map { it.toBoolean(false) }
+    val contextScreenOffOnlyImportantFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CONTEXT_SCREEN_OFF_ONLY_IMPORTANT).map { it.toBoolean(true) }
+    val contextScreenOffImportantTypesFlow: Flow<Set<String>> = dao.getSettingFlow(SettingsKeys.CONTEXT_SCREEN_OFF_IMPORTANT_TYPES).map {
+        it.deserializeSet().ifEmpty { setOf("CALL", "TIMER", "NAVIGATION") }
+    }
+    val contextChargingSuppressBatteryBannersFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CONTEXT_CHARGING_SUPPRESS_BATTERY_BANNERS).map { it.toBoolean(true) }
+
+    suspend fun setContextAwareEnabled(enabled: Boolean) = save(SettingsKeys.CONTEXT_AWARE_ENABLED, enabled.toString())
+    suspend fun setContextScreenOffOnlyImportant(enabled: Boolean) = save(SettingsKeys.CONTEXT_SCREEN_OFF_ONLY_IMPORTANT, enabled.toString())
+    suspend fun setContextScreenOffImportantTypes(types: Set<String>) = save(SettingsKeys.CONTEXT_SCREEN_OFF_IMPORTANT_TYPES, types.serialize())
+    suspend fun setContextChargingSuppressBatteryBanners(enabled: Boolean) = save(SettingsKeys.CONTEXT_CHARGING_SUPPRESS_BATTERY_BANNERS, enabled.toString())
 }

@@ -35,6 +35,7 @@ import java.time.LocalTime
 import com.d4viddf.hyperbridge.data.db.AppDatabase
 import com.d4viddf.hyperbridge.data.db.NotificationDigestItem
 import com.d4viddf.hyperbridge.models.IslandConfig
+import com.d4viddf.hyperbridge.util.ContextStateManager
 import com.d4viddf.hyperbridge.util.Haptics
 import com.d4viddf.hyperbridge.util.IslandActivityStateMachine
 import com.d4viddf.hyperbridge.util.IslandCooldownManager
@@ -79,6 +80,11 @@ class NotificationReaderService : NotificationListenerService() {
     // Smart Priority cache
     private var smartPriorityEnabled = true
     private var smartPriorityAggressiveness = 1
+
+    // Context-Aware Islands cache (v0.7.0)
+    private var contextAwareEnabled = false
+    private var contextScreenOffOnlyImportant = true
+    private var contextScreenOffImportantTypes: Set<String> = setOf("CALL", "TIMER", "NAVIGATION")
 
     // --- CACHES ---
     // Replace Policy: groupKey -> ActiveIsland (instead of sbn.key)
@@ -145,6 +151,14 @@ class NotificationReaderService : NotificationListenerService() {
         // Smart Priority observers
         serviceScope.launch { preferences.smartPriorityEnabledFlow.collectLatest { smartPriorityEnabled = it } }
         serviceScope.launch { preferences.smartPriorityAggressivenessFlow.collectLatest { smartPriorityAggressiveness = it } }
+
+        // Context-Aware Islands observers (v0.7.0)
+        serviceScope.launch { preferences.contextAwareEnabledFlow.collectLatest { contextAwareEnabled = it } }
+        serviceScope.launch { preferences.contextScreenOffOnlyImportantFlow.collectLatest { contextScreenOffOnlyImportant = it } }
+        serviceScope.launch { preferences.contextScreenOffImportantTypesFlow.collectLatest { contextScreenOffImportantTypes = it } }
+
+        // Initialize ContextStateManager
+        ContextStateManager.initialize(applicationContext)
 
         // Database for digest
         database = AppDatabase.getDatabase(applicationContext)
@@ -361,6 +375,27 @@ class NotificationReaderService : NotificationListenerService() {
                 is PriorityEngine.Decision.Allow -> { /* continue */ }
             }
 
+            // --- CONTEXT-AWARE FILTERING (v0.7.0) ---
+            // Applied ONLY when contextAwareEnabled is true
+            // Focus Mode is stronger - if focus is active, focus rules already applied above
+            val isFocusActive = focusEnabled && isInQuietHours()
+            if (contextAwareEnabled && !isFocusActive) {
+                val isScreenOn = ContextStateManager.getEffectiveScreenOn(applicationContext)
+                
+                // Screen OFF filtering: only allow important types
+                if (!isScreenOn && contextScreenOffOnlyImportant) {
+                    // Do NOT affect MediaStyle path (already returned above for media)
+                    if (!contextScreenOffImportantTypes.contains(type.name)) {
+                        // Type not allowed when screen is off - skip island but log to digest
+                        if (summaryEnabled) {
+                            insertDigestItem(sbn.packageName, title, text, type.name)
+                        }
+                        Log.d(TAG, "Context-aware: Blocked ${type.name} for ${sbn.packageName} (screen off)")
+                        return
+                    }
+                }
+            }
+
             // --- REPLACE POLICY: Use groupKey instead of sbn.key ---
             val groupKey = "${sbn.packageName}:${type.name}"
             val bridgeId = groupKey.hashCode()
@@ -388,7 +423,7 @@ class NotificationReaderService : NotificationListenerService() {
             }
 
             // --- FOCUS AUTOMATION ---
-            val isFocusActive = focusEnabled && isInQuietHours()
+            // Note: isFocusActive already computed above for context-aware check
             if (isFocusActive && !focusAllowedTypes.contains(type.name)) {
                 // Type not allowed during focus - skip island but log to digest
                 if (summaryEnabled) {
