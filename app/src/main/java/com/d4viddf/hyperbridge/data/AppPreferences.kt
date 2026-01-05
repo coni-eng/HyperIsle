@@ -377,4 +377,11 @@ class AppPreferences(context: Context) {
     suspend fun setContextScreenOffOnlyImportant(enabled: Boolean) = save(SettingsKeys.CONTEXT_SCREEN_OFF_ONLY_IMPORTANT, enabled.toString())
     suspend fun setContextScreenOffImportantTypes(types: Set<String>) = save(SettingsKeys.CONTEXT_SCREEN_OFF_IMPORTANT_TYPES, types.serialize())
     suspend fun setContextChargingSuppressBatteryBanners(enabled: Boolean) = save(SettingsKeys.CONTEXT_CHARGING_SUPPRESS_BATTERY_BANNERS, enabled.toString())
+
+    // --- CONTEXT PRESETS (v0.9.0) ---
+    val contextPresetFlow: Flow<com.d4viddf.hyperbridge.models.ContextPreset> = dao.getSettingFlow(SettingsKeys.CONTEXT_PRESET).map {
+        try { com.d4viddf.hyperbridge.models.ContextPreset.valueOf(it ?: com.d4viddf.hyperbridge.models.ContextPreset.OFF.name) } catch (e: Exception) { com.d4viddf.hyperbridge.models.ContextPreset.OFF }
+    }
+
+    suspend fun setContextPreset(preset: com.d4viddf.hyperbridge.models.ContextPreset) = save(SettingsKeys.CONTEXT_PRESET, preset.name)
 }

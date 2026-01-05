@@ -80,4 +80,7 @@ object SettingsKeys {
     const val CONTEXT_SCREEN_OFF_ONLY_IMPORTANT = "context_screen_off_only_important"
     const val CONTEXT_SCREEN_OFF_IMPORTANT_TYPES = "context_screen_off_important_types"
     const val CONTEXT_CHARGING_SUPPRESS_BATTERY_BANNERS = "context_charging_suppress_battery_banners"
+
+    // Context Presets (v0.9.0)
+    const val CONTEXT_PRESET = "context_preset"
 }

@@ -43,4 +43,22 @@ interface NotificationDigestDao {
 
     @Query("SELECT COUNT(*) FROM notification_digest WHERE postTime > :since")
     suspend fun countSince(since: Long): Int
+
+    @Query("""
+        SELECT packageName, COUNT(*) as count 
+        FROM notification_digest 
+        WHERE postTime > :since 
+        GROUP BY packageName 
+        ORDER BY count DESC 
+        LIMIT 3
+    """)
+    suspend fun getTop3AppsSince(since: Long): List<AppNotificationCount>
+
+    @Query("SELECT * FROM notification_digest WHERE postTime > :since ORDER BY postTime DESC")
+    fun getItemsSinceFlowOrdered(since: Long): Flow<List<NotificationDigestItem>>
 }
+
+data class AppNotificationCount(
+    val packageName: String,
+    val count: Int
+)

@@ -86,6 +86,9 @@ class NotificationReaderService : NotificationListenerService() {
     private var contextScreenOffOnlyImportant = true
     private var contextScreenOffImportantTypes: Set<String> = setOf("CALL", "TIMER", "NAVIGATION")
 
+    // Context Presets cache (v0.9.0)
+    private var contextPreset = com.d4viddf.hyperbridge.models.ContextPreset.OFF
+
     // --- CACHES ---
     // Replace Policy: groupKey -> ActiveIsland (instead of sbn.key)
     private val activeIslands = ConcurrentHashMap<String, ActiveIsland>()
@@ -156,6 +159,9 @@ class NotificationReaderService : NotificationListenerService() {
         serviceScope.launch { preferences.contextAwareEnabledFlow.collectLatest { contextAwareEnabled = it } }
         serviceScope.launch { preferences.contextScreenOffOnlyImportantFlow.collectLatest { contextScreenOffOnlyImportant = it } }
         serviceScope.launch { preferences.contextScreenOffImportantTypesFlow.collectLatest { contextScreenOffImportantTypes = it } }
+
+        // Context Presets observer (v0.9.0)
+        serviceScope.launch { preferences.contextPresetFlow.collectLatest { contextPreset = it } }
 
         // Initialize ContextStateManager
         ContextStateManager.initialize(applicationContext)
@@ -375,10 +381,39 @@ class NotificationReaderService : NotificationListenerService() {
                 is PriorityEngine.Decision.Allow -> { /* continue */ }
             }
 
+            // --- CONTEXT PRESETS (v0.9.0) ---
+            // Applied to non-media notifications only, before Focus mode
+            // Focus Mode is the strongest override
+            val isFocusActive = focusEnabled && isInQuietHours()
+            if (!isFocusActive && contextPreset != com.d4viddf.hyperbridge.models.ContextPreset.OFF && type != NotificationType.MEDIA) {
+                val shouldBlock = when (contextPreset) {
+                    com.d4viddf.hyperbridge.models.ContextPreset.MEETING -> {
+                        // Block STANDARD and PROGRESS, allow CALL, TIMER, NAVIGATION
+                        type == NotificationType.STANDARD || type == NotificationType.PROGRESS
+                    }
+                    com.d4viddf.hyperbridge.models.ContextPreset.DRIVING -> {
+                        // Block STANDARD and PROGRESS, allow CALL, TIMER, NAVIGATION
+                        type == NotificationType.STANDARD || type == NotificationType.PROGRESS
+                    }
+                    com.d4viddf.hyperbridge.models.ContextPreset.HEADPHONES -> {
+                        // Block CALL only (let user enjoy media/content without interruption)
+                        type == NotificationType.CALL
+                    }
+                    com.d4viddf.hyperbridge.models.ContextPreset.OFF -> false
+                }
+                
+                if (shouldBlock) {
+                    if (summaryEnabled) {
+                        insertDigestItem(sbn.packageName, title, text, type.name)
+                    }
+                    Log.d(TAG, "Context preset ${contextPreset.name}: Blocked ${type.name} for ${sbn.packageName}")
+                    return
+                }
+            }
+
             // --- CONTEXT-AWARE FILTERING (v0.7.0) ---
             // Applied ONLY when contextAwareEnabled is true
             // Focus Mode is stronger - if focus is active, focus rules already applied above
-            val isFocusActive = focusEnabled && isInQuietHours()
             if (contextAwareEnabled && !isFocusActive) {
                 val isScreenOn = ContextStateManager.getEffectiveScreenOn(applicationContext)
                 
