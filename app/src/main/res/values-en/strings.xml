@@ -206,7 +206,7 @@
     </string>
 
     <string name="priority_edu_title">New: Control the Island</string>
-    <string name="priority_edu_desc">HyperBridge can now manage how multiple notifications behave when the 9-island limit is reached.\n\n&lt;b&gt;Default: Most Recent&lt;/b&gt;\nNew notifications replace the oldest ones automatically.</string>
+    <string name="priority_edu_desc">HyperIsle can now manage how multiple notifications behave when the 9-island limit is reached.\n\n&lt;b&gt;Default: Most Recent&lt;/b&gt;\nNew notifications replace the oldest ones automatically.</string>
     <string name="keep_default">Keep Default</string>
     <string name="configure_now">Configure Now</string>
 

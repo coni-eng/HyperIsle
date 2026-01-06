@@ -127,7 +127,7 @@ class BackupManager(
     companion object {
         fun generateFileName(): String {
             val date = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            return "HyperBridge_Backup_$date.hbr"
+            return "HyperIsle_Backup_$date.hbr"
         }
     }
 }
