@@ -1,10 +1,14 @@
-\## \[Unreleased]
+## [Unreleased]
+
+- v0.9.1 digest hardening planned (navigation entry, suppression logging improvements)
 
 
-\## \[v0.9.1] - Summary Digest
+## [v0.9.1] - Summary Digest (Planned Hotfix)
+
+**Not yet implemented. Planned improvements:**
 
 1) Navigation / entrypoint
-- Ensure Settings screen has a clear entry “Notification Summary” that opens NotificationSummaryScreenV2.kt.
+- Ensure Settings screen has a clear entry "Notification Summary" that opens NotificationSummaryScreenV2.kt.
 - If navigation graph exists, add route and hook from settings list item.
 - If using simple Compose navigation in MainActivity, add route there.
 
@@ -17,21 +21,30 @@
   - Spoiler protection deny
 
 
+## [v0.9.0] - Context Presets & Summary Upgrades
 
-\## \[v0.9.0] - Context Presets & Summary Upgrades
+### Added
 
-1) Context presets: OFF/MEETING/DRIVING/HEADPHONES
-- store preset in AppPreferences
-- apply rules in NotificationReaderService (non-media only)
-- keep Focus as strongest override
+- **Context Presets:** Quick notification filters for different scenarios
+  - OFF: No filtering (default)
+  - MEETING: Only calls, timers, and navigation
+  - DRIVING: Only calls, timers, and navigation
+  - HEADPHONES: Block calls, enjoy content
+  - Focus Mode is the strongest override (presets do not weaken Focus rules)
+  - Applied to non-media notifications only
 
-2) Summary upgrades:
-- time-bucket grouping view (morning/noon/evening) (UI grouping is enough; scheduling optional)
-- top 3 apps by count (last 24h)
-- inline actions in summary list: mute/block app (reuse existing Quick Actions logic)
+- **Summary V2 Upgrades:**
+  - Time-bucket grouping in UI (Morning / Afternoon / Evening)
+  - Top 3 apps by notification count (last 24 hours)
+  - Inline actions in summary list: mute/block app (reuses existing Quick Actions logic)
+
+### Changed
+
+- SmartFeaturesScreen now includes Context Presets selector with segmented buttons
+- NotificationReaderService applies preset rules before Focus mode check
 
 
-\## \[v0.8.0] - POLISHES
+## [v0.8.0] - POLISHES
 
 1) Live Activity final polish:
 - minVisibleMs (default 700ms)
