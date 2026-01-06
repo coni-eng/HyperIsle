@@ -34,8 +34,16 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "Received broadcast: ${intent.action}")
+    override fun onReceive(context: Context, intent: Intent?) {
+        // Security: Validate intent before processing
+        val action = intent?.action ?: return
+        
+        // Security: Whitelist - only accept known Bluetooth actions
+        if (action != BluetoothDevice.ACTION_ACL_CONNECTED) {
+            return
+        }
+        
+        Log.d(TAG, "Received BT connection broadcast")
 
         // Check if banner is enabled (default OFF)
         val preferences = AppPreferences(context)
@@ -45,11 +53,7 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
             return
         }
 
-        when (intent.action) {
-            BluetoothDevice.ACTION_ACL_CONNECTED -> {
-                handleDeviceConnected(context, intent)
-            }
-        }
+        handleDeviceConnected(context, intent)
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)

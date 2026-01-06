@@ -33,8 +33,16 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "Received broadcast: ${intent.action}")
+    override fun onReceive(context: Context, intent: Intent?) {
+        // Security: Validate intent before processing
+        val action = intent?.action ?: return
+        
+        // Security: Whitelist - only accept known battery actions
+        if (action != Intent.ACTION_BATTERY_LOW) {
+            return
+        }
+        
+        Log.d(TAG, "Received battery low broadcast")
 
         // Check if banner is enabled (default OFF)
         val preferences = AppPreferences(context)
@@ -52,11 +60,7 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
             return
         }
 
-        when (intent.action) {
-            Intent.ACTION_BATTERY_LOW -> {
-                handleBatteryLow(context)
-            }
-        }
+        handleBatteryLow(context)
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)

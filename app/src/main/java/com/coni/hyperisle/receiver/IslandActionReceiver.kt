@@ -36,17 +36,26 @@ class IslandActionReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
-        val action = intent?.action ?: return
-        Log.d(TAG, "Received action: $action")
+        // Security: Validate intent before processing
+        if (intent == null) return
+        val action = intent.action ?: return
+        
+        // Security: Whitelist - only accept known focus actions
+        if (!FocusActionHelper.isOptionsAction(action) && !FocusActionHelper.isDismissAction(action)) {
+            // Unknown action - silently ignore (no logging to avoid PII leaks)
+            return
+        }
+        
+        Log.d(TAG, "Received focus action")
 
         // Parse notification ID using centralized helper
         val notificationId = FocusActionHelper.parseNotificationId(action)
 
         // Safety: if focus action detected but ID parsing failed, log and early return
-        if (notificationId == null && (FocusActionHelper.isOptionsAction(action) || FocusActionHelper.isDismissAction(action))) {
-            Log.w(TAG, "Focus action detected but notification ID parsing failed: $action")
+        if (notificationId == null) {
+            Log.w(TAG, "Focus action detected but notification ID parsing failed")
             if (ActionDiagnostics.isEnabled()) {
-                ActionDiagnostics.record("focus_action_parse_failed action=${action.take(50)}")
+                ActionDiagnostics.record("focus_action_parse_failed")
             }
             // Fall through to allow fallback behavior using last active notification
         }
@@ -54,7 +63,6 @@ class IslandActionReceiver : BroadcastReceiver() {
         when {
             FocusActionHelper.isOptionsAction(action) -> handleOptions(context, notificationId)
             FocusActionHelper.isDismissAction(action) -> handleDismiss(context, notificationId)
-            else -> Log.w(TAG, "Unknown action: $action")
         }
     }
 
