@@ -644,13 +644,18 @@ class NotificationReaderService : NotificationListenerService() {
             false
         }
     }
-
-    // Deduplication cache: "pkg:title:text" -> timestamp
     private val digestDedupeCache = ConcurrentHashMap<String, Long>()
     private val DIGEST_DEDUPE_WINDOW_MS = 2000L
 
     /**
      * v0.9.1: Insert digest item with optional suppression reason for diagnostics.
+     * 
+     * Safety rules:
+     * - Never record media notifications (caller must check type != MEDIA)
+     * - Deduplication prevents duplicate entries within 2 seconds
+     * - Diagnostics are NO-OP when ActionDiagnostics is disabled (release builds)
+     * - No PII (title/text) is logged to diagnostics, only pkg and keyHash
+     * 
      * @param suppressionReason Optional reason code for why notification was suppressed (null = normal post)
      * @param keyHash Optional sbn.key.hashCode() for diagnostics (only computed when diagnostics enabled)
      */
