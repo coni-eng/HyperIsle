@@ -519,9 +519,9 @@
     <string name="context_preset_desc">Quickly apply notification filters for different scenarios</string>
     <string name="preset_off">Off</string>
     <string name="preset_meeting">Meeting</string>
-    <string name="preset_meeting_desc">Only calls, timers, and navigation</string>
+    <string name="preset_meeting_desc">Only calls, timers, and navigation. Smart Priority never throttles these types.</string>
     <string name="preset_driving">Driving</string>
-    <string name="preset_driving_desc">Only calls, timers, and navigation</string>
+    <string name="preset_driving_desc">Only calls, timers, and navigation. Smart Priority never throttles these types.</string>
     <string name="preset_headphones">Headphones</string>
     <string name="preset_headphones_desc">Block calls, enjoy your content</string>
     <string name="preset_focus_override">Focus Mode overrides presets when active.</string>

@@ -518,9 +518,9 @@
     <string name="context_preset_desc">Farklı senaryolar için bildirim filtrelerini hızlıca uygula</string>
     <string name="preset_off">Kapalı</string>
     <string name="preset_meeting">Toplantı</string>
-    <string name="preset_meeting_desc">Sadece aramalar, zamanlayıcılar ve navigasyon</string>
+    <string name="preset_meeting_desc">Sadece aramalar, zamanlayıcılar ve navigasyon. Akıllı Öncelik bu türleri asla kısıtlamaz.</string>
     <string name="preset_driving">Sürüş</string>
-    <string name="preset_driving_desc">Sadece aramalar, zamanlayıcılar ve navigasyon</string>
+    <string name="preset_driving_desc">Sadece aramalar, zamanlayıcılar ve navigasyon. Akıllı Öncelik bu türleri asla kısıtlamaz.</string>
     <string name="preset_headphones">Kulaklık</string>
     <string name="preset_headphones_desc">Aramaları engelle, içeriğin keyfini çıkar</string>
     <string name="preset_focus_override">Odak Modu aktifken ön ayarları geçersiz kılar.</string>
