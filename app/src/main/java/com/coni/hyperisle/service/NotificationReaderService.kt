@@ -387,22 +387,43 @@ class NotificationReaderService : NotificationListenerService() {
             }
 
             // --- SMART PRIORITY CHECK ---
+            // v0.9.3: Context Presets integration with Smart Priority
+            // - MEETING/DRIVING: CALL/TIMER/NAV bypass Smart Priority (never throttled)
+            // - MEETING/DRIVING: STANDARD gets stricter burst threshold (presetBias=1)
+            // - HEADPHONES: No bias (keep existing behavior, preset may block CALL separately)
             val sbnKeyHash = sbn.key.hashCode()
-            val priorityDecision = PriorityEngine.evaluate(
-                applicationContext,
-                preferences,
-                sbn.packageName,
-                type.name,
-                smartPriorityEnabled,
-                smartPriorityAggressiveness,
-                sbnKeyHash
-            )
+            val criticalTypes = setOf(NotificationType.CALL, NotificationType.TIMER, NotificationType.NAVIGATION)
+            val isPresetActive = contextPreset == com.coni.hyperisle.models.ContextPreset.MEETING || 
+                                 contextPreset == com.coni.hyperisle.models.ContextPreset.DRIVING
+            
+            // Bypass Smart Priority for critical types under MEETING/DRIVING
+            val shouldBypassPriority = isPresetActive && type in criticalTypes
+            
+            // Apply conservative bias for STANDARD under MEETING/DRIVING
+            val presetBias = if (isPresetActive && type == NotificationType.STANDARD) 1 else 0
+            
+            val priorityDecision = if (shouldBypassPriority) {
+                // Critical types bypass Smart Priority under MEETING/DRIVING
+                PriorityEngine.allowPresetBypass(sbn.packageName, sbnKeyHash)
+            } else {
+                PriorityEngine.evaluate(
+                    applicationContext,
+                    preferences,
+                    sbn.packageName,
+                    type.name,
+                    smartPriorityEnabled,
+                    smartPriorityAggressiveness,
+                    sbnKeyHash,
+                    presetBias
+                )
+            }
             when (priorityDecision) {
                 is PriorityEngine.Decision.BlockBurst -> {
                     // v0.9.1: Log to digest with suppression reason
                     if (summaryEnabled && type != NotificationType.MEDIA) {
                         val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
-                        insertDigestItem(sbn.packageName, title, text, type.name, "PRIORITY_BURST", keyHash)
+                        val reason = if (presetBias > 0) "PRIORITY_BURST_PRESET" else "PRIORITY_BURST"
+                        insertDigestItem(sbn.packageName, title, text, type.name, reason, keyHash)
                     }
                     return
                 }
@@ -410,7 +431,8 @@ class NotificationReaderService : NotificationListenerService() {
                     // v0.9.1: Log to digest with suppression reason
                     if (summaryEnabled && type != NotificationType.MEDIA) {
                         val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
-                        insertDigestItem(sbn.packageName, title, text, type.name, "PRIORITY_THROTTLE", keyHash)
+                        val reason = if (presetBias > 0) "PRIORITY_THROTTLE_PRESET" else "PRIORITY_THROTTLE"
+                        insertDigestItem(sbn.packageName, title, text, type.name, reason, keyHash)
                     }
                     return
                 }

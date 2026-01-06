@@ -59,6 +59,8 @@ object PriorityEngine {
     private const val REASON_FAST_DISMISS = "FAST_DISMISS"
     private const val REASON_TAP_OPEN_BOOST = "TAP_OPEN_BOOST"
     private const val REASON_MUTE_NEGATIVE = "MUTE_NEGATIVE"
+    private const val REASON_PRESET_BYPASS = "PRESET_BYPASS"
+    private const val REASON_PRESET_BIAS = "PRESET_BIAS"
     private const val DECISION_ALLOW = "ALLOW"
     private const val DECISION_DENY = "DENY"
     private const val TYPENAME_STANDARD = "STANDARD"
@@ -165,7 +167,8 @@ object PriorityEngine {
         typeName: String,
         smartPriorityEnabled: Boolean,
         aggressiveness: Int,
-        sbnKeyHash: Int = 0
+        sbnKeyHash: Int = 0,
+        presetAggressivenessBias: Int = 0
     ): Decision {
         // ═══════════════════════════════════════════════════════════════════
         // CHEAP-FIRST PIPELINE: Ordered by cost, short-circuit early
@@ -198,7 +201,30 @@ object PriorityEngine {
         // ─── GATE 5: Throttle check (Room lookup, more expensive) ───
         // Only reached if not burst-blocked
         if (isThrottled(preferences, packageName, typeName)) {
-            return denyThrottleWithReason(packageName, sbnKeyHash, isQuietHours)
+            val reasons = if (presetAggressivenessBias > 0) {
+                listOf(REASON_THROTTLED, REASON_PRESET_BIAS)
+            } else if (isQuietHours) {
+                listOf(REASON_THROTTLED, REASON_QUIET_HOURS_BIAS)
+            } else {
+                listOf(REASON_THROTTLED)
+            }
+            recordDiagnostic(packageName, sbnKeyHash, DECISION_DENY, reasons)
+            return Decision.BlockThrottle(reasons)
+        }
+        
+        // ─── GATE 6: Preset bias for STANDARD (conservative additional throttling) ───
+        // When preset is MEETING/DRIVING, apply stricter burst threshold for STANDARD
+        if (presetAggressivenessBias > 0 && typeName == TYPENAME_STANDARD) {
+            // Use stricter burst threshold based on preset bias
+            val presetBurstThreshold = (BURST_THRESHOLD - presetAggressivenessBias).coerceAtLeast(2)
+            val timestamps = burstTracker[packageName] ?: emptyList<Long>()
+            val now = System.currentTimeMillis()
+            val recentCount = timestamps.count { now - it < BURST_WINDOW_MS }
+            if (recentCount >= presetBurstThreshold) {
+                val reasons = listOf(REASON_BURST, REASON_PRESET_BIAS)
+                recordDiagnostic(packageName, sbnKeyHash, DECISION_DENY, reasons)
+                return Decision.BlockBurst(reasons)
+            }
         }
 
         // ─── ALLOW: Passed all gates ───
@@ -229,6 +255,14 @@ object PriorityEngine {
         }
         recordDiagnostic(pkg, keyHash, DECISION_DENY, reasons)
         return Decision.BlockThrottle(reasons)
+    }
+
+    /**
+     * Creates an Allow decision with PRESET_BYPASS reason.
+     * Called from NotificationReaderService when preset bypasses Smart Priority for critical types.
+     */
+    fun allowPresetBypass(packageName: String, sbnKeyHash: Int): Decision.Allow {
+        return allowWithReason(packageName, sbnKeyHash, REASON_PRESET_BYPASS)
     }
 
     /**
