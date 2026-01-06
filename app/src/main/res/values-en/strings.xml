@@ -47,7 +47,7 @@
     <string name="tab_library">Library</string>
     <string name="title_active_bridges">Active Apps</string>
     <string name="title_library">App Library</string>
-    <string name="search_hint">Search apps...</string>
+    <string name="search_hint">Search apps…</string>
     <string name="sort_az">Sort: A-Z</string>
     <string name="sort_za">Sort: Z-A</string>
 
@@ -130,7 +130,7 @@
 
     <string name="status_download_complete">Download Complete</string>
     <string name="status_downloading">Downloading</string>
-    <string name="status_pending">Pending...</string>
+    <string name="status_pending">Pending…</string>
     <string name="status_finished">Finished</string>
     <string name="status_now_playing">Now Playing</string>
     <string name="status_incoming_call">Incoming Call</string>
@@ -549,4 +549,9 @@
     <string name="debug_priority_diagnostics_desc">Track Smart Priority decisions (burst, throttle)</string>
     <string name="debug_copy_priority_diagnostics">Copy Priority Diagnostics Summary</string>
     <string name="debug_priority_diagnostics_copied">Priority diagnostics copied to clipboard</string>
+
+    <!-- Reset Learning (debug builds only) -->
+    <string name="debug_reset_learning_title">Smart Priority Learning</string>
+    <string name="debug_reset_learning_button">Reset Smart Priority Learning</string>
+    <string name="debug_reset_learning_done">Reset done</string>
 </resources>

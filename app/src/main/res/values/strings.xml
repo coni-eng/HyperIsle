@@ -17,7 +17,7 @@
     <string name="get_started">Başla</string>
 
     <string name="how_it_works">Nasıl Çalışır</string>
-    <string name="how_it_works_desc">Favori uygulamalarınızı seçin (Müzik, Haritalar, Zamanlayıcı ...). HyperIsle bildirimlerinizi şık bir adaya dönüştürür.</string>
+    <string name="how_it_works_desc">Favori uygulamalarınızı seçin (Müzik, Haritalar, Zamanlayıcı …). HyperIsle bildirimlerinizi şık bir adaya dönüştürür.</string>
     <string name="early_development">Erken Geliştirme</string>
     <string name="beta_warning">Not: Bu uygulama geliştirme aşamasındadır. Hatalar veya yanlış görsel bilgilerle karşılaşabilirsiniz.</string>
 
@@ -46,7 +46,7 @@
     <string name="tab_library">Kütüphane</string>
     <string name="title_active_bridges">Aktif Uygulama</string>
     <string name="title_library">Uygulama Kütüphanesi</string>
-    <string name="search_hint">Uygulama ara...</string>
+    <string name="search_hint">Uygulama Ara…</string>
     <string name="sort_az">Sırala: A-Z</string>
     <string name="sort_za">Sırala: Z-A</string>
 
@@ -129,7 +129,7 @@
 
     <string name="status_download_complete">İndirme Tamamlandı</string>
     <string name="status_downloading">İndiriliyor</string>
-    <string name="status_pending">Bekliyor...</string>
+    <string name="status_pending">Bekliyor…</string>
     <string name="status_finished">Tamamlandı</string>
     <string name="status_now_playing">Şimdi Çalıyor</string>
     <string name="status_incoming_call">Gelen Arama</string>
@@ -548,4 +548,9 @@
     <string name="debug_priority_diagnostics_desc">Akıllı Öncelik kararlarını izle (patlama, kısıtlama)</string>
     <string name="debug_copy_priority_diagnostics">Öncelik Tanılama Özetini Kopyala</string>
     <string name="debug_priority_diagnostics_copied">Öncelik tanılama panoya kopyalandı</string>
+
+    <!-- Reset Learning (debug builds only) -->
+    <string name="debug_reset_learning_title">Akıllı Öncelik Öğrenme</string>
+    <string name="debug_reset_learning_button">Akıllı Öncelik Öğrenmesini Sıfırla</string>
+    <string name="debug_reset_learning_done">Sıfırlama tamamlandı</string>
 </resources>

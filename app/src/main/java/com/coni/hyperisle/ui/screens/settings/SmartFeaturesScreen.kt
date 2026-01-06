@@ -674,6 +674,30 @@ fun SmartFeaturesScreen(
                         ) {
                             Text(stringResource(R.string.debug_copy_priority_diagnostics))
                         }
+
+                        Spacer(Modifier.height(16.dp))
+                        CardDivider()
+                        Spacer(Modifier.height(12.dp))
+
+                        Text(
+                            stringResource(R.string.debug_reset_learning_title),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        val resetDoneMessage = stringResource(R.string.debug_reset_learning_done)
+                        FilledTonalButton(
+                            onClick = {
+                                scope.launch {
+                                    preferences.clearAllLearningState()
+                                    com.coni.hyperisle.util.PriorityEngine.clearAllInMemoryState()
+                                    snackbarHostState.showSnackbar(resetDoneMessage)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.debug_reset_learning_button))
+                        }
                     }
                 }
             }
