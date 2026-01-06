@@ -9,85 +9,144 @@
 </p>
 
 <p align="center">
-  HyperIsle bridges standard Android notifications into the pill-shaped UI around the camera cutout, offering a seamless, iOS-like experience on Xiaomi phones.
+  HyperIsle bridges standard Android notifications into the pill-shaped UI around the camera cutout,
+  delivering an iOS-inspired Dynamic Island experience on Xiaomi / HyperOS devices.
 </p>
-
-
 
 <br>
 
-## 🚀 Features
+<!-- Optional hero image -->
+<!--
+<p align="center">
+  <img src="docs/hero.png" width="85%" />
+</p>
+-->
 
-* **Native Visuals:** Transforms notifications into HyperOS system-style islands.
-* **Smart Integration:**
-    * **🎵 Media:** Show album art and "Now Playing" status with visualizer support.
-    * **🧭 Navigation:** Real-time turn-by-turn instructions (Google Maps, Waze). Customize the split layout (Distance, ETA, or Instruction).
-    * **⬇️ Downloads:** Circular progress ring with a satisfying "Green Tick" animation upon completion.
-    * **📞 Calls:** Dedicated layout for incoming and active calls with timers.
-    * **🔕 System Notifications:** DND, Silent mode is visible from island.
-    * **✨ Smart Silence:** Prevents spammy repeats within a configurable time window.
-    * **🎯 Focus Mode:** Quiet-hours rules can override floating/timeout behavior and restrict which types are shown.
-    * **🧾 Notification Summary:** Optional daily digest notification (iOS-style summary).
-    * **📳 Haptics:** Subtle “shown” haptic on island display + distinct “success” haptic on dismiss.
-    * **🧩 Standard Actions:** Consistent island interactions:
-      * **Tap:**  opens the source app (with safe fallback)
-      * **Options:** opens Quick Actions (mute/block per app)
-  	  * **Dismiss:**  closes the island and applies cooldown (prevents immediate re-appearing)
-    *  **🧠 Smart UX:**
-       * **🧠 Live Activity Engine:** Islands update smoothly instead of stacking.
-       * **⚡ Smart Priority:** Spam detection and auto-throttling based on user behavior.
-       * **📱 Context-Aware Islands:** Adapts behavior based on screen and charging state.
-       * **🎨 Adaptive Visuals:** App-based accent colors and polished progress animations.
-       * **🎛️ Context Presets:** Quick notification filters (OFF / MEETING / DRIVING / HEADPHONES). Applies to non-media notifications; Focus Mode overrides presets.
-       * **📊 Notification Summary:** Time-bucket grouping (Morning / Afternoon / Evening), top 3 apps by notification count (last 24h), inline mute/block actions.
+---
 
-* **🛡️ Spoiler Protection:** Define blocked terms globally or per-app to prevent specific notifications (e.g., message spoilers) from popping up on the Island.
-* **👻 Ghost Mode:** Option to hide the persistent service notification from the system shade while keeping the Island fully active.
-* **Total Control:** Choose exactly which apps trigger the island, customize timeouts, and toggle floating behavior per app.
-* **Debug diagnostics (developer builds):**
-  * HyperIsle includes optional debug-only diagnostics for notification actions.
-  * These tools help troubleshoot edge cases in action routing (Activity / Broadcast / Service)
-without logging notification content or affecting release performance.
+## 🚀 Features (Highlights)
 
-**TO HELP WITH LOGS:**
-Open “Action diagnostics’ → see a bug → ‘Copy diagnostics summary’ → and send me.”
+* **Native HyperOS Visuals** – Notifications rendered as system-style islands.
+* **🎛️ Context Presets** – One-tap notification filtering:
+  **OFF / MEETING / DRIVING / HEADPHONES** (non-media only, Focus Mode always overrides).
+* **📊 Notification Summary V2** – iOS-style daily digest with:
+  time-bucket grouping, top 3 apps (24h), and inline mute/block actions.
+* **🎵 Media & Navigation Islands** – Album art, now playing, and turn-by-turn navigation support.
+* **⚡ Smart Priority Engine** – Spam detection, throttling, and adaptive cooldowns.
+* **🎯 Focus Mode** – Quiet-hours rules that override floating behavior and restrict visible types.
+* **🧠 Live Activity Engine** – Smooth updates instead of stacking notifications.
+* **🎨 Adaptive Visuals & Haptics** – App-based accent colors, polished animations, subtle haptic feedback.
 
-* **MUCH MORE TO COME**
+---
 
+<details>
+<summary><strong>🔍 Full feature list</strong></summary>
 
-## **🎵 Media Music Island Mode Update:**
-* HyperIsle allows you to control how Music Island behaves on Xiaomi / HyperOS devices.
-By default, the system’s native (HyperOS) music island is used, and the app does not create duplicate islands.
- 
-* **MODES**
-* **🟢 SYSTEM_ONLY (Default)**
+### Native & Smart Integration
 
-    * Uses the native HyperOS music island.
+* **🎵 Media**
+  * Album art, now playing status, visualizer support.
+* **🧭 Navigation**
+  * Real-time turn-by-turn instructions (Google Maps, Waze).
+  * Customizable split layout (Distance / ETA / Instruction).
+* **⬇️ Downloads**
+  * Circular progress ring with success animation on completion.
+* **📞 Calls**
+  * Dedicated layouts for incoming and active calls with timers.
+* **🔕 System Notifications**
+  * DND and Silent mode visibility directly on the island.
+* **✨ Smart Silence**
+  * Prevents spammy repeats within a configurable time window.
+* **📳 Haptics**
+  * Subtle “shown” haptic on island display.
+  * Distinct “success” haptic on dismiss.
 
-    * HyperIsle does not generate any music island.
+### Standard Island Actions
 
-    * Most stable and recommended mode.
+* **Tap** – Opens the source app (safe fallback).
+* **Options** – Quick Actions (mute / block per app).
+* **Dismiss** – Closes the island and applies cooldown (prevents immediate re-appearing).
 
-    * Lock screen and notification media controls remain intact.
+### Smart UX & Behavior
 
-* **🔴 BLOCK_SYSTEM (Advanced)**
+* **🧠 Live Activity Engine** – Smooth updates instead of stacking.
+* **⚡ Smart Priority** – Auto-throttling based on user behavior.
+* **📱 Context-Aware Islands** – Adapts behavior based on screen and charging state.
+* **🎨 Adaptive Visuals** – App-based accent colors and polished progress animations.
+* **🎛️ Context Presets (v0.9.0)** – Quick filters for different scenarios.
+* **📊 Notification Summary V2 (v0.9.0)** – Time buckets, top apps, inline actions.
 
-    * Suppresses the HyperOS native music island for selected music apps.
+### Privacy & Control
 
-    * This is done by cancelling the app’s MediaStyle notification.
+* **🛡️ Spoiler Protection**
+  * Block specific terms globally or per app (e.g. message spoilers).
+* **👻 Ghost Mode**
+  * Hide the persistent service notification while keeping islands active.
+* **Total Control**
+  * Choose which apps trigger islands.
+  * Customize timeouts and floating behavior per app.
 
-* **⚠️ IMPORTANT WARNING**
-    * When this mode is enabled:
-    * Lock screen and notification shade media controls (play / pause / skip) may disappear.
-    * Selecting at least one music app is mandatory.
-    * Misconfiguration may negatively affect the lock screen music experience.
+</details>
 
+---
 
+## 🧪 Debug Diagnostics (Developer builds only)
+
+HyperIsle includes **optional debug-only diagnostics** for notification actions.
+
+* Helps troubleshoot edge cases in action routing  
+  (Activity / Broadcast / Service).
+* No notification content (title/text) is logged.
+* **Zero performance impact** when disabled.
+* Not visible in release builds.
+
+**To help with logs:**
+> Open **Action diagnostics** → reproduce the issue →  
+> tap **Copy diagnostics summary** → send it.
+
+---
+
+## 🎵 Media Music Island Mode
+
+HyperIsle lets you control how Music Island behaves on Xiaomi / HyperOS devices.
+
+By default, the system’s native (HyperOS) music island is used, and HyperIsle does not create duplicates.
+
+### Modes
+
+#### 🟢 SYSTEM_ONLY (Default – Recommended)
+* Uses the native HyperOS music island.
+* HyperIsle does not generate any music island.
+* Most stable option.
+* Lock screen and notification media controls remain intact.
+
+#### 🔴 BLOCK_SYSTEM (Advanced)
+* Suppresses the native HyperOS music island for selected music apps.
+* Implemented by cancelling the app’s MediaStyle notification.
+
+⚠️ **Important**
+* Lock screen and notification shade media controls may disappear.
+* Selecting at least one music app is mandatory.
+* Misconfiguration may negatively affect the lock screen music experience.
+
+👉 If you are unsure, keep **SYSTEM_ONLY** enabled.
+
+---
+
+## 👀 Who is HyperIsle for?
+
+* Xiaomi / HyperOS users who like the Dynamic Island concept.
+* Power users who want fine-grained control over notifications.
+* Developers and tinkerers who appreciate transparency and debug tooling.
+
+---
 
 ## 🌐 Supported Languages
 
 * 🇹🇷 **Turkish** (Default)
 * 🇺🇸 **English**
+
+---
 
 ## 🛠️ Tech Stack
 
@@ -96,65 +155,57 @@ By default, the system’s native (HyperOS) music island is used, and the app do
 * **Services:** NotificationListenerService, BroadcastReceiver
 * **Concurrency:** Kotlin Coroutines & Flow
 
+---
 
 ## 📥 Installation
 
 ### Build from Source
 1. Clone this repository.
 2. Open in Android Studio (Ladybug or newer recommended).
-3. Sync Gradle and run on a Xiaomi/POCO/Redmi device (API 35+).
+3. Sync Gradle and run on a Xiaomi / POCO / Redmi device (API 35+).
 
-### ⚙️ Setup (Required)
-1. Grant **"Notification Access"** when prompted.
-2. **Critical:** Follow the in-app guide to enable **Autostart** and **No Restrictions** (Battery) to prevent the system from killing the background service.
+### ⚙️ Required Setup
+1. Grant **Notification Access** when prompted.
+2. Follow the in-app guide to enable:
+   * **Autostart**
+   * **No Restrictions** (Battery)
+   
+   This prevents the system from killing the background service.
 
+---
 
-
-
-## 📜 Open Source & License (Apache 2.0) 
+## 📜 Open Source & License (Apache 2.0)
 
 This project is built on top of the following open-source projects:
 
 ### HyperBridge
-
-* Author: D4vidDf
-
-* License: Apache License 2.0
-
-* Source: https://github.com/D4vidDf/HyperBridge
+* Author: D4vidDf  
+* License: Apache License 2.0  
+* Source: https://github.com/D4vidDf/HyperBridge  
 
 ### HyperIsland ToolKit
+* Author: D4vidDf  
+* License: Apache License 2.0  
+* Source: https://github.com/D4vidDf/HyperIsland-ToolKit  
 
-* Author: D4vidDf
-
-* License: Apache License 2.0
-
-* Source: https://github.com/D4vidDf/HyperIsland-ToolKit
-
-### Under the Apache 2.0 license, HyperIsle:
-
-* Copyright 2023 D4vidDf
-
-* Distributed under the Apache 2.0 License. See LICENSE for more information
-
-* Properly attributes the original authors
-
-* Complies with all license terms
-
+HyperIsle:
+* Properly attributes original authors
+* Complies with all Apache 2.0 terms
 * Clearly separates modified and original work
 
-### This project is based on the above work but is developed and maintained independently.
+---
 
 ## 🙏 Attribution
 
-This project is based on open-source work by D4vidDf, licensed under Apache 2.0:
+This project is based on open-source work by **D4vidDf**, licensed under Apache 2.0:
 
-- **[HyperBridge](https://github.com/D4vidDf/HyperBridge)** - The original application this fork is based on.
-- **[HyperIsland-ToolKit](https://github.com/D4vidDf/HyperIsland-ToolKit)** - The toolkit library for HyperOS Dynamic Island notifications (mirrored at [coni-eng/My-HyperIsland-ToolKit](https://github.com/coni-eng/My-HyperIsland-ToolKit)).
+* **HyperBridge** – Original application foundation  
+* **HyperIsland ToolKit** – HyperOS Dynamic Island toolkit  
+  (mirrored at `coni-eng/My-HyperIsland-ToolKit`)
 
-We are grateful for D4vidDf's contributions to the open-source community.
+---
 
 ## 👤 Maintainer
 
-**coni-eng**
-* GitHub: [@coni-eng](https://github.com/coni-eng)
+**coni-eng**  
+GitHub: [@coni-eng](https://github.com/coni-eng)
