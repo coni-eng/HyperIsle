@@ -153,7 +153,7 @@ class SystemHyperIslandPoster(private val context: Context) {
 
         // Build notification with MIUI extras
         val notificationBuilder = NotificationCompat.Builder(context, HYPER_ISLAND_SYSTEM_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.`ic_launcher_foreground`)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -192,7 +192,7 @@ class SystemHyperIslandPoster(private val context: Context) {
         message: String
     ) {
         val notification = NotificationCompat.Builder(context, FALLBACK_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.`ic_launcher_foreground`)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_LOW)

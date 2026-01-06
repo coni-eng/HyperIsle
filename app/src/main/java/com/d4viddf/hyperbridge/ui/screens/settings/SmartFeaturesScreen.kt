@@ -96,36 +96,13 @@ fun SmartFeaturesScreen(
             // --- SMART PRIORITY ---
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Speed,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    stringResource(R.string.smart_priority_title),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    stringResource(R.string.smart_priority_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = smartPriorityEnabled,
-                            onCheckedChange = { scope.launch { preferences.setSmartPriorityEnabled(it) } }
-                        )
-                    }
+                    SettingsHeaderRow(
+                        icon = Icons.Default.Speed,
+                        title = stringResource(R.string.smart_priority_title),
+                        description = stringResource(R.string.smart_priority_desc),
+                        checked = smartPriorityEnabled,
+                        onCheckedChange = { scope.launch { preferences.setSmartPriorityEnabled(it) } }
+                    )
 
                     AnimatedVisibility(
                         visible = smartPriorityEnabled,
@@ -134,7 +111,7 @@ fun SmartFeaturesScreen(
                     ) {
                         Column {
                             Spacer(Modifier.height(12.dp))
-                            HorizontalDivider()
+                            CardDivider()
                             Spacer(Modifier.height(12.dp))
 
                             Text(
@@ -172,36 +149,13 @@ fun SmartFeaturesScreen(
             // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.DarkMode,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    stringResource(R.string.context_aware_title),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    stringResource(R.string.context_aware_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = contextAwareEnabled,
-                            onCheckedChange = { scope.launch { preferences.setContextAwareEnabled(it) } }
-                        )
-                    }
+                    SettingsHeaderRow(
+                        icon = Icons.Default.DarkMode,
+                        title = stringResource(R.string.context_aware_title),
+                        description = stringResource(R.string.context_aware_desc),
+                        checked = contextAwareEnabled,
+                        onCheckedChange = { scope.launch { preferences.setContextAwareEnabled(it) } }
+                    )
 
                     AnimatedVisibility(
                         visible = contextAwareEnabled,
@@ -210,50 +164,25 @@ fun SmartFeaturesScreen(
                     ) {
                         Column {
                             Spacer(Modifier.height(12.dp))
-                            HorizontalDivider()
+                            CardDivider()
                             Spacer(Modifier.height(12.dp))
 
                             // Screen off: only important islands
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        stringResource(R.string.context_screen_off_only_important),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        stringResource(R.string.context_important_types_label),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Switch(
-                                    checked = contextScreenOffOnlyImportant,
-                                    onCheckedChange = { scope.launch { preferences.setContextScreenOffOnlyImportant(it) } }
-                                )
-                            }
+                            SettingsToggleRow(
+                                title = stringResource(R.string.context_screen_off_only_important),
+                                subtitle = stringResource(R.string.context_important_types_label),
+                                checked = contextScreenOffOnlyImportant,
+                                onCheckedChange = { scope.launch { preferences.setContextScreenOffOnlyImportant(it) } }
+                            )
 
                             Spacer(Modifier.height(8.dp))
 
                             // Charging: suppress battery banners
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    stringResource(R.string.context_charging_suppress_battery_banners),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Switch(
-                                    checked = contextChargingSuppressBatteryBanners,
-                                    onCheckedChange = { scope.launch { preferences.setContextChargingSuppressBatteryBanners(it) } }
-                                )
-                            }
+                            SettingsToggleRow(
+                                title = stringResource(R.string.context_charging_suppress_battery_banners),
+                                checked = contextChargingSuppressBatteryBanners,
+                                onCheckedChange = { scope.launch { preferences.setContextChargingSuppressBatteryBanners(it) } }
+                            )
                         }
                     }
                 }
@@ -347,7 +276,7 @@ fun SmartFeaturesScreen(
                     ) {
                         Column {
                             Spacer(Modifier.height(16.dp))
-                            HorizontalDivider()
+                            CardDivider()
                             Spacer(Modifier.height(12.dp))
 
                             // Quiet Hours
@@ -459,7 +388,7 @@ fun SmartFeaturesScreen(
                     ) {
                         Column {
                             Spacer(Modifier.height(12.dp))
-                            HorizontalDivider()
+                            CardDivider()
                             Spacer(Modifier.height(12.dp))
 
                             Row(
@@ -507,34 +436,11 @@ fun SmartFeaturesScreen(
 
             // --- HAPTICS ---
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Vibration,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                stringResource(R.string.haptics_title),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                stringResource(R.string.haptics_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Switch(
+                Column(Modifier.padding(16.dp)) {
+                    SettingsHeaderRow(
+                        icon = Icons.Default.Vibration,
+                        title = stringResource(R.string.haptics_title),
+                        description = stringResource(R.string.haptics_desc),
                         checked = hapticsEnabled,
                         onCheckedChange = { scope.launch { preferences.setHapticsEnabled(it) } }
                     )
@@ -586,100 +492,151 @@ fun SmartFeaturesScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                     Spacer(Modifier.height(12.dp))
-                    HorizontalDivider()
+                    CardDivider()
                     Spacer(Modifier.height(12.dp))
 
                     // Bluetooth Connected
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Bluetooth,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    stringResource(R.string.banner_bt_title),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    stringResource(R.string.banner_bt_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = bannerBtEnabled,
-                            onCheckedChange = { scope.launch { preferences.setBannerBtConnectedEnabled(it) } }
-                        )
-                    }
+                    SettingsToggleRow(
+                        title = stringResource(R.string.banner_bt_title),
+                        subtitle = stringResource(R.string.banner_bt_desc),
+                        checked = bannerBtEnabled,
+                        onCheckedChange = { scope.launch { preferences.setBannerBtConnectedEnabled(it) } },
+                        icon = Icons.Default.Bluetooth
+                    )
 
                     Spacer(Modifier.height(8.dp))
 
                     // Battery Low
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.BatteryAlert,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    stringResource(R.string.banner_battery_title),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    stringResource(R.string.banner_battery_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = bannerBatteryEnabled,
-                            onCheckedChange = { scope.launch { preferences.setBannerBatteryLowEnabled(it) } }
-                        )
-                    }
+                    SettingsToggleRow(
+                        title = stringResource(R.string.banner_battery_title),
+                        subtitle = stringResource(R.string.banner_battery_desc),
+                        checked = bannerBatteryEnabled,
+                        onCheckedChange = { scope.launch { preferences.setBannerBatteryLowEnabled(it) } },
+                        icon = Icons.Default.BatteryAlert
+                    )
 
                     Spacer(Modifier.height(8.dp))
 
                     // Copied (placeholder)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                stringResource(R.string.banner_copied_title),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                stringResource(R.string.banner_copied_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = bannerCopiedEnabled,
-                            onCheckedChange = { scope.launch { preferences.setBannerCopiedEnabled(it) } },
-                            enabled = false // Not implemented yet
-                        )
-                    }
+                    SettingsToggleRow(
+                        title = stringResource(R.string.banner_copied_title),
+                        subtitle = stringResource(R.string.banner_copied_desc),
+                        checked = bannerCopiedEnabled,
+                        onCheckedChange = { scope.launch { preferences.setBannerCopiedEnabled(it) } },
+                        enabled = false
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CardDivider() {
+    HorizontalDivider(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    )
+}
+
+@Composable
+private fun SettingsHeaderRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    enabled: Boolean = true
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            if (icon != null) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
     }
 }

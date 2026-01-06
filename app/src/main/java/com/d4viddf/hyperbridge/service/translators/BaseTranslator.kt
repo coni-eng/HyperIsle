@@ -10,7 +10,6 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.models.BridgeAction
@@ -78,7 +77,7 @@ abstract class BaseTranslator(protected val context: Context) {
         return if (bitmap != null) {
             HyperPicture(picKey, bitmap)
         } else {
-            getPictureFromResource(picKey, R.drawable.ic_launcher_foreground)
+            getPictureFromResource(picKey, R.drawable.`ic_launcher_foreground`)
         }
     }
 
