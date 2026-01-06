@@ -514,6 +514,15 @@ object PriorityEngine {
     }
 
     /**
+     * Clears all in-memory learning state (burst tracker, shown timestamps).
+     * Called when resetting Smart Priority learning from debug UI.
+     */
+    fun clearAllInMemoryState() {
+        burstTracker.clear()
+        lastShownAtByPackage.clear()
+    }
+
+    /**
      * v0.8.0: Added offset parameter for weighted decay calculation.
      */
     private fun getTodayKey(daysOffset: Int = 0): String {

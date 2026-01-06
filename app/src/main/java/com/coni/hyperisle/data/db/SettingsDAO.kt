@@ -28,4 +28,10 @@ interface SettingsDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(settings: List<AppSetting>) // Needed for Restore
+
+    @Query("SELECT * FROM settings WHERE `key` LIKE :prefix || '%'")
+    suspend fun getByPrefix(prefix: String): List<AppSetting>
+
+    @Query("DELETE FROM settings WHERE `key` LIKE :prefix || '%'")
+    suspend fun deleteByPrefix(prefix: String)
 }

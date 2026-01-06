@@ -26,6 +26,15 @@ private val Context.legacyDataStore: DataStore<Preferences> by preferencesDataSt
 
 class AppPreferences(context: Context) {
 
+    companion object {
+        // v0.9.3: Hard cap for all learning counters to prevent runaway behavior
+        private const val LEARNING_COUNTER_CAP = 100
+        // v0.9.3: Decay percentage (10% reduction per day)
+        private const val LEARNING_DECAY_PERCENT = 0.10f
+        // v0.9.3: Minimum interval between decay runs (24 hours in ms)
+        private const val DECAY_INTERVAL_MS = 24 * 60 * 60 * 1000L
+    }
+
     private val dao = AppDatabase.getDatabase(context).settingsDao()
     private val legacyDataStore = context.applicationContext.legacyDataStore
 
@@ -367,10 +376,6 @@ class AppPreferences(context: Context) {
 
     // --- LEARNING SIGNALS (v0.9.2) ---
     // Dynamic keys for learning signal counters (PII-safe: packageName + date only)
-    // learning_fast_dismiss_{pkg}_{yyyyMMdd} - fast dismiss counter
-    // learning_tap_open_{pkg}_{yyyyMMdd} - tap-open counter
-    // learning_mute_block_{pkg}_{yyyyMMdd} - mute/block counter
-
     suspend fun getLearningFastDismissCount(packageName: String, dateKey: String): Int {
         val key = "learning_fast_dismiss_${packageName}_$dateKey"
         return dao.getSetting(key).toInt(0)
@@ -378,7 +383,7 @@ class AppPreferences(context: Context) {
 
     suspend fun setLearningFastDismissCount(packageName: String, dateKey: String, count: Int) {
         val key = "learning_fast_dismiss_${packageName}_$dateKey"
-        save(key, count.toString())
+        save(key, count.coerceIn(0, LEARNING_COUNTER_CAP).toString())
     }
 
     suspend fun getLearningTapOpenCount(packageName: String, dateKey: String): Int {
@@ -388,7 +393,7 @@ class AppPreferences(context: Context) {
 
     suspend fun setLearningTapOpenCount(packageName: String, dateKey: String, count: Int) {
         val key = "learning_tap_open_${packageName}_$dateKey"
-        save(key, count.toString())
+        save(key, count.coerceIn(0, LEARNING_COUNTER_CAP).toString())
     }
 
     suspend fun getLearningMuteBlockCount(packageName: String, dateKey: String): Int {
@@ -398,7 +403,95 @@ class AppPreferences(context: Context) {
 
     suspend fun setLearningMuteBlockCount(packageName: String, dateKey: String, count: Int) {
         val key = "learning_mute_block_${packageName}_$dateKey"
-        save(key, count.toString())
+        save(key, count.coerceIn(0, LEARNING_COUNTER_CAP).toString())
+    }
+
+    // --- LEARNING SIGNAL DECAY & CLEANUP (v0.9.3) ---
+
+    /**
+     * Returns the last time decay was applied (epoch ms), or 0 if never.
+     */
+    suspend fun getLearningLastDecayAt(): Long {
+        return dao.getSetting(SettingsKeys.LEARNING_LAST_DECAY_AT).toLong(0L)
+    }
+
+    /**
+     * Applies decay to all learning counters if at least 24 hours have passed since last decay.
+     * Reduces each counter by 10% (floored). Also cleans up stale entries older than 24h.
+     * 
+     * Should be called on app start or periodically. Non-blocking when called from IO dispatcher.
+     */
+    suspend fun applyLearningDecayIfNeeded() {
+        val now = System.currentTimeMillis()
+        val lastDecay = getLearningLastDecayAt()
+        
+        if (now - lastDecay < DECAY_INTERVAL_MS) return
+        
+        // Get all learning signal keys
+        val learningPrefixes = listOf("learning_fast_dismiss_", "learning_tap_open_", "learning_mute_block_")
+        val priorityDismissPrefix = "priority_dismiss_"
+        
+        // Apply decay to learning counters
+        for (prefix in learningPrefixes) {
+            val entries = dao.getByPrefix(prefix)
+            for (entry in entries) {
+                val currentValue = entry.value.toIntOrNull() ?: 0
+                if (currentValue > 0) {
+                    val decayed = (currentValue * (1 - LEARNING_DECAY_PERCENT)).toInt()
+                    if (decayed > 0) {
+                        dao.insert(AppSetting(entry.key, decayed.toString()))
+                    } else {
+                        dao.delete(entry.key)
+                    }
+                }
+            }
+        }
+        
+        // Apply decay to priority dismiss counters
+        val dismissEntries = dao.getByPrefix(priorityDismissPrefix)
+        for (entry in dismissEntries) {
+            val currentValue = entry.value.toIntOrNull() ?: 0
+            if (currentValue > 0) {
+                val decayed = (currentValue * (1 - LEARNING_DECAY_PERCENT)).toInt()
+                if (decayed > 0) {
+                    dao.insert(AppSetting(entry.key, decayed.toString()))
+                } else {
+                    dao.delete(entry.key)
+                }
+            }
+        }
+        
+        // Clean up stale throttle entries (expired)
+        val throttleEntries = dao.getByPrefix("priority_throttle_until_")
+        for (entry in throttleEntries) {
+            val expiryTime = entry.value.toLongOrNull() ?: 0L
+            if (expiryTime < now) {
+                dao.delete(entry.key)
+            }
+        }
+        
+        // Update last decay timestamp
+        save(SettingsKeys.LEARNING_LAST_DECAY_AT, now.toString())
+    }
+
+    /**
+     * Clears all Smart Priority learning state (counters, throttles, timestamps).
+     * Used for debug reset functionality.
+     */
+    suspend fun clearAllLearningState() {
+        // Clear all learning signal counters
+        dao.deleteByPrefix("learning_fast_dismiss_")
+        dao.deleteByPrefix("learning_tap_open_")
+        dao.deleteByPrefix("learning_mute_block_")
+        
+        // Clear priority dismiss counters
+        dao.deleteByPrefix("priority_dismiss_")
+        
+        // Clear throttle timestamps
+        dao.deleteByPrefix("priority_throttle_until_")
+        
+        // Reset decay timestamp
+        remove(SettingsKeys.LEARNING_LAST_DECAY_AT)
     }
 
     // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
