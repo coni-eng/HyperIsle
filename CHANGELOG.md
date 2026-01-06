@@ -1,6 +1,44 @@
 [Unreleased]
 
-(empty)
+## [v0.9.3] - Smart Priority Intelligence
+
+### Added
+
+- **Burst control:**
+  - When multiple notifications arrive from the same app in a short time,
+    only the latest one is shown as an island.
+  - Suppressed notifications are still recorded in the Summary Digest.
+
+- **Adaptive learning signals:**
+  - Fast dismisses reduce future priority.
+  - Tapping an island to open the app increases its priority.
+  - Mute or block actions apply a strong negative signal.
+
+- **Context-aware Smart Priority:**
+  - During **MEETING** or **DRIVING** presets:
+    - Calls, timers, and navigation are never throttled.
+    - Standard notifications are filtered more aggressively.
+  - Preset **OFF** keeps previous behavior unchanged.
+
+### Improved
+
+- **Performance and stability:**
+  - Priority decisions now use a “cheap-first” evaluation order,
+    reducing CPU usage under heavy notification load.
+  - Learning signals are bounded with caps and decay to prevent runaway behavior.
+
+### Debug
+
+- **Priority decision diagnostics (debug-only):**
+  - View and copy recent Smart Priority decisions and reason codes
+    (e.g. BURST, FAST_DISMISS, TAP_OPEN, PRESET_BIAS).
+  - Includes a debug-only option to reset Smart Priority learning state.
+
+### Notes
+
+- No notification content (title or text) is logged.
+- No database schema changes.
+- Release performance and behavior remain unaffected when debug tools are disabled.
 
 
 

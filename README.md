@@ -71,6 +71,10 @@
 
 * **🧠 Live Activity Engine** – Smooth updates instead of stacking.
 * **⚡ Smart Priority** – Auto-throttling based on user behavior.
+  * **⚡ Smart Priority Engine** – Learns how you interact with notifications to reduce noise:
+  - Burst control shows only the latest notification from noisy apps.
+  - Fast dismisses reduce priority, while tapping to open boosts important apps.
+  - During MEETING or DRIVING presets, calls, timers, and navigation are never throttled.
 * **📱 Context-Aware Islands** – Adapts behavior based on screen and charging state.
 * **🎨 Adaptive Visuals** – App-based accent colors and polished progress animations.
 * **🎛️ Context Presets (v0.9.0)** – Quick filters for different scenarios.
@@ -93,6 +97,10 @@
 ## 🧪 Debug Diagnostics (Developer builds only)
 
 HyperIsle includes **optional debug-only diagnostics** for notification actions.
+
+* In developer builds, Smart Priority decisions can also be traced.
+  This makes it easy to understand *why* a notification was allowed or suppressed
+  (e.g. burst control, fast dismiss, preset bias) without logging notification content.
 
 * Helps troubleshoot edge cases in action routing  
   (Activity / Broadcast / Service).
@@ -138,6 +146,8 @@ By default, the system’s native (HyperOS) music island is used, and HyperIsle 
 * Xiaomi / HyperOS users who like the Dynamic Island concept.
 * Power users who want fine-grained control over notifications.
 * Developers and tinkerers who appreciate transparency and debug tooling.
+* Users who want fewer interruptions without missing important notifications.
+
 
 ---
 
