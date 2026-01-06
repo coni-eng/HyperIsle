@@ -24,10 +24,12 @@ class ContextSignalsReceiver : BroadcastReceiver() {
         private const val TAG = "ContextSignalsReceiver"
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "Received broadcast: ${intent.action}")
-
-        when (intent.action) {
+    override fun onReceive(context: Context, intent: Intent?) {
+        // Security: Validate intent before processing
+        val action = intent?.action ?: return
+        
+        // Security: Whitelist - only accept known context signal actions
+        when (action) {
             Intent.ACTION_SCREEN_ON -> {
                 ContextStateManager.setScreenOn(context, true)
             }
@@ -40,6 +42,11 @@ class ContextSignalsReceiver : BroadcastReceiver() {
             Intent.ACTION_POWER_DISCONNECTED -> {
                 ContextStateManager.setCharging(context, false)
             }
+            else -> {
+                // Unknown action - silently ignore
+                return
+            }
         }
+        Log.d(TAG, "Processed context signal")
     }
 }

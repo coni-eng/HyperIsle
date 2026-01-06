@@ -93,8 +93,17 @@ class SystemModesReceiver : BroadcastReceiver() {
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    override fun onReceive(context: Context, intent: Intent) {
-        Log.d(TAG, "Received broadcast: ${intent.action}")
+    override fun onReceive(context: Context, intent: Intent?) {
+        // Security: Validate intent before processing
+        val action = intent?.action ?: return
+        
+        // Security: Whitelist - only accept known system mode actions
+        if (action != AudioManager.RINGER_MODE_CHANGED_ACTION &&
+            action != NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED) {
+            return
+        }
+        
+        Log.d(TAG, "Received system mode broadcast")
 
         // System state islands are disabled by default - HyperOS handles these natively
         val appPreferences = AppPreferences(context)
@@ -112,7 +121,7 @@ class SystemModesReceiver : BroadcastReceiver() {
             return
         }
 
-        when (intent.action) {
+        when (action) {
             AudioManager.RINGER_MODE_CHANGED_ACTION -> {
                 handleRingerModeChange(context, poster)
                 // Also check DND as fallback for devices that don't send DND broadcasts

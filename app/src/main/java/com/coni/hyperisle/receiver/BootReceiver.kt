@@ -15,29 +15,33 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        // Check for both standard boot and quick boot (some ROMs use quick)
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent.action == "android.intent.action.QUICKBOOT_POWERON") {
+    override fun onReceive(context: Context, intent: Intent?) {
+        // Security: Validate intent before processing
+        val action = intent?.action ?: return
+        
+        // Whitelist: Only accept known boot actions
+        if (action != Intent.ACTION_BOOT_COMPLETED &&
+            action != "android.intent.action.QUICKBOOT_POWERON") {
+            return
+        }
+        
+        Log.d("HyperIsle", "Boot completed detected.")
 
-            Log.d("HyperIsle", "Boot completed detected.")
+        // Trick: We toggle the component state to force the Notification Manager
+        // to re-evaluate and re-bind to our service.
+        toggleNotificationListener(context)
 
-            // Trick: We toggle the component state to force the Notification Manager
-            // to re-evaluate and re-bind to our service.
-            toggleNotificationListener(context)
-
-            // Re-schedule summary worker if enabled
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val preferences = AppPreferences(context)
-                    val summaryEnabled = preferences.summaryEnabledFlow.first()
-                    if (summaryEnabled) {
-                        val summaryHour = preferences.summaryHourFlow.first()
-                        NotificationSummaryWorker.schedule(context, summaryHour)
-                    }
-                } catch (e: Exception) {
-                    Log.w("HyperIsle", "Failed to schedule summary worker on boot: ${e.message}")
+        // Re-schedule summary worker if enabled
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val preferences = AppPreferences(context)
+                val summaryEnabled = preferences.summaryEnabledFlow.first()
+                if (summaryEnabled) {
+                    val summaryHour = preferences.summaryHourFlow.first()
+                    NotificationSummaryWorker.schedule(context, summaryHour)
                 }
+            } catch (e: Exception) {
+                Log.w("HyperIsle", "Failed to schedule summary worker on boot: ${e.message}")
             }
         }
     }
