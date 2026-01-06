@@ -6,13 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.d4viddf.hyperbridge"
+    namespace = "com.coni.hyperisle"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.d4viddf.hyperbridge"
+        applicationId = "com.coni.hyperisle"
         minSdk = 35
         targetSdk = 36
         versionCode = 10

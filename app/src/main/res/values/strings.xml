@@ -13,32 +13,32 @@
     <string name="sort_order">Sıralama</string>
 
     <string name="welcome_title">HyperIsle\'a\nHoş Geldiniz</string>
-    <string name="welcome_subtitle">HyperOS deneyiminize yenilikçi ve güzel adayı sorunsuzca entegre edin.</string>
+    <string name="welcome_subtitle">HyperOS deneyiminize yenilikçi ve bu güzel adayı entegre edin.</string>
     <string name="get_started">Başla</string>
 
     <string name="how_it_works">Nasıl Çalışır</string>
-    <string name="how_it_works_desc">Favori uygulamalarınızı seçin (Müzik, Haritalar, Zamanlayıcı ...). HyperIsle bildirimlerini şık bir adaya dönüştürür.</string>
+    <string name="how_it_works_desc">Favori uygulamalarınızı seçin (Müzik, Haritalar, Zamanlayıcı ...). HyperIsle bildirimlerinizi şık bir adaya dönüştürür.</string>
     <string name="early_development">Erken Geliştirme</string>
     <string name="beta_warning">Not: Bu uygulama geliştirme aşamasındadır. Hatalar veya yanlış görsel bilgilerle karşılaşabilirsiniz.</string>
 
     <string name="device_compatible">Cihaz Uyumlu</string>
     <string name="unsupported_device">Desteklenmeyen Cihaz</string>
-    <string name="compatible_msg">Cihazınız HyperOS/MIUI çalıştırıyor görünüyor. Hazırsınız!</string>
+    <string name="compatible_msg">Cihazınız HyperOS/MIUI çalıştırıyor görünüyor.</string>
     <string name="incompatible_msg">HyperIsle belirli HyperOS sistem özelliklerine dayanır. Cihaz üreticiniz Xiaomi/POCO/Redmi değil görünüyor.</string>
     <string name="system_detected">✅ Sistem Algılandı</string>
     <string name="app_wont_work">⚠️ Uygulama çalışmayabilir</string>
 
     <string name="show_island">Adayı Göster</string>
-    <string name="perm_post_desc">Ekranınızda ada bildirimlerini göstermek için izne ihtiyacımız var.</string>
+    <string name="perm_post_desc">Ekranınızda adanın bildirimlerini göstermek için izne ihtiyacı var.</string>
     <string name="perm_granted">İzin Verildi</string>
-    <string name="allow_notifications">Bildirimlere İzin Ver</string>
+    <string name="allow_notifications">Bildirim İzni Ver</string>
 
     <string name="read_data">Bildirim Oku</string>
-    <string name="perm_listener_desc">Uygulamalarınızı adada görüntülemek için bildirimlerini okumamız gerekiyor (Müzik, Haritalar, Zamanlayıcılar, vb).</string>
+    <string name="perm_listener_desc">Uygulamalarınızı adada görüntülemek için bildirim okuma izini gerekiyor (Müzik, Haritalar, Zamanlayıcılar, vb) Ayarları aç\'a tıklayıp HyperIsle seçiniz ve izni veriniz.</string>
     <string name="open_settings">Ayarları Aç</string>
 
     <string name="keep_alive">Canlı Tut</string>
-    <string name="optimization_desc">HyperOS arka plan uygulamalarını kapatır. Adayı aktif tutmak için Otomatik Başlatma izni verin ve pil seçeneklerinden Kısıtlama Yok\'u etkinleştirin.</string>
+    <string name="optimization_desc">HyperOS arka plan uygulamalarını bir süre sonra kapatır. Bunu önlemek ve adayı aktif tutmak için Otomatik Başlatma İzni verin ve pil seçeneklerinden Kısıtlama Yok\'u etkinleştirin.</string>
     <string name="enable_autostart">1. Otomatik Başlatmayı Etkinleştir</string>
     <string name="set_battery_no_restrictions">2. Pil \'Kısıtlama Yok\' Ayarla</string>
 
@@ -332,7 +332,7 @@
     </string>
 
     <string name="privacy_title">%100 Çevrimdışı ve Güvenli</string>
-    <string name="privacy_desc">HyperIsle her şeyi doğrudan telefonunuzun işlemcisinde işler.\n\nİnternet erişimi gerektirmez, yani bildirimleriniz ve kişisel verileriniz asla cihazınızdan ayrılmaz.</string>
+    <string name="privacy_desc">HyperIsle her şeyi doğrudan telefonunuzun kendisinde işler.\n\nİnternet erişimi gerektirmez yani bildirimleriniz ve kişisel verileriniz asla cihazınızdan ayrılmaz.</string>
 
     <string name="language">Dil</string>
     <string name="language_desc">Uygulama dilini değiştir</string>
@@ -373,7 +373,7 @@
     <string name="action_restore_selected">Seçili Verileri Geri Yükle</string>
 
     <string name="optimization_title">Cihaz Optimizasyonu</string>
-    <string name="no_restrictions">"Kısıtlama Yok" Ayarla</string>
+    <string name="no_restrictions">"2. Kısıtlama Yok" Ayarla</string>
 
     <string name="privacy_card_title">Önce Çevrimdışı</string>
     <string name="privacy_card_desc">İnternet bağlantısı gerekmez.</string>
