@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.util.ActionDiagnostics
+import com.coni.hyperisle.util.PriorityDiagnostics
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.ContextPreset
 import com.coni.hyperisle.models.NotificationType
@@ -85,9 +86,11 @@ fun SmartFeaturesScreen(
     // Debug Diagnostics (debug builds only)
     val actionDiagnosticsEnabled by preferences.actionDiagnosticsEnabledFlow.collectAsState(initial = false)
     val actionLongPressInfoEnabled by preferences.actionLongPressInfoEnabledFlow.collectAsState(initial = false)
+    val priorityDiagnosticsEnabled by preferences.priorityDiagnosticsEnabledFlow.collectAsState(initial = false)
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val diagnosticsCopiedMessage = stringResource(R.string.debug_diagnostics_copied)
+    val priorityDiagnosticsCopiedMessage = stringResource(R.string.debug_priority_diagnostics_copied)
 
     Scaffold(
         topBar = {
@@ -644,6 +647,32 @@ fun SmartFeaturesScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(stringResource(R.string.debug_copy_diagnostics))
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        CardDivider()
+                        Spacer(Modifier.height(12.dp))
+
+                        SettingsToggleRow(
+                            title = stringResource(R.string.debug_priority_diagnostics_title),
+                            subtitle = stringResource(R.string.debug_priority_diagnostics_desc),
+                            checked = priorityDiagnosticsEnabled,
+                            onCheckedChange = { scope.launch { preferences.setPriorityDiagnosticsEnabled(it) } }
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        FilledTonalButton(
+                            onClick = {
+                                val summary = PriorityDiagnostics.summary()
+                                clipboardManager.setText(AnnotatedString(summary))
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(priorityDiagnosticsCopiedMessage)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.debug_copy_priority_diagnostics))
                         }
                     }
                 }

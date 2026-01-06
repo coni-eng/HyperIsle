@@ -41,6 +41,7 @@
     <string name="optimization_desc">HyperOS kills background apps. Enable Autostart and No Restrictions to keep the island active.</string>
     <string name="enable_autostart">1. Enable Autostart</string>
     <string name="set_battery_no_restrictions">2. Set Battery \'No Restrictions\'</string>
+    <string name="set_lock">3. Note: You can also lock the app in the \'Recently Used\' menu.</string>
 
     <string name="tab_active">Active</string>
     <string name="tab_library">Library</string>
@@ -542,4 +543,10 @@
     <string name="debug_action_long_press_info_title">Action Route Info</string>
     <string name="debug_action_long_press_info_desc">Show route type when action is triggered</string>
     <string name="debug_route_toast">Route: %s</string>
+
+    <!-- Priority Diagnostics (debug builds only) -->
+    <string name="debug_priority_diagnostics_title">Priority Diagnostics</string>
+    <string name="debug_priority_diagnostics_desc">Track Smart Priority decisions (burst, throttle)</string>
+    <string name="debug_copy_priority_diagnostics">Copy Priority Diagnostics Summary</string>
+    <string name="debug_priority_diagnostics_copied">Priority diagnostics copied to clipboard</string>
 </resources>

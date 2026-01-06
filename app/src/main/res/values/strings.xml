@@ -29,19 +29,19 @@
     <string name="app_wont_work">⚠️ Uygulama çalışmayabilir</string>
 
     <string name="show_island">Adayı Göster</string>
-    <string name="perm_post_desc">Ekranınızda adanın bildirimlerini göstermek için izne ihtiyacı var.</string>
+    <string name="perm_post_desc">Ekranınızda adanın bildirimleri göstermek için izne ihtiyacı var.</string>
     <string name="perm_granted">İzin Verildi</string>
     <string name="allow_notifications">Bildirim İzni Ver</string>
 
     <string name="read_data">Bildirim Oku</string>
-    <string name="perm_listener_desc">Uygulamalarınızı adada görüntülemek için bildirim okuma izini gerekiyor (Müzik, Haritalar, Zamanlayıcılar, vb) Ayarları aç\'a tıklayıp HyperIsle seçiniz ve izni veriniz.</string>
+    <string name="perm_listener_desc">Uygulamalarınızı adada görüntülemek için bildirim okuma izni gerekiyor (Müzik, Haritalar, Zamanlayıcılar, vb) Ayarları Aç\'a tıklayıp HyperIsle seçiniz ve bildirimlere erişime izin veriniz.</string>
     <string name="open_settings">Ayarları Aç</string>
 
     <string name="keep_alive">Canlı Tut</string>
     <string name="optimization_desc">HyperOS arka plan uygulamalarını bir süre sonra kapatır. Bunu önlemek ve adayı aktif tutmak için Otomatik Başlatma İzni verin ve pil seçeneklerinden Kısıtlama Yok\'u etkinleştirin.</string>
     <string name="enable_autostart">1. Otomatik Başlatmayı Etkinleştir</string>
     <string name="set_battery_no_restrictions">2. Pil \'Kısıtlama Yok\' Ayarla</string>
-
+    <string name="set_lock">Not: Ayrıca uygulamayı \'Son Kullanılanlar\' menüsünde kilitleyin.</string>
     <string name="tab_active">Aktif</string>
     <string name="tab_library">Kütüphane</string>
     <string name="title_active_bridges">Aktif Uygulama</string>
@@ -542,4 +542,10 @@
     <string name="debug_action_long_press_info_title">Eylem Yönlendirme Bilgisi</string>
     <string name="debug_action_long_press_info_desc">Eylem tetiklendiğinde yönlendirme türünü göster</string>
     <string name="debug_route_toast">Yönlendirme: %s</string>
+
+    <!-- Priority Diagnostics (debug builds only) -->
+    <string name="debug_priority_diagnostics_title">Öncelik Tanılama</string>
+    <string name="debug_priority_diagnostics_desc">Akıllı Öncelik kararlarını izle (patlama, kısıtlama)</string>
+    <string name="debug_copy_priority_diagnostics">Öncelik Tanılama Özetini Kopyala</string>
+    <string name="debug_priority_diagnostics_copied">Öncelik tanılama panoya kopyalandı</string>
 </resources>
