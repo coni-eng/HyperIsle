@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.data.AppPreferences
+import com.d4viddf.hyperbridge.models.ContextPreset
 import com.d4viddf.hyperbridge.models.NotificationType
 import kotlinx.coroutines.launch
 
@@ -73,6 +74,9 @@ fun SmartFeaturesScreen(
     val contextAwareEnabled by preferences.contextAwareEnabledFlow.collectAsState(initial = false)
     val contextScreenOffOnlyImportant by preferences.contextScreenOffOnlyImportantFlow.collectAsState(initial = true)
     val contextChargingSuppressBatteryBanners by preferences.contextChargingSuppressBatteryBannersFlow.collectAsState(initial = true)
+
+    // Context Presets (v0.9.0)
+    val contextPreset by preferences.contextPresetFlow.collectAsState(initial = ContextPreset.OFF)
 
     Scaffold(
         topBar = {
@@ -184,6 +188,67 @@ fun SmartFeaturesScreen(
                                 onCheckedChange = { scope.launch { preferences.setContextChargingSuppressBatteryBanners(it) } }
                             )
                         }
+                    }
+                }
+            }
+
+            // --- CONTEXT PRESETS (v0.9.0) ---
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        stringResource(R.string.context_preset_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        stringResource(R.string.context_preset_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    val presetOptions = listOf(
+                        ContextPreset.OFF to stringResource(R.string.preset_off),
+                        ContextPreset.MEETING to stringResource(R.string.preset_meeting),
+                        ContextPreset.DRIVING to stringResource(R.string.preset_driving),
+                        ContextPreset.HEADPHONES to stringResource(R.string.preset_headphones)
+                    )
+
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        presetOptions.forEachIndexed { index, (preset, label) ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = presetOptions.size),
+                                onClick = { scope.launch { preferences.setContextPreset(preset) } },
+                                selected = contextPreset == preset
+                            ) {
+                                Text(label, maxLines = 1)
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    val presetDescription = when (contextPreset) {
+                        ContextPreset.MEETING -> stringResource(R.string.preset_meeting_desc)
+                        ContextPreset.DRIVING -> stringResource(R.string.preset_driving_desc)
+                        ContextPreset.HEADPHONES -> stringResource(R.string.preset_headphones_desc)
+                        ContextPreset.OFF -> null
+                    }
+
+                    if (presetDescription != null) {
+                        Text(
+                            presetDescription,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    if (contextPreset != ContextPreset.OFF) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.preset_focus_override),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -409,7 +474,7 @@ fun SmartFeaturesScreen(
                                     )
                                 }
                                 Text(
-                                    String.format("%02d:00", summaryHour),
+                                    String.format(java.util.Locale.US, "%02d:00", summaryHour),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )

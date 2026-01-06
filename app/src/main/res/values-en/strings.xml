@@ -120,10 +120,11 @@
         <item>done</item>
         <item>successful</item>
         <item>succeeded</item>
-        <item>completado</item>
-        <item>finalizado</item>
-        <item>exitoso</item>
-        <item>instalado</item>
+        <item>tamamlandı</item>
+        <item>bitti</item>
+        <item>başarılı</item>
+        <item>yüklendi</item>
+        <item>indirildi</item>
     </string-array>
 
     <string name="status_download_complete">Download Complete</string>
@@ -178,6 +179,8 @@
         <item>eta</item>
         <item>reaching</item>
         <item>destination</item>
+        <item>varış</item>
+        <item>hedef</item>
     </string-array>
     <string name="hint_options">Options</string>
 
@@ -289,14 +292,20 @@
         <item>end</item>
         <item>decline</item>
         <item>reject</item>
+        <item>kapat</item>
+        <item>reddet</item>
     </string-array>
     <string-array name="call_keywords_answer">
         <item>answer</item>
         <item>accept</item>
+        <item>cevapla</item>
+        <item>kabul</item>
     </string-array>
     <string-array name="call_keywords_speaker">
         <item>speaker</item>
         <item>audio</item>
+        <item>hoparlör</item>
+        <item>ses</item>
     </string-array>
 
     <string name="title_0_3_0">The Global Update</string>
@@ -514,6 +523,7 @@
     <string name="preset_driving_desc">Only calls, timers, and navigation</string>
     <string name="preset_headphones">Headphones</string>
     <string name="preset_headphones_desc">Block calls, enjoy your content</string>
+    <string name="preset_focus_override">Focus Mode overrides presets when active.</string>
 
     <!-- Summary Upgrades (v0.9.0) -->
     <string name="summary_top_apps_title">Top Apps by Notifications (Last 24h)</string>

@@ -523,6 +523,7 @@
     <string name="preset_driving_desc">Sadece aramalar, zamanlayıcılar ve navigasyon</string>
     <string name="preset_headphones">Kulaklık</string>
     <string name="preset_headphones_desc">Aramaları engelle, içeriğin keyfini çıkar</string>
+    <string name="preset_focus_override">Odak Modu aktifken ön ayarları geçersiz kılar.</string>
 
     <!-- Summary Upgrades (v0.9.0) -->
     <string name="summary_top_apps_title">En Çok Bildirim Gönderen Uygulamalar (Son 24 Saat)</string>
