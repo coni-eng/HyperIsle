@@ -387,13 +387,15 @@ class NotificationReaderService : NotificationListenerService() {
             }
 
             // --- SMART PRIORITY CHECK ---
+            val sbnKeyHash = sbn.key.hashCode()
             val priorityDecision = PriorityEngine.evaluate(
                 applicationContext,
                 preferences,
                 sbn.packageName,
                 type.name,
                 smartPriorityEnabled,
-                smartPriorityAggressiveness
+                smartPriorityAggressiveness,
+                sbnKeyHash
             )
             when (priorityDecision) {
                 is PriorityEngine.Decision.BlockBurst -> {
@@ -618,6 +620,9 @@ class NotificationReaderService : NotificationListenerService() {
 
         // Record shown for PriorityEngine burst tracking
         PriorityEngine.recordShown(sbn.packageName, notificationType)
+        
+        // v0.9.2: Record island shown timestamp for fast dismiss detection
+        PriorityEngine.recordIslandShown(sbn.packageName)
 
         // Store island meta for per-island action handling
         IslandCooldownManager.setIslandMeta(bridgeId, sbn.packageName, notificationType)

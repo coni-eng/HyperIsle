@@ -164,6 +164,8 @@ fun IslandQuickActionsScreen(
                             scope.launch {
                                 if (checked) {
                                     preferences.muteApp(packageName)
+                                    // v0.9.2: Record mute as strong negative learning signal
+                                    PriorityEngine.recordMuteBlock(preferences, packageName)
                                 } else {
                                     preferences.unmuteApp(packageName)
                                     // Clear cooldowns when unmuting
@@ -215,6 +217,8 @@ fun IslandQuickActionsScreen(
                             scope.launch {
                                 if (checked) {
                                     preferences.blockAppIslands(packageName)
+                                    // v0.9.2: Record block as strong negative learning signal
+                                    PriorityEngine.recordMuteBlock(preferences, packageName)
                                 } else {
                                     preferences.unblockAppIslands(packageName)
                                 }

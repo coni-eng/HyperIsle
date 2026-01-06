@@ -365,6 +365,42 @@ class AppPreferences(context: Context) {
         remove(key)
     }
 
+    // --- LEARNING SIGNALS (v0.9.2) ---
+    // Dynamic keys for learning signal counters (PII-safe: packageName + date only)
+    // learning_fast_dismiss_{pkg}_{yyyyMMdd} - fast dismiss counter
+    // learning_tap_open_{pkg}_{yyyyMMdd} - tap-open counter
+    // learning_mute_block_{pkg}_{yyyyMMdd} - mute/block counter
+
+    suspend fun getLearningFastDismissCount(packageName: String, dateKey: String): Int {
+        val key = "learning_fast_dismiss_${packageName}_$dateKey"
+        return dao.getSetting(key).toInt(0)
+    }
+
+    suspend fun setLearningFastDismissCount(packageName: String, dateKey: String, count: Int) {
+        val key = "learning_fast_dismiss_${packageName}_$dateKey"
+        save(key, count.toString())
+    }
+
+    suspend fun getLearningTapOpenCount(packageName: String, dateKey: String): Int {
+        val key = "learning_tap_open_${packageName}_$dateKey"
+        return dao.getSetting(key).toInt(0)
+    }
+
+    suspend fun setLearningTapOpenCount(packageName: String, dateKey: String, count: Int) {
+        val key = "learning_tap_open_${packageName}_$dateKey"
+        save(key, count.toString())
+    }
+
+    suspend fun getLearningMuteBlockCount(packageName: String, dateKey: String): Int {
+        val key = "learning_mute_block_${packageName}_$dateKey"
+        return dao.getSetting(key).toInt(0)
+    }
+
+    suspend fun setLearningMuteBlockCount(packageName: String, dateKey: String, count: Int) {
+        val key = "learning_mute_block_${packageName}_$dateKey"
+        save(key, count.toString())
+    }
+
     // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
     val contextAwareEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CONTEXT_AWARE_ENABLED).map { it.toBoolean(false) }
     val contextScreenOffOnlyImportantFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CONTEXT_SCREEN_OFF_ONLY_IMPORTANT).map { it.toBoolean(true) }
@@ -417,5 +453,23 @@ class AppPreferences(context: Context) {
     suspend fun isActionLongPressInfoEnabled(): Boolean {
         if (!com.coni.hyperisle.BuildConfig.DEBUG) return false
         return dao.getSetting(SettingsKeys.ACTION_LONG_PRESS_INFO).toBoolean(false)
+    }
+
+    // --- PRIORITY DIAGNOSTICS (debug builds only) ---
+    val priorityDiagnosticsEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.PRIORITY_DIAGNOSTICS_ENABLED).map { it.toBoolean(false) }
+
+    suspend fun setPriorityDiagnosticsEnabled(enabled: Boolean) {
+        save(SettingsKeys.PRIORITY_DIAGNOSTICS_ENABLED, enabled.toString())
+        com.coni.hyperisle.util.PriorityDiagnostics.setEnabled(enabled)
+    }
+
+    /**
+     * Initializes PriorityDiagnostics enabled state from persisted value.
+     * Should be called once during app startup (in debug builds only).
+     */
+    suspend fun initPriorityDiagnostics() {
+        if (!com.coni.hyperisle.BuildConfig.DEBUG) return
+        val enabled = dao.getSetting(SettingsKeys.PRIORITY_DIAGNOSTICS_ENABLED).toBoolean(false)
+        com.coni.hyperisle.util.PriorityDiagnostics.setEnabled(enabled)
     }
 }
