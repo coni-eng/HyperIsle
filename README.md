@@ -44,6 +44,14 @@
 * **🛡️ Spoiler Protection:** Define blocked terms globally or per-app to prevent specific notifications (e.g., message spoilers) from popping up on the Island.
 * **👻 Ghost Mode:** Option to hide the persistent service notification from the system shade while keeping the Island fully active.
 * **Total Control:** Choose exactly which apps trigger the island, customize timeouts, and toggle floating behavior per app.
+* **Debug diagnostics (developer builds):**
+  * HyperIsle includes optional debug-only diagnostics for notification actions.
+  * These tools help troubleshoot edge cases in action routing (Activity / Broadcast / Service)
+without logging notification content or affecting release performance.
+
+**TO HELP WITH LOGS:**
+Open “Action diagnostics’ → see a bug → ‘Copy diagnostics summary’ → and send me.”
+
 * **MUCH MORE TO COME**
 
 

@@ -1,6 +1,40 @@
 ## [Unreleased]
 
-- v0.9.1 digest hardening planned (navigation entry, suppression logging improvements)
+
+## [v0.9.2] - Action Diagnostics & Safety Hardening
+
+### Added
+
+- **Debug Action Diagnostics (debug-only):**
+  - Toggle in Smart Features → Debug section.
+  - In-memory counters for action routing (Activity / Broadcast / Service / fallback).
+  - Ring buffer for last action routing events (PII-safe).
+  - One-tap “Copy diagnostics summary” for field debugging.
+
+### Improved
+
+- **PendingIntent handling:**
+  - Best-effort inference of intent type (Activity / Broadcast / Service).
+  - Defensive fallback to Activity to avoid crashes or broken actions.
+  - Full safety guards around OEM- or ROM-specific edge cases.
+
+- **Focus action handling:**
+  - Centralized focus action string building and parsing.
+  - Hardened parsing with safe early-return on invalid IDs.
+  - Prevents accidental wrong-notification operations.
+
+- **Action translation robustness:**
+  - Conservative deduplication of visually identical actions.
+  - Preserves order and behavior unless actions are clearly duplicates.
+
+### Notes
+
+- All diagnostics are **debug-only** and **disabled by default**.
+- No notification content (title/text) is logged.
+- No impact on release performance or behavior.
+
+
+
 
 
 ## [v0.9.1] - Summary Digest (Planned Hotfix)
