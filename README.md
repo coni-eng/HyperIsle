@@ -38,8 +38,8 @@
        * **⚡ Smart Priority:** Spam detection and auto-throttling based on user behavior.
        * **📱 Context-Aware Islands:** Adapts behavior based on screen and charging state.
        * **🎨 Adaptive Visuals:** App-based accent colors and polished progress animations.
-       * **🎛️ Context Presets (v0.9.0):** Quick notification filters (OFF / MEETING / DRIVING / HEADPHONES). Applies to non-media notifications; Focus Mode overrides presets.
-       * **📊 Notification Summary V2 (v0.9.0):** Time-bucket grouping (Morning / Afternoon / Evening), top 3 apps by notification count (last 24h), inline mute/block actions.
+       * **🎛️ Context Presets:** Quick notification filters (OFF / MEETING / DRIVING / HEADPHONES). Applies to non-media notifications; Focus Mode overrides presets.
+       * **📊 Notification Summary:** Time-bucket grouping (Morning / Afternoon / Evening), top 3 apps by notification count (last 24h), inline mute/block actions.
 
 * **🛡️ Spoiler Protection:** Define blocked terms globally or per-app to prevent specific notifications (e.g., message spoilers) from popping up on the Island.
 * **👻 Ghost Mode:** Option to hide the persistent service notification from the system shade while keeping the Island fully active.
