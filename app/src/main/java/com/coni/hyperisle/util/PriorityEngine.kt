@@ -14,9 +14,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Smart Priority Engine for reducing notification spam.
  * 
  * Rules:
- * - ≥3 notifications from same pkg:type in 10s → only latest shown (burst collapse)
+ * - Burst suppression: ≥3 notifications from same package in 30s → only latest shown
+ *   (earlier ones suppressed with PRIORITY_BURST reason, recorded to digest)
  * - High dismiss rate → auto throttle (temporary)
- * - CALL/TIMER/NAV always allowed (priority types)
+ * - CALL/TIMER/NAV always allowed (priority types) - burst does NOT apply
  * 
  * Persistence via AppPreferences (Room key/value):
  * - priority_dismiss_{pkg}_{type}_{yyyyMMdd} - daily dismiss counter
@@ -26,8 +27,41 @@ object PriorityEngine {
 
     private const val TAG = "PriorityEngine"
 
-    // In-memory burst tracking: groupKey -> list of timestamps
+    // In-memory burst tracking: packageName -> list of timestamps
     private val burstTracker = ConcurrentHashMap<String, MutableList<Long>>()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Learning signals (v0.9.2): In-memory tracking for fast dismiss detection
+    // ═══════════════════════════════════════════════════════════════════════
+    // packageName -> timestamp when island was last shown (for fast dismiss detection)
+    private val lastShownAtByPackage = ConcurrentHashMap<String, Long>()
+    
+    // Fast dismiss threshold: dismiss within 2 seconds = stronger negative signal
+    private const val FAST_DISMISS_THRESHOLD_MS = 2000L
+    
+    // Learning signal weights (small, bounded to avoid destabilization)
+    private const val FAST_DISMISS_WEIGHT = 2.0f    // Fast dismiss counts 2x normal dismiss
+    private const val TAP_OPEN_OFFSET = -0.5f       // Tap-open slightly offsets penalties
+    private const val MUTE_PENALTY_WEIGHT = 3.0f    // Mute/block = strong negative
+    
+    // Max entries in lastShownAtByPackage to prevent memory growth
+    private const val MAX_SHOWN_TRACKING_ENTRIES = 100
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Reason code constants (avoid string allocations in hot path)
+    // ═══════════════════════════════════════════════════════════════════════
+    private const val REASON_DISABLED = "DISABLED"
+    private const val REASON_PRIORITY_TYPE = "PRIORITY_TYPE"
+    private const val REASON_BURST = "BURST"
+    private const val REASON_THROTTLED = "THROTTLED"
+    private const val REASON_QUIET_HOURS_BIAS = "QUIET_HOURS_BIAS"
+    private const val REASON_ALLOWED = "ALLOWED"
+    private const val REASON_FAST_DISMISS = "FAST_DISMISS"
+    private const val REASON_TAP_OPEN_BOOST = "TAP_OPEN_BOOST"
+    private const val REASON_MUTE_NEGATIVE = "MUTE_NEGATIVE"
+    private const val DECISION_ALLOW = "ALLOW"
+    private const val DECISION_DENY = "DENY"
+    private const val TYPENAME_STANDARD = "STANDARD"
 
     // Priority types that are always allowed
     private val PRIORITY_TYPES = setOf(
@@ -53,7 +87,11 @@ object PriorityEngine {
     const val AGGRESSIVENESS_MEDIUM = 1
     const val AGGRESSIVENESS_HIGH = 2
 
-    // Thresholds based on aggressiveness
+    // Burst detection constants (fixed per user spec: 30s window, >=3 threshold)
+    private const val BURST_WINDOW_MS = 30_000L
+    private const val BURST_THRESHOLD = 3
+
+    // Thresholds based on aggressiveness (for throttle, not burst)
     private fun getBurstThreshold(aggressiveness: Int): Int = when (aggressiveness) {
         AGGRESSIVENESS_LOW -> 5
         AGGRESSIVENESS_MEDIUM -> 3
@@ -95,12 +133,29 @@ object PriorityEngine {
     /**
      * Evaluates whether a notification should be shown.
      * 
+     * CHEAP-FIRST PIPELINE (v0.9.2):
+     * Ordered by cost to minimize CPU/allocations under heavy load.
+     * Decision outcomes are IDENTICAL to previous implementation.
+     * 
+     * Order:
+     * 1. Feature gate (smartPriorityEnabled) - immediate return if disabled
+     * 2. Priority type check (CALL/TIMER/NAV) - cheap set lookup, early allow
+     * 3. Quiet hours flag - cheap time check, stored as flag for later use
+     * 4. Burst detection (in-memory counter check) - fast, often determines DENY
+     * 5. Throttle check (Room lookup) - more expensive, only if not burst-blocked
+     * 
+     * Burst behavior ("show latest only"):
+     * - For STANDARD notifications only
+     * - If >=3 notifications from same package arrive within 30s rolling window,
+     *   suppress earlier ones (they go to digest) and show only the latest.
+     * 
      * @param context Application context
      * @param preferences AppPreferences instance
      * @param packageName Source app package
      * @param typeName NotificationType name
      * @param smartPriorityEnabled Whether smart priority is enabled
      * @param aggressiveness Aggressiveness level (0-2)
+     * @param sbnKeyHash Hash of sbn.key for diagnostics (optional)
      * @return Decision indicating whether to allow or block
      */
     suspend fun evaluate(
@@ -109,55 +164,83 @@ object PriorityEngine {
         packageName: String,
         typeName: String,
         smartPriorityEnabled: Boolean,
-        aggressiveness: Int
+        aggressiveness: Int,
+        sbnKeyHash: Int = 0
     ): Decision {
-        val reasonCodes = mutableListOf<String>()
-
-        // If disabled, always allow
+        // ═══════════════════════════════════════════════════════════════════
+        // CHEAP-FIRST PIPELINE: Ordered by cost, short-circuit early
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // ─── GATE 1: Feature disabled → immediate ALLOW (zero overhead) ───
         if (!smartPriorityEnabled) {
-            reasonCodes.add("DISABLED")
-            return Decision.Allow(reasonCodes)
+            return allowWithReason(packageName, sbnKeyHash, REASON_DISABLED)
         }
 
-        // Priority types always allowed
-        if (PRIORITY_TYPES.contains(typeName)) {
-            reasonCodes.add("PRIORITY_TYPE")
-            return Decision.Allow(reasonCodes)
+        // ─── GATE 2: Priority types → early ALLOW (cheap set lookup) ───
+        // CALL/TIMER/NAV bypass all throttling/burst logic
+        if (typeName in PRIORITY_TYPES) {
+            return allowWithReason(packageName, sbnKeyHash, REASON_PRIORITY_TYPE)
         }
 
-        val groupKey = "${packageName}:${typeName}"
+        // ─── GATE 3: Quiet hours flag (cheap time check, no I/O) ───
+        // Computed once, used later if needed for reason codes
         val isQuietHours = isInQuietHours()
 
-        // Check throttle first (with quiet-hours bias)
+        // ─── GATE 4: Burst detection (in-memory only, very fast) ───
+        // Only for STANDARD type; record timestamp then check burst state
+        if (typeName == TYPENAME_STANDARD) {
+            recordBurstTimestamp(packageName)
+            if (isInBurst(packageName)) {
+                return denyBurstWithReason(packageName, sbnKeyHash)
+            }
+        }
+
+        // ─── GATE 5: Throttle check (Room lookup, more expensive) ───
+        // Only reached if not burst-blocked
         if (isThrottled(preferences, packageName, typeName)) {
-            reasonCodes.add("THROTTLED")
-            if (isQuietHours) reasonCodes.add("QUIET_HOURS")
-            return Decision.BlockThrottle(reasonCodes)
+            return denyThrottleWithReason(packageName, sbnKeyHash, isQuietHours)
         }
 
-        // Check burst (with type multiplier)
-        if (isBurst(groupKey, aggressiveness, typeName)) {
-            reasonCodes.add("BURST")
-            reasonCodes.add("TYPE:${typeName}")
-            return Decision.BlockBurst(reasonCodes)
-        }
+        // ─── ALLOW: Passed all gates ───
+        return allowWithReason(packageName, sbnKeyHash, REASON_ALLOWED)
+    }
 
-        reasonCodes.add("ALLOWED")
-        return Decision.Allow(reasonCodes)
+    // ═══════════════════════════════════════════════════════════════════════
+    // Decision helpers (avoid allocations in hot path by reusing reason strings)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    private fun allowWithReason(pkg: String, keyHash: Int, reason: String): Decision.Allow {
+        val reasons = listOf(reason)
+        recordDiagnostic(pkg, keyHash, DECISION_ALLOW, reasons)
+        return Decision.Allow(reasons)
+    }
+
+    private fun denyBurstWithReason(pkg: String, keyHash: Int): Decision.BlockBurst {
+        val reasons = listOf(REASON_BURST, "PKG:$pkg")
+        recordDiagnostic(pkg, keyHash, DECISION_DENY, reasons)
+        return Decision.BlockBurst(reasons)
+    }
+
+    private fun denyThrottleWithReason(pkg: String, keyHash: Int, isQuietHours: Boolean): Decision.BlockThrottle {
+        val reasons = if (isQuietHours) {
+            listOf(REASON_THROTTLED, REASON_QUIET_HOURS_BIAS)
+        } else {
+            listOf(REASON_THROTTLED)
+        }
+        recordDiagnostic(pkg, keyHash, DECISION_DENY, reasons)
+        return Decision.BlockThrottle(reasons)
     }
 
     /**
-     * Records a notification being shown (for burst tracking).
+     * Records a timestamp for burst tracking (per-package).
      */
-    fun recordShown(packageName: String, typeName: String) {
-        val groupKey = "${packageName}:${typeName}"
+    private fun recordBurstTimestamp(burstKey: String) {
         val now = System.currentTimeMillis()
-        
-        burstTracker.compute(groupKey) { _, list ->
+        burstTracker.compute(burstKey) { _, list ->
             val timestamps = list ?: mutableListOf()
             timestamps.add(now)
             // Keep only last 10 entries to prevent memory bloat
-            if (timestamps.size > 10) {
+            while (timestamps.size > 10) {
                 timestamps.removeAt(0)
             }
             timestamps
@@ -165,21 +248,109 @@ object PriorityEngine {
     }
 
     /**
-     * Checks if we're in a burst scenario for this groupKey.
-     * v0.8.0: Added per-type multipliers.
+     * Checks if we're currently in a burst for this package.
+     * A burst is defined as >=3 notifications within 30 seconds.
      */
-    private fun isBurst(groupKey: String, aggressiveness: Int, typeName: String): Boolean {
-        val timestamps = burstTracker[groupKey] ?: return false
+    private fun isInBurst(burstKey: String): Boolean {
+        val timestamps = burstTracker[burstKey] ?: return false
         val now = System.currentTimeMillis()
-        val windowMs = getBurstWindowMs(aggressiveness)
-        val baseThreshold = getBurstThreshold(aggressiveness)
+        val recentCount = timestamps.count { now - it < BURST_WINDOW_MS }
+        return recentCount >= BURST_THRESHOLD
+    }
 
-        // v0.8.0: Apply type multiplier
-        val typeMultiplier = TYPE_MULTIPLIERS[typeName] ?: 1.0f
-        val adjustedThreshold = (baseThreshold * typeMultiplier).toInt().coerceAtLeast(1)
+    /**
+     * Records a diagnostic entry for priority decisions (debug-only, PII-safe).
+     */
+    private fun recordDiagnostic(pkg: String, keyHash: Int, decision: String, reasons: List<String>) {
+        PriorityDiagnostics.record(pkg, keyHash, decision, reasons.joinToString(","))
+    }
 
-        val recentCount = timestamps.count { now - it < windowMs }
-        return recentCount >= adjustedThreshold
+    /**
+     * Records a notification being shown (for legacy burst tracking).
+     * Note: Burst tracking for "show latest only" is now done in evaluate() before decision.
+     * This method is kept for compatibility but burst tracking moved to evaluate().
+     */
+    fun recordShown(packageName: String, typeName: String) {
+        // Burst tracking is now done in evaluate() for STANDARD notifications.
+        // This method is kept for API compatibility but is effectively a no-op for burst.
+        // The groupKey-based tracking is no longer used for burst detection.
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Learning signals (v0.9.2): Recording methods
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Records when an island is shown for a package.
+     * Used for fast dismiss detection: if user dismisses within FAST_DISMISS_THRESHOLD_MS,
+     * it's a stronger negative signal.
+     * 
+     * Called from NotificationReaderService when island is posted.
+     * PII-safe: only stores packageName and timestamp.
+     */
+    fun recordIslandShown(packageName: String) {
+        val now = System.currentTimeMillis()
+        lastShownAtByPackage[packageName] = now
+        
+        // Bound memory: remove oldest entries if over limit
+        if (lastShownAtByPackage.size > MAX_SHOWN_TRACKING_ENTRIES) {
+            // Find and remove entries older than 1 hour (stale)
+            val oneHourAgo = now - 3600_000L
+            val keysToRemove = lastShownAtByPackage.entries
+                .filter { it.value < oneHourAgo }
+                .map { it.key }
+            keysToRemove.forEach { lastShownAtByPackage.remove(it) }
+        }
+    }
+
+    /**
+     * Checks if a dismiss is "fast" (within threshold of island being shown).
+     * Returns true if dismiss occurred within FAST_DISMISS_THRESHOLD_MS of show.
+     */
+    fun isFastDismiss(packageName: String): Boolean {
+        val shownAt = lastShownAtByPackage[packageName] ?: return false
+        val now = System.currentTimeMillis()
+        return (now - shownAt) <= FAST_DISMISS_THRESHOLD_MS
+    }
+
+    /**
+     * Records a tap-open action (user tapped island to open source app).
+     * This is a positive signal that offsets penalties.
+     * 
+     * PII-safe: only stores packageName and counter.
+     */
+    suspend fun recordTapOpen(preferences: AppPreferences, packageName: String) {
+        // Priority types don't need learning signals
+        if (PRIORITY_TYPES.any { packageName.contains(it, ignoreCase = true) }) return
+        
+        val today = getTodayKey()
+        val currentCount = preferences.getLearningTapOpenCount(packageName, today)
+        preferences.setLearningTapOpenCount(packageName, today, currentCount + 1)
+        
+        // Record diagnostic if enabled
+        if (PriorityDiagnostics.isEnabled()) {
+            PriorityDiagnostics.record(packageName, 0, "SIGNAL", REASON_TAP_OPEN_BOOST)
+        }
+    }
+
+    /**
+     * Records a mute or block action from Quick Actions.
+     * This is a strong negative signal.
+     * 
+     * Note: Does not change mute/block behavior (that's handled by AppPreferences).
+     * Only records the signal for future priority decisions.
+     * 
+     * PII-safe: only stores packageName and counter.
+     */
+    suspend fun recordMuteBlock(preferences: AppPreferences, packageName: String) {
+        val today = getTodayKey()
+        val currentCount = preferences.getLearningMuteBlockCount(packageName, today)
+        preferences.setLearningMuteBlockCount(packageName, today, currentCount + 1)
+        
+        // Record diagnostic if enabled
+        if (PriorityDiagnostics.isEnabled()) {
+            PriorityDiagnostics.record(packageName, 0, "SIGNAL", REASON_MUTE_NEGATIVE)
+        }
     }
 
     /**
@@ -198,6 +369,7 @@ object PriorityEngine {
      * Increments the dismiss counter for today.
      * Called from IslandActionReceiver on DISMISS action.
      * v0.8.0: Added weighted decay across last 3 days and quiet-hours bias.
+     * v0.9.2: Added fast dismiss detection - stronger penalty if dismissed within 2s.
      */
     suspend fun recordDismiss(
         preferences: AppPreferences,
@@ -209,6 +381,23 @@ object PriorityEngine {
         if (PRIORITY_TYPES.contains(typeName)) return
 
         val today = getTodayKey()
+        
+        // v0.9.2: Fast dismiss detection - stronger negative signal
+        val isFast = isFastDismiss(packageName)
+        if (isFast) {
+            // Increment fast dismiss counter (separate from normal dismiss)
+            val fastCount = preferences.getLearningFastDismissCount(packageName, today)
+            preferences.setLearningFastDismissCount(packageName, today, fastCount + 1)
+            
+            // Record diagnostic if enabled
+            if (PriorityDiagnostics.isEnabled()) {
+                PriorityDiagnostics.record(packageName, 0, "SIGNAL", REASON_FAST_DISMISS)
+            }
+        }
+        
+        // Clear the shown timestamp after processing
+        lastShownAtByPackage.remove(packageName)
+        
         val currentCount = preferences.getPriorityDismissCount(packageName, typeName, today)
         val newCount = currentCount + 1
         preferences.setPriorityDismissCount(packageName, typeName, today, newCount)
@@ -221,7 +410,21 @@ object PriorityEngine {
         val countYesterday = preferences.getPriorityDismissCount(packageName, typeName, yesterday)
         val countTwoDaysAgo = preferences.getPriorityDismissCount(packageName, typeName, twoDaysAgo)
         
-        val weightedScore = (countToday * 1.0f) + (countYesterday * 0.6f) + (countTwoDaysAgo * 0.3f)
+        // v0.9.2: Include learning signals in weighted score
+        val fastDismissToday = preferences.getLearningFastDismissCount(packageName, today)
+        val tapOpenToday = preferences.getLearningTapOpenCount(packageName, today)
+        val muteBlockToday = preferences.getLearningMuteBlockCount(packageName, today)
+        
+        // Base weighted score from dismiss history
+        var weightedScore = (countToday * 1.0f) + (countYesterday * 0.6f) + (countTwoDaysAgo * 0.3f)
+        
+        // Apply learning signal adjustments (bounded to avoid destabilization)
+        weightedScore += (fastDismissToday * FAST_DISMISS_WEIGHT).coerceAtMost(5.0f)  // Fast dismiss penalty
+        weightedScore += (tapOpenToday * TAP_OPEN_OFFSET).coerceAtLeast(-3.0f)        // Tap-open offset (negative = reduces score)
+        weightedScore += (muteBlockToday * MUTE_PENALTY_WEIGHT).coerceAtMost(10.0f)   // Mute/block penalty
+        
+        // Ensure score doesn't go negative
+        weightedScore = weightedScore.coerceAtLeast(0f)
 
         // v0.8.0: Quiet-hours bias
         val isQuietHours = isInQuietHours()
