@@ -8,8 +8,8 @@ import android.service.notification.StatusBarNotification
 import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.models.HyperIslandData
 import com.d4viddf.hyperbridge.models.IslandConfig
-import com.d4viddf.hyperbridge.receiver.IslandActionReceiver
 import com.d4viddf.hyperbridge.util.AccentColorResolver
+import com.d4viddf.hyperbridge.util.FocusActionHelper
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
@@ -101,10 +101,8 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
      * Uses explicit receiver and unique key per island.
      */
     private fun createOptionsAction(notificationId: Int): HyperAction {
-        val actionString = "${IslandActionReceiver.ACTION_OPTIONS}_$notificationId"
-        val intent = Intent(context, IslandActionReceiver::class.java).apply {
-            action = actionString
-        }
+        val actionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_OPTIONS, notificationId)
+        val intent = Intent(actionString)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             "options_$notificationId".hashCode(),
@@ -124,10 +122,8 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
      * Uses explicit receiver and unique key per island.
      */
     private fun createDismissAction(notificationId: Int): HyperAction {
-        val actionString = "${IslandActionReceiver.ACTION_DISMISS}_$notificationId"
-        val intent = Intent(context, IslandActionReceiver::class.java).apply {
-            action = actionString
-        }
+        val actionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_DISMISS, notificationId)
+        val intent = Intent(actionString)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             "dismiss_$notificationId".hashCode(),

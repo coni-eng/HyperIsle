@@ -56,13 +56,6 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
     private fun handleDeviceConnected(context: Context, intent: Intent) {
         val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
         val deviceAddress = device?.address ?: return
-        
-        // Get device name safely (may require BLUETOOTH_CONNECT permission on API 31+)
-        val deviceName = try {
-            device.name ?: context.getString(R.string.banner_bt_unknown_device)
-        } catch (e: SecurityException) {
-            context.getString(R.string.banner_bt_unknown_device)
-        }
 
         // Debounce check
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -71,7 +64,7 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
         val now = System.currentTimeMillis()
 
         if (deviceAddress == lastDevice && (now - lastTime) < DEBOUNCE_INTERVAL_MS) {
-            Log.d(TAG, "BT connection debounced: $deviceName")
+            Log.d(TAG, "BT connection debounced")
             return
         }
 
@@ -89,11 +82,11 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
         }
 
         val title = context.getString(R.string.app_name)
-        val message = context.getString(R.string.banner_bt_connected, deviceName)
+        val message = context.getString(R.string.banner_bt_unknown_device)
 
         poster.postSystemNotification(NOTIFICATION_ID, title, message)
         Haptics.hapticOnIslandShown(context)
         
-        Log.d(TAG, "Posted BT connected banner: $deviceName")
+        Log.d(TAG, "Posted BT connected banner")
     }
 }

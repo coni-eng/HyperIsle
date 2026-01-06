@@ -532,4 +532,14 @@
     <string name="time_bucket_afternoon">Öğleden Sonra (12:00–18:00)</string>
     <string name="time_bucket_evening">Akşam (18:00–6:00)</string>
     <string name="summary_more_apps">+%d uygulama daha</string>
+
+    <!-- Debug Diagnostics (debug builds only) -->
+    <string name="debug_section_title">Hata Ayıklama</string>
+    <string name="debug_action_diagnostics_title">Eylem Tanılama</string>
+    <string name="debug_action_diagnostics_desc">PendingIntent çıkarımı ve eylem işlemeyi izle</string>
+    <string name="debug_copy_diagnostics">Tanılama Özetini Kopyala</string>
+    <string name="debug_diagnostics_copied">Tanılama panoya kopyalandı</string>
+    <string name="debug_action_long_press_info_title">Eylem Yönlendirme Bilgisi</string>
+    <string name="debug_action_long_press_info_desc">Eylem tetiklendiğinde yönlendirme türünü göster</string>
+    <string name="debug_route_toast">Yönlendirme: %s</string>
 </resources>

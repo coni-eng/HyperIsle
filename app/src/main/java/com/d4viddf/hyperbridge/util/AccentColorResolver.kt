@@ -153,6 +153,6 @@ object AccentColorResolver {
      * Convert color int to hex string.
      */
     private fun toHexString(@ColorInt color: Int): String {
-        return String.format("#%06X", 0xFFFFFF and color)
+        return String.format(java.util.Locale.US, "#%06X", 0xFFFFFF and color)
     }
 }

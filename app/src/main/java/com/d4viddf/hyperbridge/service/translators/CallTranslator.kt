@@ -14,6 +14,7 @@ import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.models.BridgeAction
 import com.d4viddf.hyperbridge.models.HyperIslandData
 import com.d4viddf.hyperbridge.models.IslandConfig
+import com.d4viddf.hyperbridge.util.PendingIntentHelper
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.HyperPicture
@@ -43,7 +44,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
 
         val actions = sbn.notification.actions ?: emptyArray()
         val hasAnswerAction = actions.any { action ->
-            val txt = action.title.toString().lowercase()
+            val txt = action.title.toString().lowercase(java.util.Locale.getDefault())
             answerKeywords.any { k -> txt.contains(k) }
         }
 
@@ -107,7 +108,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         var speakerIndex = -1
 
         rawActions.forEachIndexed { index, action ->
-            val txt = action.title.toString().lowercase()
+            val txt = action.title.toString().lowercase(java.util.Locale.getDefault())
             if (answerKeywords.any { txt.contains(it) }) answerIndex = index
             else if (hangUpKeywords.any { txt.contains(it) }) hangUpIndex = index
             else if (speakerKeywords.any { txt.contains(it) }) speakerIndex = index
@@ -167,12 +168,16 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
                 hyperPic = HyperPicture(picKey, finalBitmap)
             }
 
+            // Infer intent type from PendingIntent (Activity/Broadcast/Service)
+            // Falls back to Activity if detection fails, preserving existing behavior
+            val inferredIntentType = PendingIntentHelper.inferIntentType(action.actionIntent)
+
             val hyperAction = HyperAction(
                 key = uniqueKey,
                 title = null, // Title usually hidden if icon is prominent in island style
                 icon = actionIcon,
                 pendingIntent = action.actionIntent,
-                actionIntentType = 1,
+                actionIntentType = inferredIntentType,
                 actionBgColor = bgColor
             )
 

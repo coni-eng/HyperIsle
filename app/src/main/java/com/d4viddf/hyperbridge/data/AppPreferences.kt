@@ -384,4 +384,38 @@ class AppPreferences(context: Context) {
     }
 
     suspend fun setContextPreset(preset: com.d4viddf.hyperbridge.models.ContextPreset) = save(SettingsKeys.CONTEXT_PRESET, preset.name)
+
+    // --- DEBUG DIAGNOSTICS (debug builds only) ---
+    val actionDiagnosticsEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.ACTION_DIAGNOSTICS_ENABLED).map { it.toBoolean(false) }
+
+    suspend fun setActionDiagnosticsEnabled(enabled: Boolean) {
+        save(SettingsKeys.ACTION_DIAGNOSTICS_ENABLED, enabled.toString())
+        com.d4viddf.hyperbridge.util.ActionDiagnostics.setEnabled(enabled)
+    }
+
+    /**
+     * Initializes ActionDiagnostics enabled state from persisted value.
+     * Should be called once during app startup (in debug builds only).
+     */
+    suspend fun initActionDiagnostics() {
+        if (!com.d4viddf.hyperbridge.BuildConfig.DEBUG) return
+        val enabled = dao.getSetting(SettingsKeys.ACTION_DIAGNOSTICS_ENABLED).toBoolean(false)
+        com.d4viddf.hyperbridge.util.ActionDiagnostics.setEnabled(enabled)
+    }
+
+    // --- ACTION LONG-PRESS INFO (debug builds only) ---
+    val actionLongPressInfoEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.ACTION_LONG_PRESS_INFO).map { it.toBoolean(false) }
+
+    suspend fun setActionLongPressInfoEnabled(enabled: Boolean) {
+        save(SettingsKeys.ACTION_LONG_PRESS_INFO, enabled.toString())
+    }
+
+    /**
+     * Synchronously checks if action long-press info toast is enabled.
+     * For use in non-suspend contexts (e.g., BroadcastReceiver).
+     */
+    suspend fun isActionLongPressInfoEnabled(): Boolean {
+        if (!com.d4viddf.hyperbridge.BuildConfig.DEBUG) return false
+        return dao.getSetting(SettingsKeys.ACTION_LONG_PRESS_INFO).toBoolean(false)
+    }
 }

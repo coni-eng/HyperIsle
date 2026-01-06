@@ -4,9 +4,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
+import com.d4viddf.hyperbridge.BuildConfig
 import com.d4viddf.hyperbridge.MainActivity
+import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.data.AppPreferences
+import com.d4viddf.hyperbridge.util.ActionDiagnostics
+import com.d4viddf.hyperbridge.util.FocusActionHelper
 import com.d4viddf.hyperbridge.util.Haptics
 import com.d4viddf.hyperbridge.util.IslandCooldownManager
 import com.d4viddf.hyperbridge.util.PriorityEngine
@@ -25,40 +30,39 @@ class IslandActionReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "IslandActionReceiver"
-        const val ACTION_OPTIONS = "miui.focus.action_options"
-        const val ACTION_DISMISS = "miui.focus.action_dismiss"
+        // Delegate to FocusActionHelper for centralized action string constants
+        const val ACTION_OPTIONS = FocusActionHelper.ACTION_OPTIONS
+        const val ACTION_DISMISS = FocusActionHelper.ACTION_DISMISS
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
         Log.d(TAG, "Received action: $action")
 
-        // Parse notification ID from action string (e.g., "miui.focus.action_options_12345")
-        val notificationId = parseNotificationId(action)
+        // Parse notification ID using centralized helper
+        val notificationId = FocusActionHelper.parseNotificationId(action)
+
+        // Safety: if focus action detected but ID parsing failed, log and early return
+        if (notificationId == null && (FocusActionHelper.isOptionsAction(action) || FocusActionHelper.isDismissAction(action))) {
+            Log.w(TAG, "Focus action detected but notification ID parsing failed: $action")
+            if (ActionDiagnostics.isEnabled()) {
+                ActionDiagnostics.record("focus_action_parse_failed action=${action.take(50)}")
+            }
+            // Fall through to allow fallback behavior using last active notification
+        }
 
         when {
-            action.startsWith(ACTION_OPTIONS) -> handleOptions(context, notificationId)
-            action.startsWith(ACTION_DISMISS) -> handleDismiss(context, notificationId)
+            FocusActionHelper.isOptionsAction(action) -> handleOptions(context, notificationId)
+            FocusActionHelper.isDismissAction(action) -> handleDismiss(context, notificationId)
             else -> Log.w(TAG, "Unknown action: $action")
         }
     }
 
-    /**
-     * Parses the notification ID from the action string.
-     * Action format: "miui.focus.action_options_12345" or "miui.focus.action_dismiss_-987654"
-     * @return The parsed notification ID, or null if not found
-     */
-    private fun parseNotificationId(action: String): Int? {
-        // Find the last underscore and parse the number after it
-        val lastUnderscoreIndex = action.lastIndexOf('_')
-        if (lastUnderscoreIndex == -1) return null
-        
-        val idString = action.substring(lastUnderscoreIndex + 1)
-        return idString.toIntOrNull()
-    }
-
     private fun handleOptions(context: Context, notificationId: Int?) {
         Log.d(TAG, "Opening Quick Actions screen for notificationId: $notificationId")
+        
+        // Show debug route toast if enabled
+        showDebugRouteToast(context, "Broadcast")
         
         // Get package from meta map, fallback to last active
         val targetPackage = if (notificationId != null) {
@@ -76,6 +80,9 @@ class IslandActionReceiver : BroadcastReceiver() {
 
     private fun handleDismiss(context: Context, notificationId: Int?) {
         Log.d(TAG, "Dismissing island for notificationId: $notificationId")
+        
+        // Show debug route toast if enabled
+        showDebugRouteToast(context, "Broadcast")
         
         // Get meta from map for this specific notification ID
         val meta = if (notificationId != null) {
@@ -121,5 +128,32 @@ class IslandActionReceiver : BroadcastReceiver() {
         
         // Trigger success haptic
         Haptics.hapticOnIslandSuccess(context)
+    }
+
+    /**
+     * Shows a debug toast with the action route type (Activity/Broadcast/Service).
+     * Only shown in debug builds when the setting is enabled.
+     * No runtime cost when disabled.
+     */
+    private fun showDebugRouteToast(context: Context, routeType: String) {
+        if (!BuildConfig.DEBUG) return
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val preferences = AppPreferences(context)
+                val enabled = preferences.isActionLongPressInfoEnabled()
+                if (enabled) {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.debug_route_toast, routeType),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to show debug route toast: ${e.message}")
+            }
+        }
     }
 }

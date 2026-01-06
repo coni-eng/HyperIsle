@@ -23,9 +23,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.d4viddf.hyperbridge.BuildConfig
 import com.d4viddf.hyperbridge.R
+import com.d4viddf.hyperbridge.util.ActionDiagnostics
 import com.d4viddf.hyperbridge.data.AppPreferences
 import com.d4viddf.hyperbridge.models.ContextPreset
 import com.d4viddf.hyperbridge.models.NotificationType
@@ -78,6 +82,13 @@ fun SmartFeaturesScreen(
     // Context Presets (v0.9.0)
     val contextPreset by preferences.contextPresetFlow.collectAsState(initial = ContextPreset.OFF)
 
+    // Debug Diagnostics (debug builds only)
+    val actionDiagnosticsEnabled by preferences.actionDiagnosticsEnabledFlow.collectAsState(initial = false)
+    val actionLongPressInfoEnabled by preferences.actionLongPressInfoEnabledFlow.collectAsState(initial = false)
+    val clipboardManager = LocalClipboardManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val diagnosticsCopiedMessage = stringResource(R.string.debug_diagnostics_copied)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -88,7 +99,8 @@ fun SmartFeaturesScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -590,6 +602,50 @@ fun SmartFeaturesScreen(
                         onCheckedChange = { scope.launch { preferences.setBannerCopiedEnabled(it) } },
                         enabled = false
                     )
+                }
+            }
+
+            // --- DEBUG DIAGNOSTICS (debug builds only) ---
+            if (BuildConfig.DEBUG) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            stringResource(R.string.debug_section_title),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        SettingsToggleRow(
+                            title = stringResource(R.string.debug_action_diagnostics_title),
+                            subtitle = stringResource(R.string.debug_action_diagnostics_desc),
+                            checked = actionDiagnosticsEnabled,
+                            onCheckedChange = { scope.launch { preferences.setActionDiagnosticsEnabled(it) } }
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        SettingsToggleRow(
+                            title = stringResource(R.string.debug_action_long_press_info_title),
+                            subtitle = stringResource(R.string.debug_action_long_press_info_desc),
+                            checked = actionLongPressInfoEnabled,
+                            onCheckedChange = { scope.launch { preferences.setActionLongPressInfoEnabled(it) } }
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        FilledTonalButton(
+                            onClick = {
+                                val summary = ActionDiagnostics.summary()
+                                clipboardManager.setText(AnnotatedString(summary))
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(diagnosticsCopiedMessage)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.debug_copy_diagnostics))
+                        }
+                    }
                 }
             }
         }

@@ -156,7 +156,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
             HealthGroupCard {
                 // Device
                 StatusRow(
-                    title = android.os.Build.MANUFACTURER.uppercase(),
+                    title = android.os.Build.MANUFACTURER.uppercase(java.util.Locale.getDefault()),
                     subtitle = deviceModel,
                     isSuccess = isXiaomi,
                     icon = Icons.Default.Smartphone

@@ -13,6 +13,8 @@ import android.service.notification.StatusBarNotification
 import androidx.core.content.ContextCompat
 import com.d4viddf.hyperbridge.R
 import com.d4viddf.hyperbridge.models.BridgeAction
+import com.d4viddf.hyperbridge.util.ActionDiagnostics
+import com.d4viddf.hyperbridge.util.PendingIntentHelper
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperPicture
 
@@ -123,17 +125,89 @@ abstract class BaseTranslator(protected val context: Context) {
                 }
             }
 
+            // Infer intent type from PendingIntent (Activity/Broadcast/Service)
+            // Falls back to Activity if detection fails, preserving existing behavior
+            val inferenceResult = PendingIntentHelper.inferIntentTypeWithFallbackInfo(androidAction.actionIntent)
+            val inferredIntentType = inferenceResult.type
+
+            // Record diagnostics if enabled (no string building when disabled)
+            if (ActionDiagnostics.isEnabled()) {
+                // Increment counters based on inferred type
+                when (inferredIntentType) {
+                    PendingIntentHelper.TYPE_ACTIVITY -> ActionDiagnostics.incrementActivity()
+                    PendingIntentHelper.TYPE_BROADCAST -> ActionDiagnostics.incrementBroadcast()
+                    PendingIntentHelper.TYPE_SERVICE -> ActionDiagnostics.incrementService()
+                    else -> ActionDiagnostics.incrementUnknown()
+                }
+                if (inferenceResult.fallbackUsed) {
+                    ActionDiagnostics.incrementFallback()
+                }
+
+                // Record diagnostic line (PII-safe: no title/text content)
+                val typeName = when (inferredIntentType) {
+                    PendingIntentHelper.TYPE_ACTIVITY -> "Activity"
+                    PendingIntentHelper.TYPE_BROADCAST -> "Broadcast"
+                    PendingIntentHelper.TYPE_SERVICE -> "Service"
+                    else -> "Unknown"
+                }
+                val labelTruncated = rawTitle.take(24)
+                ActionDiagnostics.record(
+                    "pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()} label=$labelTruncated type=$typeName fallback=${inferenceResult.fallbackUsed}"
+                )
+            }
+
             val hyperAction = HyperAction(
                 key = uniqueKey,
                 title = finalTitle,
                 icon = actionIcon,
                 pendingIntent = androidAction.actionIntent,
-                actionIntentType = 1
+                actionIntentType = inferredIntentType
             )
 
             bridgeActions.add(BridgeAction(hyperAction, hyperPic))
         }
-        return bridgeActions
+
+        // Conservative dedupe: remove clearly identical actions while preserving order.
+        // Signature: label + inferredIntentType + requestCode (fallback to identityHashCode if needed).
+        // If unsure, keep both actions.
+        return deduplicateActions(bridgeActions)
+    }
+
+    /**
+     * Conservative action deduplication.
+     * Only removes actions that are clearly identical based on:
+     * - label (title)
+     * - inferred intent type
+     * - PendingIntent request code (or identityHashCode as fallback)
+     * Preserves order. If unsure, keeps both.
+     */
+    private fun deduplicateActions(actions: List<BridgeAction>): List<BridgeAction> {
+        if (actions.size <= 1) return actions
+
+        val seen = mutableSetOf<String>()
+        val result = mutableListOf<BridgeAction>()
+
+        for (bridgeAction in actions) {
+            val hyperAction = bridgeAction.action
+            val label = hyperAction.title ?: ""
+            val intentType = hyperAction.actionIntentType
+
+            // Try to get request code from PendingIntent, fallback to identityHashCode
+            val requestCodeOrHash = try {
+                hyperAction.pendingIntent?.creatorUid ?: System.identityHashCode(hyperAction.pendingIntent)
+            } catch (e: Throwable) {
+                System.identityHashCode(hyperAction.pendingIntent)
+            }
+
+            val signature = "$label|$intentType|$requestCodeOrHash"
+
+            if (seen.add(signature)) {
+                result.add(bridgeAction)
+            }
+            // If signature already seen, skip (dedupe)
+        }
+
+        return result
     }
 
     protected fun loadIconBitmap(icon: Icon, packageName: String): Bitmap? {

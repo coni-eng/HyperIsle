@@ -58,7 +58,7 @@ Open “Action diagnostics’ → see a bug → ‘Copy diagnostics summary’ �
 ## **🎵 Media Music Island Mode Update:**
 * HyperIsle allows you to control how Music Island behaves on Xiaomi / HyperOS devices.
 By default, the system’s native (HyperOS) music island is used, and the app does not create duplicate islands.
-
+ 
 * **MODES**
 * **🟢 SYSTEM_ONLY (Default)**
 

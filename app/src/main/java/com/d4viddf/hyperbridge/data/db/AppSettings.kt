@@ -83,4 +83,8 @@ object SettingsKeys {
 
     // Context Presets (v0.9.0)
     const val CONTEXT_PRESET = "context_preset"
+
+    // Debug Diagnostics (debug builds only)
+    const val ACTION_DIAGNOSTICS_ENABLED = "action_diagnostics_enabled"
+    const val ACTION_LONG_PRESS_INFO = "debug_action_long_press_info"
 }

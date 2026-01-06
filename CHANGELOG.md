@@ -1,58 +1,98 @@
-## [Unreleased]
+[Unreleased]
 
-
-## [v0.9.2] - Action Diagnostics & Safety Hardening
-
-### Added
-
-- **Debug Action Diagnostics (debug-only):**
-  - Toggle in Smart Features → Debug section.
-  - In-memory counters for action routing (Activity / Broadcast / Service / fallback).
-  - Ring buffer for last action routing events (PII-safe).
-  - One-tap “Copy diagnostics summary” for field debugging.
-
-### Improved
-
-- **PendingIntent handling:**
-  - Best-effort inference of intent type (Activity / Broadcast / Service).
-  - Defensive fallback to Activity to avoid crashes or broken actions.
-  - Full safety guards around OEM- or ROM-specific edge cases.
-
-- **Focus action handling:**
-  - Centralized focus action string building and parsing.
-  - Hardened parsing with safe early-return on invalid IDs.
-  - Prevents accidental wrong-notification operations.
-
-- **Action translation robustness:**
-  - Conservative deduplication of visually identical actions.
-  - Preserves order and behavior unless actions are clearly duplicates.
-
-### Notes
-
-- All diagnostics are **debug-only** and **disabled by default**.
-- No notification content (title/text) is logged.
-- No impact on release performance or behavior.
+(empty)
 
 
 
+## [v0.9.2] - Action Diagnostics & Debug UX
+Added
+
+Debug Action Diagnostics (debug-only):
+
+Toggle in Smart Features → Debug section.
+
+In-memory counters for action routing (Activity / Broadcast / Service / fallback).
+
+Ring buffer for recent action routing events (PII-safe).
+
+One-tap “Copy diagnostics summary” for field debugging.
+
+Debug Action UX:
+
+Optional long-press on island actions to display routing info
+(Activity / Broadcast / Service).
+
+Disabled by default and available only in debug builds.
+
+Improved
+
+PendingIntent handling:
+
+Best-effort inference of intent type with defensive fallback.
+
+Full safety guards for OEM- or ROM-specific edge cases.
+
+Focus action handling:
+
+Centralized focus action string creation and parsing.
+
+Hardened parsing with safe early-return on invalid IDs.
+
+Action translation robustness:
+
+Conservative deduplication of visually identical actions.
+
+No behavior changes unless actions are clearly duplicates.
+
+Notes
+
+All diagnostics are debug-only and disabled by default.
+
+No notification content (title/text) is logged.
+
+No impact on release performance or behavior.
 
 
-## [v0.9.1] - Summary Digest (Planned Hotfix)
 
-**Not yet implemented. Planned improvements:**
+## [v0.9.1] - Summary Digest Hardening
+Added
 
-1) Navigation / entrypoint
-- Ensure Settings screen has a clear entry "Notification Summary" that opens NotificationSummaryScreenV2.kt.
-- If navigation graph exists, add route and hook from settings list item.
-- If using simple Compose navigation in MainActivity, add route there.
+Notification Summary navigation entrypoint:
 
-2) Digest recording for suppressed notifications
-- In NotificationReaderService.kt, identify all early-return suppression points:
-  - Cooldown deny
-  - Focus deny
-  - Context deny
-  - Priority deny (burst/throttle)
-  - Spoiler protection deny
+Clear entry in Settings to open NotificationSummaryScreenV2.
+
+Improved
+
+Digest reliability for suppressed notifications:
+
+Notifications suppressed before island rendering
+(Focus, Context Presets, Cooldown, Priority throttling, spoiler protection)
+are now reliably recorded in the Summary Digest.
+
+Ensures notification history is complete even when islands are not shown.
+
+Suppression-aware digest recording:
+
+Digest insertion occurs before all early-return suppression points.
+
+Duplicate digest entries are prevented.
+
+Debug
+
+Suppression diagnostics (debug-only):
+
+When diagnostics are enabled, suppressed notifications recorded
+into the digest emit a diagnostic entry with suppression reason.
+
+Helps troubleshoot “missing notification” reports without logging content.
+
+Notes
+
+Media notifications are never recorded into the digest.
+
+No database schema changes.
+
+Normal (non-suppressed) notification behavior is unchanged.
 
 
 ## [v0.9.0] - Context Presets & Summary Upgrades

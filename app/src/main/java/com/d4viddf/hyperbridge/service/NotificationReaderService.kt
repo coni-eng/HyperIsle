@@ -40,6 +40,7 @@ import com.d4viddf.hyperbridge.util.Haptics
 import com.d4viddf.hyperbridge.util.IslandActivityStateMachine
 import com.d4viddf.hyperbridge.util.IslandCooldownManager
 import com.d4viddf.hyperbridge.util.PriorityEngine
+import com.d4viddf.hyperbridge.util.ActionDiagnostics
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -303,6 +304,12 @@ class NotificationReaderService : NotificationListenerService() {
             if (appBlockedTerms.isNotEmpty()) {
                 val content = "$title $text"
                 if (appBlockedTerms.any { term -> content.contains(term, ignoreCase = true) }) {
+                    // v0.9.1: Record suppressed notification to digest before returning
+                    val type = inferNotificationType(sbn)
+                    if (summaryEnabled && type != NotificationType.MEDIA) {
+                        val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                        insertDigestItem(sbn.packageName, title, text, type.name, "APP_BLOCKLIST", keyHash)
+                    }
                     return
                 }
             }
@@ -343,28 +350,38 @@ class NotificationReaderService : NotificationListenerService() {
             }
 
             val config = preferences.getAppConfig(sbn.packageName).first()
-            if (!config.contains(type.name)) return
+            if (!config.contains(type.name)) {
+                // v0.9.1: Record suppressed notification to digest before returning
+                if (summaryEnabled && type != NotificationType.MEDIA) {
+                    val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                    insertDigestItem(sbn.packageName, title, text, type.name, "TYPE_CONFIG_DENY", keyHash)
+                }
+                return
+            }
 
             // --- PER-APP BLOCK CHECK ---
             if (perAppBlocked.contains(sbn.packageName)) {
-                if (summaryEnabled) {
-                    insertDigestItem(sbn.packageName, title, text, type.name)
+                if (summaryEnabled && type != NotificationType.MEDIA) {
+                    val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                    insertDigestItem(sbn.packageName, title, text, type.name, "PER_APP_BLOCKED", keyHash)
                 }
                 return
             }
 
             // --- PER-APP MUTE CHECK (uses cooldown) ---
             if (perAppMuted.contains(sbn.packageName)) {
-                if (summaryEnabled) {
-                    insertDigestItem(sbn.packageName, title, text, type.name)
+                if (summaryEnabled && type != NotificationType.MEDIA) {
+                    val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                    insertDigestItem(sbn.packageName, title, text, type.name, "PER_APP_MUTED", keyHash)
                 }
                 return
             }
 
             // --- COOLDOWN CHECK (after explicit dismiss) ---
             if (IslandCooldownManager.isInCooldown(applicationContext, sbn.packageName, type.name)) {
-                if (summaryEnabled) {
-                    insertDigestItem(sbn.packageName, title, text, type.name)
+                if (summaryEnabled && type != NotificationType.MEDIA) {
+                    val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                    insertDigestItem(sbn.packageName, title, text, type.name, "COOLDOWN_DENY", keyHash)
                 }
                 return
             }
@@ -379,11 +396,19 @@ class NotificationReaderService : NotificationListenerService() {
                 smartPriorityAggressiveness
             )
             when (priorityDecision) {
-                is PriorityEngine.Decision.BlockBurst,
+                is PriorityEngine.Decision.BlockBurst -> {
+                    // v0.9.1: Log to digest with suppression reason
+                    if (summaryEnabled && type != NotificationType.MEDIA) {
+                        val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                        insertDigestItem(sbn.packageName, title, text, type.name, "PRIORITY_BURST", keyHash)
+                    }
+                    return
+                }
                 is PriorityEngine.Decision.BlockThrottle -> {
-                    // Log to digest if enabled, but don't show island
-                    if (summaryEnabled) {
-                        insertDigestItem(sbn.packageName, title, text, type.name)
+                    // v0.9.1: Log to digest with suppression reason
+                    if (summaryEnabled && type != NotificationType.MEDIA) {
+                        val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                        insertDigestItem(sbn.packageName, title, text, type.name, "PRIORITY_THROTTLE", keyHash)
                     }
                     return
                 }
@@ -412,8 +437,10 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 
                 if (shouldBlock) {
+                    // v0.9.1: Log to digest with suppression reason
                     if (summaryEnabled) {
-                        insertDigestItem(sbn.packageName, title, text, type.name)
+                        val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                        insertDigestItem(sbn.packageName, title, text, type.name, "CONTEXT_PRESET_${contextPreset.name}", keyHash)
                     }
                     Log.d(TAG, "Context preset ${contextPreset.name}: Blocked ${type.name} for ${sbn.packageName}")
                     return
@@ -430,9 +457,10 @@ class NotificationReaderService : NotificationListenerService() {
                 if (!isScreenOn && contextScreenOffOnlyImportant) {
                     // Do NOT affect MediaStyle path (already returned above for media)
                     if (!contextScreenOffImportantTypes.contains(type.name)) {
-                        // Type not allowed when screen is off - skip island but log to digest
+                        // v0.9.1: Type not allowed when screen is off - skip island but log to digest
                         if (summaryEnabled) {
-                            insertDigestItem(sbn.packageName, title, text, type.name)
+                            val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                            insertDigestItem(sbn.packageName, title, text, type.name, "CONTEXT_SCREEN_OFF", keyHash)
                         }
                         Log.d(TAG, "Context-aware: Blocked ${type.name} for ${sbn.packageName} (screen off)")
                         return
@@ -447,7 +475,6 @@ class NotificationReaderService : NotificationListenerService() {
 
             val isUpdate = activeIslands.containsKey(groupKey)
 
-            // ... (rest of the code remains the same)
             // --- SMART SILENCE (anti-spam) for non-media ---
             val contentHash = "$title$text$subText${type.name}".hashCode()
             if (smartSilenceEnabled && type != NotificationType.MEDIA) {
@@ -456,9 +483,10 @@ class NotificationReaderService : NotificationListenerService() {
                 if (lastShown != null) {
                     val (lastTime, lastHash) = lastShown
                     if (now - lastTime < smartSilenceWindowMs && lastHash == contentHash) {
-                        // Same content within window - skip showing but still log to digest
+                        // v0.9.1: Same content within window - skip showing but still log to digest
                         if (summaryEnabled) {
-                            insertDigestItem(sbn.packageName, title, text, type.name)
+                            val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                            insertDigestItem(sbn.packageName, title, text, type.name, "SMART_SILENCE", keyHash)
                         }
                         return
                     }
@@ -469,9 +497,10 @@ class NotificationReaderService : NotificationListenerService() {
             // --- FOCUS AUTOMATION ---
             // Note: isFocusActive already computed above for context-aware check
             if (isFocusActive && !focusAllowedTypes.contains(type.name)) {
-                // Type not allowed during focus - skip island but log to digest
-                if (summaryEnabled) {
-                    insertDigestItem(sbn.packageName, title, text, type.name)
+                // v0.9.1: Type not allowed during focus - skip island but log to digest
+                if (summaryEnabled && type != NotificationType.MEDIA) {
+                    val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
+                    insertDigestItem(sbn.packageName, title, text, type.name, "FOCUS_MODE_DENY", keyHash)
                 }
                 return
             }
@@ -620,7 +649,19 @@ class NotificationReaderService : NotificationListenerService() {
     private val digestDedupeCache = ConcurrentHashMap<String, Long>()
     private val DIGEST_DEDUPE_WINDOW_MS = 2000L
 
-    private suspend fun insertDigestItem(packageName: String, title: String, text: String, type: String) {
+    /**
+     * v0.9.1: Insert digest item with optional suppression reason for diagnostics.
+     * @param suppressionReason Optional reason code for why notification was suppressed (null = normal post)
+     * @param keyHash Optional sbn.key.hashCode() for diagnostics (only computed when diagnostics enabled)
+     */
+    private suspend fun insertDigestItem(
+        packageName: String,
+        title: String,
+        text: String,
+        type: String,
+        suppressionReason: String? = null,
+        keyHash: Int? = null
+    ) {
         try {
             // Deduplication: skip if same pkg+title+text within 2 seconds
             val dedupeKey = "$packageName:$title:$text"
@@ -640,6 +681,12 @@ class NotificationReaderService : NotificationListenerService() {
                     type = type
                 )
             )
+
+            // v0.9.1: Record diagnostic line for suppressed notifications (DEBUG-ONLY)
+            if (suppressionReason != null && ActionDiagnostics.isEnabled()) {
+                val diagLine = "Digest record on suppression: pkg=$packageName keyHash=${keyHash ?: "N/A"} reason=$suppressionReason"
+                ActionDiagnostics.record(diagLine)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to insert digest item: ${e.message}")
         }
@@ -715,5 +762,32 @@ class NotificationReaderService : NotificationListenerService() {
 
     private fun isAppAllowed(packageName: String): Boolean {
         return allowedPackageSet.contains(packageName)
+    }
+
+    /**
+     * v0.9.1: Helper to infer notification type from StatusBarNotification.
+     * Used for early suppression points where type hasn't been computed yet.
+     */
+    private fun inferNotificationType(sbn: StatusBarNotification): NotificationType {
+        val extras = sbn.notification.extras
+        val isCall = sbn.notification.category == Notification.CATEGORY_CALL
+        val isNavigation = sbn.notification.category == Notification.CATEGORY_NAVIGATION ||
+                sbn.packageName.contains("maps") || sbn.packageName.contains("waze")
+        val progressMax = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
+        val hasProgress = progressMax > 0 || extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE)
+        val chronometerBase = sbn.notification.`when`
+        val isTimer = (extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER) ||
+                sbn.notification.category == Notification.CATEGORY_ALARM ||
+                sbn.notification.category == Notification.CATEGORY_STOPWATCH) && chronometerBase > 0
+        val isMedia = extras.getString(Notification.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
+
+        return when {
+            isCall -> NotificationType.CALL
+            isNavigation -> NotificationType.NAVIGATION
+            isTimer -> NotificationType.TIMER
+            isMedia -> NotificationType.MEDIA
+            hasProgress -> NotificationType.PROGRESS
+            else -> NotificationType.STANDARD
+        }
     }
 }
