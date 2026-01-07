@@ -98,4 +98,7 @@ object SettingsKeys {
 
     // Per-app shade cancel (v0.9.5)
     // Dynamic keys: shade_cancel_<packageName> -> true/false
+
+    // Permission banner snooze (v0.9.6)
+    const val PERMISSION_BANNER_SNOOZE_UNTIL = "permission_banner_snooze_until"
 }

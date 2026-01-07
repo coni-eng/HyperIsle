@@ -1,6 +1,8 @@
 package com.coni.hyperisle.ui.screens.home
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
@@ -19,27 +21,43 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
+import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.models.PermissionRegistry
 import com.coni.hyperisle.ui.AppListViewModel
 import com.coni.hyperisle.ui.components.AppConfigBottomSheet
+import com.coni.hyperisle.ui.components.SetupBanner
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: AppListViewModel = viewModel(),
     onSettingsClick: () -> Unit,
-    onNavConfigClick: (String) -> Unit
+    onNavConfigClick: (String) -> Unit,
+    onSetupClick: () -> Unit = onSettingsClick
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val preferences = remember { AppPreferences(context) }
+    
     var selectedTab by remember { mutableIntStateOf(0) }
 
     val activeApps by viewModel.activeAppsState.collectAsState()
@@ -48,6 +66,33 @@ fun HomeScreen(
 
     // State to hold the app being configured
     var configApp by remember { mutableStateOf<com.coni.hyperisle.ui.AppInfo?>(null) }
+    
+    // --- PERMISSION BANNER STATE ---
+    var missingRequiredCount by remember { mutableStateOf(PermissionRegistry.getMissingRequiredCount(context)) }
+    val snoozeUntil by preferences.permissionBannerSnoozeUntilFlow.collectAsState(initial = 0L)
+    var bannerDismissedThisSession by remember { mutableStateOf(false) }
+    
+    // Recalculate missing permissions on resume
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                missingRequiredCount = PermissionRegistry.getMissingRequiredCount(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    
+    // Banner visibility logic:
+    // Show only if: missing required > 0 AND not snoozed AND not dismissed this session
+    val isSnoozed = System.currentTimeMillis() < snoozeUntil
+    val showBanner = missingRequiredCount > 0 && !isSnoozed && !bannerDismissedThisSession
+    
+    // Debug log for missing permissions
+    if (BuildConfig.DEBUG && missingRequiredCount > 0) {
+        Log.d("HomeScreen", "event=missingRequiredPermissions count=$missingRequiredCount")
+    }
 
     Scaffold(
         topBar = {
@@ -78,11 +123,25 @@ fun HomeScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
-            if (selectedTab == 0) {
-                ActiveAppsPage(activeApps, isLoading, viewModel) { configApp = it }
-            } else {
-                LibraryPage(libraryApps, isLoading, viewModel) { configApp = it }
+        Column(modifier = Modifier.padding(padding)) {
+            // --- SETUP BANNER (only for REQUIRED permissions) ---
+            if (showBanner) {
+                SetupBanner(
+                    missingCount = missingRequiredCount,
+                    onFixNow = { onSetupClick() },
+                    onLater = {
+                        scope.launch { preferences.snoozePermissionBanner() }
+                        bannerDismissedThisSession = true
+                    }
+                )
+            }
+            
+            Box(modifier = Modifier.weight(1f)) {
+                if (selectedTab == 0) {
+                    ActiveAppsPage(activeApps, isLoading, viewModel) { configApp = it }
+                } else {
+                    LibraryPage(libraryApps, isLoading, viewModel) { configApp = it }
+                }
             }
         }
     }

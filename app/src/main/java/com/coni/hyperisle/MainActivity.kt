@@ -210,7 +210,8 @@ fun MainRootNavigation(
                 }
                 Screen.HOME -> HomeScreen(
                     onSettingsClick = { currentScreen = Screen.INFO },
-                    onNavConfigClick = { pkg -> navConfigPackage = pkg; currentScreen = Screen.NAV_CUSTOMIZATION }
+                    onNavConfigClick = { pkg -> navConfigPackage = pkg; currentScreen = Screen.NAV_CUSTOMIZATION },
+                    onSetupClick = { currentScreen = Screen.SETUP }
                 )
                 Screen.INFO -> InfoScreen(
                     onBack = { currentScreen = Screen.HOME },

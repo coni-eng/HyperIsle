@@ -669,4 +669,25 @@ class AppPreferences(context: Context) {
             save(key, enabled.toString())
         }
     }
+
+    // --- PERMISSION BANNER SNOOZE (v0.9.6) ---
+    val permissionBannerSnoozeUntilFlow: Flow<Long> = dao.getSettingFlow(SettingsKeys.PERMISSION_BANNER_SNOOZE_UNTIL).map { it.toLong(0L) }
+
+    suspend fun getPermissionBannerSnoozeUntil(): Long {
+        return dao.getSetting(SettingsKeys.PERMISSION_BANNER_SNOOZE_UNTIL).toLong(0L)
+    }
+
+    suspend fun setPermissionBannerSnoozeUntil(timestamp: Long) {
+        save(SettingsKeys.PERMISSION_BANNER_SNOOZE_UNTIL, timestamp.toString())
+    }
+
+    suspend fun snoozePermissionBanner() {
+        val snoozeUntil = System.currentTimeMillis() + (24 * 60 * 60 * 1000L) // 24 hours
+        setPermissionBannerSnoozeUntil(snoozeUntil)
+    }
+
+    suspend fun isPermissionBannerSnoozed(): Boolean {
+        val snoozeUntil = getPermissionBannerSnoozeUntil()
+        return System.currentTimeMillis() < snoozeUntil
+    }
 }

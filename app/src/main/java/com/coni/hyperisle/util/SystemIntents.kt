@@ -71,3 +71,71 @@ fun isPostNotificationsEnabled(context: Context): Boolean {
         true
     }
 }
+
+/**
+ * Checks if Overlay (Display over other apps) permission is granted.
+ */
+fun isOverlayPermissionGranted(context: Context): Boolean {
+    return Settings.canDrawOverlays(context)
+}
+
+/**
+ * Opens the Overlay permission settings for this app.
+ */
+fun openOverlaySettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+        intent.data = Uri.parse("package:${context.packageName}")
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = Uri.parse("package:${context.packageName}")
+            context.startActivity(intent)
+        } catch (e2: Exception) {
+            Toast.makeText(context, "Settings not found", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+/**
+ * Opens the Notification Listener settings.
+ */
+fun openNotificationListenerSettings(context: Context) {
+    try {
+        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    } catch (e: Exception) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = Uri.parse("package:${context.packageName}")
+            context.startActivity(intent)
+        } catch (e2: Exception) {
+            Toast.makeText(context, "Settings not found", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+/**
+ * Opens the App Notification settings (for POST_NOTIFICATIONS on Android 13+).
+ */
+fun openAppNotificationSettings(context: Context) {
+    try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            context.startActivity(intent)
+        } else {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = Uri.parse("package:${context.packageName}")
+            context.startActivity(intent)
+        }
+    } catch (e: Exception) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = Uri.parse("package:${context.packageName}")
+            context.startActivity(intent)
+        } catch (e2: Exception) {
+            Toast.makeText(context, "Settings not found", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
