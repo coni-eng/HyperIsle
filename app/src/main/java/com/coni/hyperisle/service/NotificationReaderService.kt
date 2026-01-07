@@ -220,6 +220,17 @@ class NotificationReaderService : NotificationListenerService() {
             
             if (groupKey != null && activeTranslations.containsKey(groupKey)) {
                 val hyperId = activeTranslations[groupKey] ?: return
+                
+                // Debug-only: Log auto-dismiss for call islands
+                if (BuildConfig.DEBUG && groupKey.endsWith(":CALL")) {
+                    val dismissReason = when (reason) {
+                        REASON_APP_CANCEL, REASON_CANCEL -> "CALL_ENDED"
+                        REASON_CLICK -> "DIALER_OPENED"
+                        else -> mapRemovalReason(reason)
+                    }
+                    Log.d(TAG, "event=autoDismiss reason=$dismissReason pkg=${it.packageName} keyHash=${key.hashCode()}")
+                }
+                
                 try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
 
                 activeIslands.remove(groupKey)

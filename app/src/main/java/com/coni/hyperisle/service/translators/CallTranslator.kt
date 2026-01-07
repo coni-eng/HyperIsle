@@ -10,6 +10,8 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
+import android.util.Log
+import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.BridgeAction
 import com.coni.hyperisle.models.HyperIslandData
@@ -24,6 +26,8 @@ import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
 
 class CallTranslator(context: Context) : BaseTranslator(context) {
+
+    private val TAG = "CallTranslator"
 
     // Keywords (Loaded from XML)
     private val hangUpKeywords by lazy {
@@ -49,6 +53,17 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         }
 
         val isIncoming = !isChronometerShown && hasAnswerAction
+        val isOngoing = !isIncoming && isChronometerShown
+
+        // Debug-only lifecycle logging
+        if (BuildConfig.DEBUG) {
+            val callState = when {
+                isIncoming -> "incoming"
+                isOngoing -> "ongoing"
+                else -> "ended"
+            }
+            Log.d(TAG, "event=callState $callState pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()}")
+        }
 
         val builder = HyperIslandNotification.Builder(context, "bridge_${sbn.packageName}", title)
 
@@ -58,6 +73,10 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         builder.setEnableFloat(shouldFloat)
         builder.setTimeout(finalTimeout)
         builder.setShowNotification(config.isShowShade ?: true)
+
+        // Ongoing calls: collapse to small island (no expanded state)
+        // Incoming calls: allow expanded state for accept/reject visibility
+        builder.setIslandFirstFloat(!isOngoing)
 
         val hiddenKey = "hidden_pixel"
         builder.addPicture(resolveIcon(sbn, picKey))
@@ -148,11 +167,11 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             val isHangUp = index == hangUpIndex
             val isAnswer = index == answerIndex
 
-            // DETERMINE BACKGROUND COLOR
+            // DETERMINE BACKGROUND COLOR - More vibrant for better visibility
             val bgColor = when {
-                isHangUp -> "#FF3B30" // Red
-                isAnswer -> "#34C759" // Green
-                else -> null
+                isHangUp -> "#E53935" // Vibrant Red (Material Red 600)
+                isAnswer -> "#43A047" // Vibrant Green (Material Green 600)
+                else -> "#616161"     // Grey for other actions
             }
 
             // LOAD & TINT ICON
@@ -160,13 +179,8 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             val originalBitmap = if (originalIcon != null) loadIconBitmap(originalIcon, sbn.packageName) else null
 
             if (originalBitmap != null) {
-                // If we have a background color, make the icon WHITE for contrast.
-                // Otherwise, leave it original (usually grey/black).
-                val finalBitmap = if (bgColor != null) {
-                    tintBitmap(originalBitmap, Color.WHITE)
-                } else {
-                    originalBitmap
-                }
+                // Tint icon WHITE for contrast against colored background
+                val finalBitmap = tintBitmap(originalBitmap, Color.WHITE)
 
                 val picKey = "${uniqueKey}_icon"
                 actionIcon = Icon.createWithBitmap(finalBitmap)
