@@ -553,4 +553,15 @@
     <string name="debug_reset_learning_title">Akıllı Öncelik Öğrenme</string>
     <string name="debug_reset_learning_button">Akıllı Öncelik Öğrenmesini Sıfırla</string>
     <string name="debug_reset_learning_done">Sıfırlama tamamlandı</string>
+
+    <!-- Smart Priority Profile (v0.9.4) -->
+    <string name="smart_priority_profile_title">Akıllı Öncelik Profili</string>
+    <string name="smart_priority_profile_desc">Bu uygulama için bildirim filtreleme agresifliğini ayarla</string>
+    <string name="profile_normal">Normal</string>
+    <string name="profile_lenient">Esnek</string>
+    <string name="profile_strict">Katı</string>
+
+    <!-- Time Visibility on Islands (v0.9.4) -->
+    <string name="show_time_on_islands_title">Adalarda Zaman Göster</string>
+    <string name="show_time_on_islands_desc">Bildirim adalarında göreli zaman etiketi göster</string>
 </resources>

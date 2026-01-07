@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -63,6 +65,49 @@ fun GlobalSettingsScreen(
                     subtitle = stringResource(R.string.nav_layout_desc),
                     onClick = onNavSettingsClick
                 )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Show Time on Islands Toggle (v0.9.4)
+            val showTimeOnIslands by preferences.showTimeOnIslandsFlow.collectAsState(initial = false)
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column {
+                            Text(
+                                stringResource(R.string.show_time_on_islands_title),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                stringResource(R.string.show_time_on_islands_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = showTimeOnIslands,
+                        onCheckedChange = { checked ->
+                            scope.launch { preferences.setShowTimeOnIslands(checked) }
+                        }
+                    )
+                }
             }
         }
     }

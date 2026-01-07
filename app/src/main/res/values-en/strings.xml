@@ -554,4 +554,15 @@
     <string name="debug_reset_learning_title">Smart Priority Learning</string>
     <string name="debug_reset_learning_button">Reset Smart Priority Learning</string>
     <string name="debug_reset_learning_done">Reset done</string>
+
+    <!-- Smart Priority Profile (v0.9.4) -->
+    <string name="smart_priority_profile_title">Smart Priority Profile</string>
+    <string name="smart_priority_profile_desc">Adjust notification filtering aggressiveness for this app</string>
+    <string name="profile_normal">Normal</string>
+    <string name="profile_lenient">Lenient</string>
+    <string name="profile_strict">Strict</string>
+
+    <!-- Time Visibility on Islands (v0.9.4) -->
+    <string name="show_time_on_islands_title">Show Time on Islands</string>
+    <string name="show_time_on_islands_desc">Display relative time label on notification islands</string>
 </resources>

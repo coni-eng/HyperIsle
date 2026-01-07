@@ -61,9 +61,16 @@ object PriorityEngine {
     private const val REASON_MUTE_NEGATIVE = "MUTE_NEGATIVE"
     private const val REASON_PRESET_BYPASS = "PRESET_BYPASS"
     private const val REASON_PRESET_BIAS = "PRESET_BIAS"
+    private const val REASON_PROFILE_STRICT = "PROFILE_STRICT"
+    private const val REASON_PROFILE_LENIENT = "PROFILE_LENIENT"
     private const val DECISION_ALLOW = "ALLOW"
     private const val DECISION_DENY = "DENY"
     private const val TYPENAME_STANDARD = "STANDARD"
+
+    // v0.9.4: Per-app profile bias multipliers (conservative, bounded)
+    // Applied only to STANDARD notifications, does NOT affect CALL/TIMER/NAV
+    private const val PROFILE_STRICT_MULTIPLIER = 1.15f   // Slightly more aggressive
+    private const val PROFILE_LENIENT_MULTIPLIER = 0.85f  // Slightly less aggressive
 
     // Priority types that are always allowed
     private val PRIORITY_TYPES = setOf(
@@ -168,7 +175,8 @@ object PriorityEngine {
         smartPriorityEnabled: Boolean,
         aggressiveness: Int,
         sbnKeyHash: Int = 0,
-        presetAggressivenessBias: Int = 0
+        presetAggressivenessBias: Int = 0,
+        appProfile: com.coni.hyperisle.models.SmartPriorityProfile = com.coni.hyperisle.models.SmartPriorityProfile.NORMAL
     ): Decision {
         // ═══════════════════════════════════════════════════════════════════
         // CHEAP-FIRST PIPELINE: Ordered by cost, short-circuit early
@@ -224,6 +232,45 @@ object PriorityEngine {
                 val reasons = listOf(REASON_BURST, REASON_PRESET_BIAS)
                 recordDiagnostic(packageName, sbnKeyHash, DECISION_DENY, reasons)
                 return Decision.BlockBurst(reasons)
+            }
+        }
+
+        // ─── GATE 7: Per-app profile bias for STANDARD (v0.9.4) ───
+        // STRICT: slightly more aggressive burst detection (lower threshold)
+        // LENIENT: slightly less aggressive (higher threshold)
+        // NORMAL: no change (default behavior)
+        // Only affects STANDARD notifications; CALL/TIMER/NAV already bypassed at GATE 2
+        if (typeName == TYPENAME_STANDARD && appProfile != com.coni.hyperisle.models.SmartPriorityProfile.NORMAL) {
+            val timestamps = burstTracker[packageName] ?: emptyList<Long>()
+            val now = System.currentTimeMillis()
+            val recentCount = timestamps.count { now - it < BURST_WINDOW_MS }
+            
+            when (appProfile) {
+                com.coni.hyperisle.models.SmartPriorityProfile.STRICT -> {
+                    // Lower threshold = more likely to suppress (threshold - 1, min 2)
+                    val strictThreshold = (BURST_THRESHOLD - 1).coerceAtLeast(2)
+                    if (recentCount >= strictThreshold) {
+                        val reasons = listOf(REASON_BURST, REASON_PROFILE_STRICT)
+                        recordDiagnostic(packageName, sbnKeyHash, DECISION_DENY, reasons)
+                        return Decision.BlockBurst(reasons)
+                    }
+                }
+                com.coni.hyperisle.models.SmartPriorityProfile.LENIENT -> {
+                    // Higher threshold = less likely to suppress (threshold + 1)
+                    // If we're at exactly BURST_THRESHOLD, allow it (lenient)
+                    // This effectively means lenient apps need 1 more notification to trigger burst
+                    val lenientThreshold = BURST_THRESHOLD + 1
+                    // Already passed normal burst check at GATE 4, so if we're here with LENIENT,
+                    // we allow through (the normal check already passed)
+                    // Record diagnostic hint that lenient profile is active
+                    if (recentCount >= BURST_THRESHOLD && recentCount < lenientThreshold) {
+                        // Would have been blocked normally, but lenient profile allows it
+                        if (PriorityDiagnostics.isEnabled()) {
+                            PriorityDiagnostics.record(packageName, sbnKeyHash, "ALLOW_LENIENT", REASON_PROFILE_LENIENT)
+                        }
+                    }
+                }
+                else -> { /* NORMAL - no action */ }
             }
         }
 

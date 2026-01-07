@@ -129,25 +129,30 @@ object PendingIntentHelper {
      * 
      * @return Pair of (type, fallbackUsed)
      */
+    /**
+     * Best-effort inference using ONLY public APIs.
+     * NOTE: Reflection on PendingIntent internals (mTarget, etc.) is not allowed and will throw on API 36+.
+     *
+     * @return Pair of (type, fallbackUsed)
+     */
     private fun inferViaReflection(pendingIntent: PendingIntent): Pair<Int, Boolean> {
         return try {
-            // Try to access the internal IIntentSender and check its type
-            // This is highly implementation-dependent and may fail
-            val field = PendingIntent::class.java.getDeclaredField("mTarget")
-            field.isAccessible = true
-            val target = field.get(pendingIntent)
-            
-            // The target's class name sometimes indicates the type
-            val targetClassName = target?.javaClass?.name?.lowercase() ?: ""
-            
+            // Use public APIs when available; never crash if ROM/framework differs.
             when {
-                targetClassName.contains("broadcast") -> Pair(TYPE_BROADCAST, false)
-                targetClassName.contains("service") -> Pair(TYPE_SERVICE, false)
-                targetClassName.contains("activity") -> Pair(TYPE_ACTIVITY, false)
-                else -> Pair(TYPE_ACTIVITY, true) // Safe default, fallback used
+                runCatching { pendingIntent.isBroadcast }.getOrDefault(false) ->
+                    Pair(TYPE_BROADCAST, false)
+
+                runCatching { pendingIntent.isService }.getOrDefault(false) ->
+                    Pair(TYPE_SERVICE, false)
+
+                runCatching { pendingIntent.isActivity }.getOrDefault(false) ->
+                    Pair(TYPE_ACTIVITY, false)
+
+                else ->
+                    // Unknown → keep historical safe default
+                    Pair(TYPE_ACTIVITY, true)
             }
-        } catch (t: Throwable) {
-            Log.d(TAG, "Reflection-based inference failed: ${t.message}")
+        } catch (_: Throwable) {
             Pair(TYPE_ACTIVITY, true)
         }
     }

@@ -348,6 +348,53 @@ class AppPreferences(context: Context) {
     suspend fun setSmartPriorityEnabled(enabled: Boolean) = save(SettingsKeys.SMART_PRIORITY_ENABLED, enabled.toString())
     suspend fun setSmartPriorityAggressiveness(level: Int) = save(SettingsKeys.SMART_PRIORITY_AGGRESSIVENESS, level.toString())
 
+    // --- PER-APP SMART PRIORITY PROFILE (v0.9.4) ---
+    // Stored as dynamic keys: sp_profile_<packageName> -> NORMAL|LENIENT|STRICT
+    // No schema changes - uses existing key/value storage
+    
+    /**
+     * Gets the Smart Priority profile for a specific app.
+     * Returns NORMAL if not set.
+     */
+    suspend fun getSmartPriorityProfile(packageName: String): com.coni.hyperisle.models.SmartPriorityProfile {
+        val key = "sp_profile_$packageName"
+        val value = dao.getSetting(key)
+        return try {
+            if (value != null) com.coni.hyperisle.models.SmartPriorityProfile.valueOf(value)
+            else com.coni.hyperisle.models.SmartPriorityProfile.NORMAL
+        } catch (e: Exception) {
+            com.coni.hyperisle.models.SmartPriorityProfile.NORMAL
+        }
+    }
+
+    /**
+     * Gets the Smart Priority profile as a Flow for reactive UI.
+     */
+    fun getSmartPriorityProfileFlow(packageName: String): Flow<com.coni.hyperisle.models.SmartPriorityProfile> {
+        val key = "sp_profile_$packageName"
+        return dao.getSettingFlow(key).map { value ->
+            try {
+                if (value != null) com.coni.hyperisle.models.SmartPriorityProfile.valueOf(value)
+                else com.coni.hyperisle.models.SmartPriorityProfile.NORMAL
+            } catch (e: Exception) {
+                com.coni.hyperisle.models.SmartPriorityProfile.NORMAL
+            }
+        }
+    }
+
+    /**
+     * Sets the Smart Priority profile for a specific app.
+     * Setting to NORMAL removes the key (default behavior).
+     */
+    suspend fun setSmartPriorityProfile(packageName: String, profile: com.coni.hyperisle.models.SmartPriorityProfile) {
+        val key = "sp_profile_$packageName"
+        if (profile == com.coni.hyperisle.models.SmartPriorityProfile.NORMAL) {
+            remove(key)
+        } else {
+            save(key, profile.name)
+        }
+    }
+
     // Dynamic keys for dismiss counts and throttle
     suspend fun getPriorityDismissCount(packageName: String, typeName: String, dateKey: String): Int {
         val key = "priority_dismiss_${packageName}_${typeName}_$dateKey"
@@ -565,4 +612,9 @@ class AppPreferences(context: Context) {
         val enabled = dao.getSetting(SettingsKeys.PRIORITY_DIAGNOSTICS_ENABLED).toBoolean(false)
         com.coni.hyperisle.util.PriorityDiagnostics.setEnabled(enabled)
     }
+
+    // --- TIME VISIBILITY ON ISLANDS (v0.9.4) ---
+    val showTimeOnIslandsFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SHOW_TIME_ON_ISLANDS).map { it.toBoolean(false) }
+
+    suspend fun setShowTimeOnIslands(enabled: Boolean) = save(SettingsKeys.SHOW_TIME_ON_ISLANDS, enabled.toString())
 }

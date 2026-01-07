@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.models.SmartPriorityProfile
 import com.coni.hyperisle.util.IslandCooldownManager
 import com.coni.hyperisle.util.PriorityEngine
 import kotlinx.coroutines.launch
@@ -63,6 +65,8 @@ fun IslandQuickActionsScreen(
     val isMuted by preferences.isAppMuted(packageName).collectAsState(initial = false)
     val isBlocked by preferences.isAppBlocked(packageName).collectAsState(initial = false)
     var isThrottled by remember { mutableStateOf(false) }
+    val smartPriorityProfile by preferences.getSmartPriorityProfileFlow(packageName)
+        .collectAsState(initial = SmartPriorityProfile.NORMAL)
 
     // Check throttle status on launch
     LaunchedEffect(packageName) {
@@ -275,6 +279,69 @@ fun IslandQuickActionsScreen(
                             }
                         }
                     )
+                }
+            }
+
+            // Smart Priority Profile Selector
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                        Column {
+                            Text(
+                                stringResource(R.string.smart_priority_profile_title),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                stringResource(R.string.smart_priority_profile_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // Profile selector chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SmartPriorityProfile.entries.forEach { profile ->
+                            FilterChip(
+                                selected = smartPriorityProfile == profile,
+                                onClick = {
+                                    scope.launch {
+                                        preferences.setSmartPriorityProfile(packageName, profile)
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        when (profile) {
+                                            SmartPriorityProfile.NORMAL -> stringResource(R.string.profile_normal)
+                                            SmartPriorityProfile.LENIENT -> stringResource(R.string.profile_lenient)
+                                            SmartPriorityProfile.STRICT -> stringResource(R.string.profile_strict)
+                                        }
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
 

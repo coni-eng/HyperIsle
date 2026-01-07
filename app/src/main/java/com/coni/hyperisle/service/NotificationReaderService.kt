@@ -402,6 +402,9 @@ class NotificationReaderService : NotificationListenerService() {
             // Apply conservative bias for STANDARD under MEETING/DRIVING
             val presetBias = if (isPresetActive && type == NotificationType.STANDARD) 1 else 0
             
+            // v0.9.4: Get per-app Smart Priority profile (NORMAL/LENIENT/STRICT)
+            val appProfile = preferences.getSmartPriorityProfile(sbn.packageName)
+            
             val priorityDecision = if (shouldBypassPriority) {
                 // Critical types bypass Smart Priority under MEETING/DRIVING
                 PriorityEngine.allowPresetBypass(sbn.packageName, sbnKeyHash)
@@ -414,7 +417,8 @@ class NotificationReaderService : NotificationListenerService() {
                     smartPriorityEnabled,
                     smartPriorityAggressiveness,
                     sbnKeyHash,
-                    presetBias
+                    presetBias,
+                    appProfile
                 )
             }
             when (priorityDecision) {

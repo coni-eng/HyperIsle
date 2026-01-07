@@ -91,4 +91,7 @@ object SettingsKeys {
 
     // Learning signal decay (v0.9.3)
     const val LEARNING_LAST_DECAY_AT = "learning_last_decay_at"
+
+    // Time visibility on islands (v0.9.4)
+    const val SHOW_TIME_ON_ISLANDS = "show_time_on_islands"
 }
