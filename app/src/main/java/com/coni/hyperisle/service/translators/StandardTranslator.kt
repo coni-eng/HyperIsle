@@ -64,7 +64,16 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
         builder.addPicture(getTransparentPicture(hiddenKey))
 
         val actions = extractBridgeActions(sbn)
-        val actionKeys = actions.map { it.action.key }
+        val bridgeActionKeys = actions.map { it.action.key }
+
+        // Wire options and dismiss actions to expanded island controls
+        val optionsKey = "options_$notificationId"
+        val dismissKey = "dismiss_$notificationId"
+        val actionKeys = if (!isMedia) {
+            bridgeActionKeys + listOf(optionsKey, dismissKey)
+        } else {
+            bridgeActionKeys
+        }
 
         // Action Logic: Move to Hint if > 1 (Optional, keeping standard behavior for now)
         builder.setBaseInfo(

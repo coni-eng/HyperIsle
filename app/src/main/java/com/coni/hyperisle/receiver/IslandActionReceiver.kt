@@ -83,6 +83,16 @@ class IslandActionReceiver : BroadcastReceiver() {
             IslandCooldownManager.getIslandMeta(notificationId)?.first
         } else null ?: IslandCooldownManager.getLastActivePackage()
         
+        val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
+        
+        // Timeline: optionsPressed event
+        DebugTimeline.log(
+            "optionsPressed",
+            targetPackage,
+            targetId,
+            mapOf("action" to "openQuickActions")
+        )
+        
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("openQuickActions", true)
