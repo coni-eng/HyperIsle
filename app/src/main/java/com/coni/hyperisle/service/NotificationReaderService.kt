@@ -4,12 +4,15 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.pm.PackageManager
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.ActiveIsland
@@ -1028,6 +1031,17 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
+    private fun canPostNotifications(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+
     private fun startCallTimer(sbn: StatusBarNotification, groupKey: String, picKey: String, config: IslandConfig, startTime: Long): Job {
         return serviceScope.launch {
             while (true) {
@@ -1039,6 +1053,19 @@ class NotificationReaderService : NotificationListenerService() {
                 val durationSeconds = (System.currentTimeMillis() - startTime) / 1000
                 val data = callTranslator.translate(sbn, picKey, config, durationSeconds)
                 val bridgeId = activeTranslations[groupKey] ?: break
+                
+                // Check POST_NOTIFICATIONS permission before notify
+                if (!canPostNotifications()) {
+                    if (BuildConfig.DEBUG) {
+                        DebugTimeline.log(
+                            "notifySkipped",
+                            sbn.packageName,
+                            sbn.key.hashCode(),
+                            mapOf("reason" to "no_post_notifications")
+                        )
+                    }
+                    continue
+                }
                 
                 // Post updated notification
                 try {
@@ -1071,10 +1098,23 @@ class NotificationReaderService : NotificationListenerService() {
                     val notification = notificationBuilder.build()
                     notification.extras.putString("miui.focus.param", data.jsonParam)
                     
-                    NotificationManagerCompat.from(this@NotificationReaderService).notify(bridgeId, notification)
+                    try {
+                        NotificationManagerCompat.from(this@NotificationReaderService).notify(bridgeId, notification)
+                    } catch (se: SecurityException) {
+                        Log.w(TAG, "SecurityException during notify: ${se.message}")
+                        if (BuildConfig.DEBUG) {
+                            DebugTimeline.log(
+                                "notifyFailed",
+                                sbn.packageName,
+                                sbn.key.hashCode(),
+                                mapOf("reason" to "security_exception")
+                            )
+                        }
+                        continue
+                    }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to update call timer: ${e.message}")
-                    break
+                    continue
                 }
             }
         }
