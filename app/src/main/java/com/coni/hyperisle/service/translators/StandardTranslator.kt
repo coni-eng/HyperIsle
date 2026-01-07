@@ -74,9 +74,10 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
 
         // Standard layout for all non-media notifications
         // Note: Media notifications are handled by HyperOS natively (SYSTEM_ONLY mode)
+        // Type 2 for ImageTextInfoRight renders as a close button on the expanded island
         builder.setBigIslandInfo(
             left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo("", "")),
-            right = ImageTextInfoRight(1, PicInfo(1, hiddenKey), TextInfo(displayTitle, displayContent))
+            right = ImageTextInfoRight(2, PicInfo(1, hiddenKey), TextInfo(displayTitle, displayContent))
         )
         builder.setSmallIsland(picKey)
 

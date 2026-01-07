@@ -101,6 +101,12 @@ class IslandActionReceiver : BroadcastReceiver() {
         val targetPackage = meta?.first ?: IslandCooldownManager.getLastActivePackage()
         val targetType = meta?.second ?: IslandCooldownManager.getLastActiveType()
         
+        // Debug log (PII-safe): record close button press event
+        if (ActionDiagnostics.isEnabled()) {
+            val keyHash = targetId?.hashCode() ?: "N/A"
+            ActionDiagnostics.record("event=closePressed pkg=${targetPackage ?: "unknown"} keyHash=$keyHash")
+        }
+        
         // Cancel the specific notification
         if (targetId != null) {
             try {
