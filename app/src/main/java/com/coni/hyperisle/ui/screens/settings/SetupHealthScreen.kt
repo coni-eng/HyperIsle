@@ -65,9 +65,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.coni.hyperisle.R
 import com.coni.hyperisle.util.DeviceUtils
 import com.coni.hyperisle.util.isNotificationServiceEnabled
+import com.coni.hyperisle.util.isOverlayPermissionGranted
 import com.coni.hyperisle.util.isPostNotificationsEnabled
+import com.coni.hyperisle.util.openAppNotificationSettings
 import com.coni.hyperisle.util.openAutoStartSettings
 import com.coni.hyperisle.util.openBatterySettings
+import com.coni.hyperisle.util.openNotificationListenerSettings
+import com.coni.hyperisle.util.openOverlaySettings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,7 +83,10 @@ fun SetupHealthScreen(onBack: () -> Unit) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     // --- STATE ---
+    // REQUIRED permissions
     var isListenerGranted by remember { mutableStateOf(isNotificationServiceEnabled(context)) }
+    var isOverlayGranted by remember { mutableStateOf(isOverlayPermissionGranted(context)) }
+    // RECOMMENDED permissions
     var isPostGranted by remember { mutableStateOf(isPostNotificationsEnabled(context)) }
     var isBatteryOptimized by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
 
@@ -89,6 +96,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isListenerGranted = isNotificationServiceEnabled(context)
+                isOverlayGranted = isOverlayPermissionGranted(context)
                 isPostGranted = isPostNotificationsEnabled(context)
                 isBatteryOptimized = isIgnoringBatteryOptimizations(context)
             }
@@ -173,37 +181,67 @@ fun SetupHealthScreen(onBack: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- 2. PERMISSIONS ---
-            HealthSectionTitle(stringResource(R.string.req_permissions))
+            // --- 2. REQUIRED PERMISSIONS ---
+            HealthSectionTitle(stringResource(R.string.perm_required_section))
+            Text(
+                text = stringResource(R.string.perm_required_section_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
+            )
             HealthGroupCard {
-                // Listener
+                // Notification Listener - REQUIRED
                 HealthItem(
                     title = stringResource(R.string.notif_access),
                     subtitle = stringResource(R.string.notif_access_desc),
                     icon = Icons.Default.NotificationsActive,
                     isGranted = isListenerGranted,
-                    onClick = { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                    onClick = { openNotificationListenerSettings(context) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
 
-                // Post Notif
+                // Overlay - REQUIRED
                 HealthItem(
-                    title = stringResource(R.string.show_island),
-                    subtitle = stringResource(R.string.perm_display_desc),
+                    title = stringResource(R.string.perm_overlay_title),
+                    subtitle = stringResource(R.string.perm_overlay_desc),
                     icon = Icons.Default.Visibility,
-                    isGranted = isPostGranted,
-                    onClick = {
-                        try {
-                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                            intent.data = "package:${context.packageName}".toUri()
-                            context.startActivity(intent)
-                        } catch (e: Exception) { }
-                    }
+                    isGranted = isOverlayGranted,
+                    onClick = { openOverlaySettings(context) }
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- 3. OPTIMIZATION ---
+            // --- 3. RECOMMENDED PERMISSIONS ---
+            HealthSectionTitle(stringResource(R.string.perm_recommended_section))
+            Text(
+                text = stringResource(R.string.perm_recommended_section_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
+            )
+            HealthGroupCard {
+                // POST_NOTIFICATIONS - RECOMMENDED
+                HealthItem(
+                    title = stringResource(R.string.show_island),
+                    subtitle = stringResource(R.string.perm_display_desc),
+                    icon = Icons.Default.NotificationsActive,
+                    isGranted = isPostGranted,
+                    onClick = { openAppNotificationSettings(context) }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+
+                // Battery Optimization - RECOMMENDED
+                HealthItem(
+                    title = stringResource(R.string.battery_unrestricted),
+                    subtitle = stringResource(R.string.battery_desc),
+                    icon = Icons.Default.BatteryAlert,
+                    isGranted = isBatteryOptimized,
+                    onClick = { openBatterySettings(context) }
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- 4. DEVICE OPTIMIZATION ---
             HealthSectionTitle(stringResource(R.string.device_optimization))
             HealthGroupCard {
                 // Autostart
@@ -214,16 +252,6 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                     isGranted = false,
                     forceAction = true,
                     onClick = { openAutoStartSettings(context) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-
-                // Battery
-                HealthItem(
-                    title = stringResource(R.string.battery_unrestricted),
-                    subtitle = stringResource(R.string.battery_desc),
-                    icon = Icons.Default.BatteryAlert,
-                    isGranted = isBatteryOptimized,
-                    onClick = { openBatterySettings(context) }
                 )
             }
 

@@ -329,7 +329,7 @@
         Improved detection logic to support a wider range of VoIP and Dialer applications.\n\n
         <b>Fixes &amp; Improvements 🛠️</b>\n
         • Fixed a critical bug where the app would get stuck loading after a reboot.\n
-        • Fixed notifications sometimes showing raw package names (e.g. "com.google...") instead of content.\n
+        • Fixed notifications sometimes showing raw package names (e.g. "com.google…") instead of content.\n
         • Redesigned App Configuration sheet for better usability.\n
         • Improved Compatibility Check screen with detailed device info.
     </string>
