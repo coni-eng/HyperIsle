@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
@@ -680,17 +681,43 @@ fun SmartFeaturesScreen(
 
                         Spacer(Modifier.height(12.dp))
 
-                        FilledTonalButton(
-                            onClick = {
-                                val summary = ActionDiagnostics.summary(selectedTimeRangeMs)
-                                clipboardManager.setText(AnnotatedString(summary))
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(diagnosticsCopiedMessage)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(stringResource(R.string.debug_copy_diagnostics))
+                            FilledTonalButton(
+                                onClick = {
+                                    val summary = ActionDiagnostics.summary(selectedTimeRangeMs)
+                                    clipboardManager.setText(AnnotatedString(summary))
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(diagnosticsCopiedMessage)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(stringResource(R.string.debug_copy_diagnostics))
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
+                                    val exportContent = ActionDiagnostics.exportContent(
+                                        appName = context.getString(R.string.app_name),
+                                        versionName = BuildConfig.VERSION_NAME,
+                                        versionCode = BuildConfig.VERSION_CODE,
+                                        timeRangeMs = selectedTimeRangeMs,
+                                        timeRangeLabel = timeRangeLabel
+                                    )
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, exportContent)
+                                        putExtra(Intent.EXTRA_SUBJECT, "${context.getString(R.string.app_name)} Action Diagnostics")
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, null))
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(stringResource(R.string.debug_share_diagnostics))
+                            }
                         }
 
                         Spacer(Modifier.height(16.dp))
@@ -706,17 +733,43 @@ fun SmartFeaturesScreen(
 
                         Spacer(Modifier.height(12.dp))
 
-                        FilledTonalButton(
-                            onClick = {
-                                val summary = PriorityDiagnostics.summary(selectedTimeRangeMs)
-                                clipboardManager.setText(AnnotatedString(summary))
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(priorityDiagnosticsCopiedMessage)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(stringResource(R.string.debug_copy_priority_diagnostics))
+                            FilledTonalButton(
+                                onClick = {
+                                    val summary = PriorityDiagnostics.summary(selectedTimeRangeMs)
+                                    clipboardManager.setText(AnnotatedString(summary))
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(priorityDiagnosticsCopiedMessage)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(stringResource(R.string.debug_copy_priority_diagnostics))
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
+                                    val exportContent = PriorityDiagnostics.exportContent(
+                                        appName = context.getString(R.string.app_name),
+                                        versionName = BuildConfig.VERSION_NAME,
+                                        versionCode = BuildConfig.VERSION_CODE,
+                                        timeRangeMs = selectedTimeRangeMs,
+                                        timeRangeLabel = timeRangeLabel
+                                    )
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, exportContent)
+                                        putExtra(Intent.EXTRA_SUBJECT, "${context.getString(R.string.app_name)} Priority Diagnostics")
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, null))
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(stringResource(R.string.debug_share_priority_diagnostics))
+                            }
                         }
 
                         Spacer(Modifier.height(16.dp))

@@ -573,4 +573,8 @@
     <string name="debug_time_range_6h">6sa</string>
     <string name="debug_time_range_12h">12sa</string>
     <string name="debug_time_range_24h">24sa</string>
+
+    <!-- Debug Export (debug builds only) -->
+    <string name="debug_share_diagnostics">Tanılamayı Paylaş</string>
+    <string name="debug_share_priority_diagnostics">Öncelik Tanılamasını Paylaş</string>
 </resources>

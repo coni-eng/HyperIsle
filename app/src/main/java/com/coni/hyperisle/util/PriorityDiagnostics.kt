@@ -110,6 +110,36 @@ object PriorityDiagnostics {
     }
 
     /**
+     * Generates export content with app metadata and time range info.
+     * @param appName Application name
+     * @param versionName Version name
+     * @param versionCode Build number
+     * @param timeRangeMs Time range in milliseconds
+     * @param timeRangeLabel Human-readable time range label
+     */
+    fun exportContent(
+        appName: String,
+        versionName: String,
+        versionCode: Int,
+        timeRangeMs: Long,
+        timeRangeLabel: String
+    ): String {
+        if (!BuildConfig.DEBUG) return "Export unavailable in release builds"
+        
+        val sb = StringBuilder()
+        sb.appendLine("$appName Priority Diagnostics Export")
+        sb.appendLine("Version: $versionName (Build $versionCode)")
+        sb.appendLine("Time Range: $timeRangeLabel")
+        sb.appendLine("Exported: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
+        sb.appendLine()
+        sb.appendLine(summary(timeRangeMs))
+        sb.appendLine()
+        sb.appendLine("---")
+        sb.appendLine("No notification content included.")
+        return sb.toString()
+    }
+
+    /**
      * Clears all counters and the ring buffer.
      */
     fun clear() {

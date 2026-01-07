@@ -574,4 +574,8 @@
     <string name="debug_time_range_6h">6h</string>
     <string name="debug_time_range_12h">12h</string>
     <string name="debug_time_range_24h">24h</string>
+
+    <!-- Debug Export (debug builds only) -->
+    <string name="debug_share_diagnostics">Share Diagnostics</string>
+    <string name="debug_share_priority_diagnostics">Share Priority Diagnostics</string>
 </resources>
