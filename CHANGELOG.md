@@ -1,5 +1,51 @@
 [Unreleased]
 
+##[v0.9.4] — Debug Export & Smart Priority Transparency
+Added
+
+Diagnostics time range filtering:
+
+Last 10 minutes, 30 minutes, 1 hour, 6 hours, 12 hours, and 24 hours.
+
+Diagnostics export options (debug builds only):
+
+Share as plain text
+
+Save as .txt
+
+Optional JSON format for structured debugging.
+
+Per-app Smart Priority profiles:
+
+Normal (default)
+
+Lenient (allow more notifications)
+
+Strict (reduce noise aggressively)
+
+Improved
+
+Smart Priority explainability:
+
+Diagnostics now clearly indicate when a per-app profile affected a decision.
+
+New reason tags for profile bias (e.g. STRICT / LENIENT).
+
+Debug UX:
+
+Clearer summaries with selected time range and build information.
+
+Export output explicitly confirms that no notification content is included.
+
+Security & Performance
+
+All diagnostics features are debug-only and fully gated from release builds.
+
+No notification titles or message text are ever logged or exported.
+
+No background I/O or performance impact unless diagnostics are explicitly used.
+
+
 ## [v0.9.3] - Smart Priority Intelligence
 
 ### Added

@@ -61,6 +61,18 @@
   * Subtle “shown” haptic on island display.
   * Distinct “success” haptic on dismiss.
 
+### Explainable Notification Decisions
+
+When Smart Priority suppresses or allows a notification, the reason is traceable:
+
+- Burst suppression
+- Fast dismiss learning
+- App profile bias (Strict / Lenient)
+- Preset bias (Meeting / Driving)
+- Focus mode overrides
+
+This makes HyperIsle predictable, transparent, and trustworthy.
+
 ### Standard Island Actions
 
 * **Tap** – Opens the source app (safe fallback).
@@ -96,17 +108,33 @@
 
 ## 🧪 Debug Diagnostics (Developer builds only)
 
-HyperIsle includes **optional debug-only diagnostics** for notification actions.
+HyperIsle includes powerful debug-only diagnostics tools to make real-world issues easy to investigate.
 
-* In developer builds, Smart Priority decisions can also be traced.
-  This makes it easy to understand *why* a notification was allowed or suppressed
-  (e.g. burst control, fast dismiss, preset bias) without logging notification content.
+<details>
+<summary><strong>🔍 Details</strong></summary>
 
-* Helps troubleshoot edge cases in action routing  
-  (Activity / Broadcast / Service).
-* No notification content (title/text) is logged.
-* **Zero performance impact** when disabled.
-* Not visible in release builds.
+- **Time-range filtering:**  
+  View or export diagnostics for:
+  - Last 10 minutes
+  - Last 30 minutes
+  - Last 1 hour
+  - Last 6 hours
+  - Last 12 hours
+  - Last 24 hours
+
+- **Export options:**
+  - Copy to clipboard
+  - Share diagnostics as plain text
+  - Save diagnostics as `.txt` (debug builds only)
+  - Optional JSON format for structured analysis
+
+- **PII-safe by design:**
+  - No notification titles or message content
+  - Only package names, timestamps, counters, and reason codes
+
+These tools are **strictly disabled in release builds** and have zero performance impact unless explicitly used.
+
+</details>
 
 **To help with logs:**
 > Open **Action diagnostics** → reproduce the issue →  
@@ -121,7 +149,7 @@ HyperIsle lets you control how Music Island behaves on Xiaomi / HyperOS devices.
 By default, the system’s native (HyperOS) music island is used, and HyperIsle does not create duplicates.
 
 <details>
-<summary><strong>🔍 Full feature list</strong></summary>
+<summary><strong>🔍 Full Modes</strong></summary>
 
 ### Modes
 
