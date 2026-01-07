@@ -503,6 +503,25 @@
     <string name="aggressiveness_low">Düşük</string>
     <string name="aggressiveness_medium">Orta</string>
     <string name="aggressiveness_high">Yüksek</string>
+    
+    <!-- Smart Priority UX Improvements -->
+    <string name="smart_priority_summary_title">Akıllı Öncelik</string>
+    <string name="smart_priority_summary_desc">HyperIsle, davranışlarınıza ve bağlama göre bildirimleri otomatik olarak dengeler.</string>
+    <string name="smart_priority_benefit_learns">Zamanla öğrenir</string>
+    <string name="smart_priority_benefit_reduces">Gürültüyü azaltır</string>
+    <string name="smart_priority_benefit_adapts">Bağlama uyum sağlar</string>
+    <string name="smart_priority_enable_title">Akıllı Önceliği Etkinleştir</string>
+    <string name="smart_priority_enable_desc">HyperIsle\'ın hangi bildirimlerin önemli olduğunu öğrenmesine izin verin</string>
+    <string name="smart_priority_strength_title">Filtreleme Gücü</string>
+    <string name="smart_priority_strength_desc">Tekrarlayan bildirimleri ne kadar agresif azaltacağınızı belirleyin</string>
+    <string name="smart_priority_strength_gentle">Nazik</string>
+    <string name="smart_priority_strength_balanced">Dengeli</string>
+    <string name="smart_priority_strength_strong">Güçlü</string>
+    <string name="advanced_settings_title">Gelişmiş Ayarlar</string>
+    <string name="advanced_settings_collapsed">Gelişmiş seçenekleri göster</string>
+    <string name="advanced_settings_expanded">Gelişmiş seçenekleri gizle</string>
+    <string name="diagnostics_title">Tanılama</string>
+    <string name="diagnostics_desc">Akıllı Öncelik kararlarını ve öğrenme verilerini görüntüle</string>
     <string name="quick_actions_throttle_title">Bu uygulamayı kısıtla</string>
     <string name="quick_actions_throttle_desc">2 saat boyunca bu uygulamadan bildirimleri azalt</string>
 

@@ -504,6 +504,25 @@
     <string name="aggressiveness_low">Low</string>
     <string name="aggressiveness_medium">Medium</string>
     <string name="aggressiveness_high">High</string>
+    
+    <!-- Smart Priority UX Improvements -->
+    <string name="smart_priority_summary_title">Smart Priority</string>
+    <string name="smart_priority_summary_desc">HyperIsle automatically balances notifications based on your behavior and context.</string>
+    <string name="smart_priority_benefit_learns">Learns over time</string>
+    <string name="smart_priority_benefit_reduces">Reduces noise</string>
+    <string name="smart_priority_benefit_adapts">Adapts to context</string>
+    <string name="smart_priority_enable_title">Enable Smart Priority</string>
+    <string name="smart_priority_enable_desc">Let HyperIsle learn which notifications matter to you</string>
+    <string name="smart_priority_strength_title">Filtering Strength</string>
+    <string name="smart_priority_strength_desc">How aggressively to reduce repetitive notifications</string>
+    <string name="smart_priority_strength_gentle">Gentle</string>
+    <string name="smart_priority_strength_balanced">Balanced</string>
+    <string name="smart_priority_strength_strong">Strong</string>
+    <string name="advanced_settings_title">Advanced Settings</string>
+    <string name="advanced_settings_collapsed">Show advanced options</string>
+    <string name="advanced_settings_expanded">Hide advanced options</string>
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_desc">View Smart Priority decisions and learning data</string>
     <string name="quick_actions_throttle_title">Throttle this app</string>
     <string name="quick_actions_throttle_desc">Reduce notifications from this app for 2 hours</string>
 

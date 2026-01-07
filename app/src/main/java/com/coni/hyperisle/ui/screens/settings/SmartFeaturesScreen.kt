@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,7 +14,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BedtimeOff
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
@@ -99,6 +103,9 @@ fun SmartFeaturesScreen(
     
     // Export format selector (default: plain text)
     var selectedExportFormat by remember { mutableStateOf("plain") }
+    
+    // Advanced section expansion state
+    var advancedExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -118,15 +125,78 @@ fun SmartFeaturesScreen(
                 .padding(padding)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // --- SMART PRIORITY ---
+            // --- SMART PRIORITY SUMMARY CARD (non-interactive, always visible) ---
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Speed,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            stringResource(R.string.smart_priority_summary_title),
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    
+                    Text(
+                        stringResource(R.string.smart_priority_summary_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    
+                    // Benefit bullets
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        BenefitChip(
+                            text = stringResource(R.string.smart_priority_benefit_learns),
+                            modifier = Modifier.weight(1f)
+                        )
+                        BenefitChip(
+                            text = stringResource(R.string.smart_priority_benefit_reduces),
+                            modifier = Modifier.weight(1f)
+                        )
+                        BenefitChip(
+                            text = stringResource(R.string.smart_priority_benefit_adapts),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+            
+            // --- CORE CONTROLS SECTION ---
+            Text(
+                "Core Settings",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            // Smart Priority Enable Toggle
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.padding(16.dp)) {
                     SettingsHeaderRow(
                         icon = Icons.Default.Speed,
-                        title = stringResource(R.string.smart_priority_title),
-                        description = stringResource(R.string.smart_priority_desc),
+                        title = stringResource(R.string.smart_priority_enable_title),
+                        description = stringResource(R.string.smart_priority_enable_desc),
                         checked = smartPriorityEnabled,
                         onCheckedChange = { scope.launch { preferences.setSmartPriorityEnabled(it) } }
                     )
@@ -137,24 +207,30 @@ fun SmartFeaturesScreen(
                         exit = shrinkVertically() + fadeOut()
                     ) {
                         Column {
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(16.dp))
                             CardDivider()
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(16.dp))
 
                             Text(
-                                stringResource(R.string.smart_priority_aggressiveness),
-                                style = MaterialTheme.typography.labelLarge
+                                stringResource(R.string.smart_priority_strength_title),
+                                style = MaterialTheme.typography.titleSmall
                             )
                             Spacer(Modifier.height(4.dp))
+                            Text(
+                                stringResource(R.string.smart_priority_strength_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(12.dp))
 
-                            val aggressivenessLabels = listOf(
-                                stringResource(R.string.aggressiveness_low),
-                                stringResource(R.string.aggressiveness_medium),
-                                stringResource(R.string.aggressiveness_high)
+                            val strengthLabels = listOf(
+                                stringResource(R.string.smart_priority_strength_gentle),
+                                stringResource(R.string.smart_priority_strength_balanced),
+                                stringResource(R.string.smart_priority_strength_strong)
                             )
                             Text(
-                                aggressivenessLabels.getOrElse(smartPriorityAggressiveness) { aggressivenessLabels[1] },
-                                style = MaterialTheme.typography.bodyMedium,
+                                strengthLabels.getOrElse(smartPriorityAggressiveness) { strengthLabels[1] },
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Slider(
@@ -163,467 +239,528 @@ fun SmartFeaturesScreen(
                                 valueRange = 0f..2f,
                                 steps = 1
                             )
-                            Text(
-                                stringResource(R.string.smart_priority_info),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
                 }
             }
 
-            // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    SettingsHeaderRow(
-                        icon = Icons.Default.DarkMode,
-                        title = stringResource(R.string.context_aware_title),
-                        description = stringResource(R.string.context_aware_desc),
-                        checked = contextAwareEnabled,
-                        onCheckedChange = { scope.launch { preferences.setContextAwareEnabled(it) } }
-                    )
-
-                    AnimatedVisibility(
-                        visible = contextAwareEnabled,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
+            // --- ADVANCED SECTION (collapsed by default) ---
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Column(Modifier.fillMaxWidth()) {
+                    // Collapsible header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { advancedExpanded = !advancedExpanded }
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Spacer(Modifier.height(12.dp))
-                            CardDivider()
-                            Spacer(Modifier.height(12.dp))
-
-                            // Screen off: only important islands
-                            SettingsToggleRow(
-                                title = stringResource(R.string.context_screen_off_only_important),
-                                subtitle = stringResource(R.string.context_important_types_label),
-                                checked = contextScreenOffOnlyImportant,
-                                onCheckedChange = { scope.launch { preferences.setContextScreenOffOnlyImportant(it) } }
-                            )
-
-                            Spacer(Modifier.height(8.dp))
-
-                            // Charging: suppress battery banners
-                            SettingsToggleRow(
-                                title = stringResource(R.string.context_charging_suppress_battery_banners),
-                                checked = contextChargingSuppressBatteryBanners,
-                                onCheckedChange = { scope.launch { preferences.setContextChargingSuppressBatteryBanners(it) } }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // --- CONTEXT PRESETS (v0.9.0) ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        stringResource(R.string.context_preset_title),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        stringResource(R.string.context_preset_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-
-                    val presetOptions = listOf(
-                        ContextPreset.OFF to stringResource(R.string.preset_off),
-                        ContextPreset.MEETING to stringResource(R.string.preset_meeting),
-                        ContextPreset.DRIVING to stringResource(R.string.preset_driving),
-                        ContextPreset.HEADPHONES to stringResource(R.string.preset_headphones)
-                    )
-
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        presetOptions.forEachIndexed { index, (preset, label) ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = presetOptions.size),
-                                onClick = { scope.launch { preferences.setContextPreset(preset) } },
-                                selected = contextPreset == preset
-                            ) {
-                                Text(label, maxLines = 1)
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    val presetDescription = when (contextPreset) {
-                        ContextPreset.MEETING -> stringResource(R.string.preset_meeting_desc)
-                        ContextPreset.DRIVING -> stringResource(R.string.preset_driving_desc)
-                        ContextPreset.HEADPHONES -> stringResource(R.string.preset_headphones_desc)
-                        ContextPreset.OFF -> null
-                    }
-
-                    if (presetDescription != null) {
                         Text(
-                            presetDescription,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    if (contextPreset != ContextPreset.OFF) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            stringResource(R.string.preset_focus_override),
-                            style = MaterialTheme.typography.bodySmall,
+                            stringResource(R.string.advanced_settings_title),
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                }
-            }
-
-            // --- SMART SILENCE ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.smart_silence_title),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                stringResource(R.string.smart_silence_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = smartSilenceEnabled,
-                            onCheckedChange = { scope.launch { preferences.setSmartSilenceEnabled(it) } }
+                        Icon(
+                            if (advancedExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (advancedExpanded) 
+                                stringResource(R.string.advanced_settings_expanded) 
+                            else 
+                                stringResource(R.string.advanced_settings_collapsed),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-
+                    
                     AnimatedVisibility(
-                        visible = smartSilenceEnabled,
+                        visible = advancedExpanded,
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
                     ) {
-                        Column {
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                stringResource(R.string.smart_silence_window, smartSilenceWindowMs / 1000),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Slider(
-                                value = (smartSilenceWindowMs / 1000f),
-                                onValueChange = { scope.launch { preferences.setSmartSilenceWindowMs((it * 1000).toLong()) } },
-                                valueRange = 3f..30f,
-                                steps = 26
-                            )
-                        }
-                    }
-                }
-            }
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    SettingsHeaderRow(
+                                        icon = Icons.Default.DarkMode,
+                                        title = stringResource(R.string.context_aware_title),
+                                        description = stringResource(R.string.context_aware_desc),
+                                        checked = contextAwareEnabled,
+                                        onCheckedChange = { scope.launch { preferences.setContextAwareEnabled(it) } }
+                                    )
 
-            // --- FOCUS MODE ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.BedtimeOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    stringResource(R.string.focus_mode_title),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    stringResource(R.string.focus_mode_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = focusEnabled,
-                            onCheckedChange = { scope.launch { preferences.setFocusEnabled(it) } }
-                        )
-                    }
+                                    AnimatedVisibility(
+                                        visible = contextAwareEnabled,
+                                        enter = expandVertically() + fadeIn(),
+                                        exit = shrinkVertically() + fadeOut()
+                                    ) {
+                                        Column {
+                                            Spacer(Modifier.height(12.dp))
+                                            CardDivider()
+                                            Spacer(Modifier.height(12.dp))
 
-                    AnimatedVisibility(
-                        visible = focusEnabled,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Column {
-                            Spacer(Modifier.height(16.dp))
-                            CardDivider()
-                            Spacer(Modifier.height(12.dp))
+                                            // Screen off: only important islands
+                                            SettingsToggleRow(
+                                                title = stringResource(R.string.context_screen_off_only_important),
+                                                subtitle = stringResource(R.string.context_important_types_label),
+                                                checked = contextScreenOffOnlyImportant,
+                                                onCheckedChange = { scope.launch { preferences.setContextScreenOffOnlyImportant(it) } }
+                                            )
 
-                            // Quiet Hours
-                            Text(
-                                stringResource(R.string.focus_quiet_hours),
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                OutlinedTextField(
-                                    value = focusQuietStart,
-                                    onValueChange = { scope.launch { preferences.setFocusQuietStart(it) } },
-                                    label = { Text(stringResource(R.string.focus_start)) },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
-                                )
-                                OutlinedTextField(
-                                    value = focusQuietEnd,
-                                    onValueChange = { scope.launch { preferences.setFocusQuietEnd(it) } },
-                                    label = { Text(stringResource(R.string.focus_end)) },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
-                                )
+                                            Spacer(Modifier.height(8.dp))
+
+                                            // Charging: suppress battery banners
+                                            SettingsToggleRow(
+                                                title = stringResource(R.string.context_charging_suppress_battery_banners),
+                                                checked = contextChargingSuppressBatteryBanners,
+                                                onCheckedChange = { scope.launch { preferences.setContextChargingSuppressBatteryBanners(it) } }
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
-                            Spacer(Modifier.height(16.dp))
+                            // --- CONTEXT PRESETS (v0.9.0) ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text(
+                                        stringResource(R.string.context_preset_title),
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        stringResource(R.string.context_preset_desc),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(12.dp))
 
-                            // Allowed Types
-                            Text(
-                                stringResource(R.string.focus_allowed_types),
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                            Spacer(Modifier.height(8.dp))
+                                    val presetOptions = listOf(
+                                        ContextPreset.OFF to stringResource(R.string.preset_off),
+                                        ContextPreset.MEETING to stringResource(R.string.preset_meeting),
+                                        ContextPreset.DRIVING to stringResource(R.string.preset_driving),
+                                        ContextPreset.HEADPHONES to stringResource(R.string.preset_headphones)
+                                    )
 
-                            val allTypes = listOf(
-                                NotificationType.CALL to stringResource(R.string.type_call),
-                                NotificationType.TIMER to stringResource(R.string.type_timer),
-                                NotificationType.NAVIGATION to stringResource(R.string.type_nav)
-                            )
-
-                            allTypes.forEach { (type, label) ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(label, style = MaterialTheme.typography.bodyMedium)
-                                    Checkbox(
-                                        checked = focusAllowedTypes.contains(type.name),
-                                        onCheckedChange = { checked ->
-                                            scope.launch {
-                                                val newSet = if (checked) {
-                                                    focusAllowedTypes + type.name
-                                                } else {
-                                                    focusAllowedTypes - type.name
-                                                }
-                                                preferences.setFocusAllowedTypes(newSet)
+                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                        presetOptions.forEachIndexed { index, (preset, label) ->
+                                            SegmentedButton(
+                                                shape = SegmentedButtonDefaults.itemShape(index = index, count = presetOptions.size),
+                                                onClick = { scope.launch { preferences.setContextPreset(preset) } },
+                                                selected = contextPreset == preset
+                                            ) {
+                                                Text(label, maxLines = 1)
                                             }
                                         }
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    val presetDescription = when (contextPreset) {
+                                        ContextPreset.MEETING -> stringResource(R.string.preset_meeting_desc)
+                                        ContextPreset.DRIVING -> stringResource(R.string.preset_driving_desc)
+                                        ContextPreset.HEADPHONES -> stringResource(R.string.preset_headphones_desc)
+                                        ContextPreset.OFF -> null
+                                    }
+
+                                    if (presetDescription != null) {
+                                        Text(
+                                            presetDescription,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    if (contextPreset != ContextPreset.OFF) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            stringResource(R.string.preset_focus_override),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            // --- SMART SILENCE ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                stringResource(R.string.smart_silence_title),
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Text(
+                                                stringResource(R.string.smart_silence_desc),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Switch(
+                                            checked = smartSilenceEnabled,
+                                            onCheckedChange = { scope.launch { preferences.setSmartSilenceEnabled(it) } }
+                                        )
+                                    }
+
+                                    AnimatedVisibility(
+                                        visible = smartSilenceEnabled,
+                                        enter = expandVertically() + fadeIn(),
+                                        exit = shrinkVertically() + fadeOut()
+                                    ) {
+                                        Column {
+                                            Spacer(Modifier.height(12.dp))
+                                            Text(
+                                                stringResource(R.string.smart_silence_window, smartSilenceWindowMs / 1000),
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            Slider(
+                                                value = (smartSilenceWindowMs / 1000f),
+                                                onValueChange = { scope.launch { preferences.setSmartSilenceWindowMs((it * 1000).toLong()) } },
+                                                valueRange = 3f..30f,
+                                                steps = 26
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // --- FOCUS MODE ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Default.BedtimeOff,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    stringResource(R.string.focus_mode_title),
+                                                    style = MaterialTheme.typography.titleMedium
+                                                )
+                                                Text(
+                                                    stringResource(R.string.focus_mode_desc),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        Switch(
+                                            checked = focusEnabled,
+                                            onCheckedChange = { scope.launch { preferences.setFocusEnabled(it) } }
+                                        )
+                                    }
+
+                                    AnimatedVisibility(
+                                        visible = focusEnabled,
+                                        enter = expandVertically() + fadeIn(),
+                                        exit = shrinkVertically() + fadeOut()
+                                    ) {
+                                        Column {
+                                            Spacer(Modifier.height(16.dp))
+                                            CardDivider()
+                                            Spacer(Modifier.height(12.dp))
+
+                                            // Quiet Hours
+                                            Text(
+                                                stringResource(R.string.focus_quiet_hours),
+                                                style = MaterialTheme.typography.labelLarge
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                            ) {
+                                                OutlinedTextField(
+                                                    value = focusQuietStart,
+                                                    onValueChange = { scope.launch { preferences.setFocusQuietStart(it) } },
+                                                    label = { Text(stringResource(R.string.focus_start)) },
+                                                    modifier = Modifier.weight(1f),
+                                                    singleLine = true
+                                                )
+                                                OutlinedTextField(
+                                                    value = focusQuietEnd,
+                                                    onValueChange = { scope.launch { preferences.setFocusQuietEnd(it) } },
+                                                    label = { Text(stringResource(R.string.focus_end)) },
+                                                    modifier = Modifier.weight(1f),
+                                                    singleLine = true
+                                                )
+                                            }
+
+                                            Spacer(Modifier.height(16.dp))
+
+                                            // Allowed Types
+                                            Text(
+                                                stringResource(R.string.focus_allowed_types),
+                                                style = MaterialTheme.typography.labelLarge
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+
+                                            val allTypes = listOf(
+                                                NotificationType.CALL to stringResource(R.string.type_call),
+                                                NotificationType.TIMER to stringResource(R.string.type_timer),
+                                                NotificationType.NAVIGATION to stringResource(R.string.type_nav)
+                                            )
+
+                                            allTypes.forEach { (type, label) ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(label, style = MaterialTheme.typography.bodyMedium)
+                                                    Checkbox(
+                                                        checked = focusAllowedTypes.contains(type.name),
+                                                        onCheckedChange = { checked ->
+                                                            scope.launch {
+                                                                val newSet = if (checked) {
+                                                                    focusAllowedTypes + type.name
+                                                                } else {
+                                                                    focusAllowedTypes - type.name
+                                                                }
+                                                                preferences.setFocusAllowedTypes(newSet)
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // --- NOTIFICATION SUMMARY ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Default.Notifications,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    stringResource(R.string.summary_title),
+                                                    style = MaterialTheme.typography.titleMedium
+                                                )
+                                                Text(
+                                                    stringResource(R.string.summary_desc),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        Switch(
+                                            checked = summaryEnabled,
+                                            onCheckedChange = { scope.launch { preferences.setSummaryEnabled(it) } }
+                                        )
+                                    }
+
+                                    AnimatedVisibility(
+                                        visible = summaryEnabled,
+                                        enter = expandVertically() + fadeIn(),
+                                        exit = shrinkVertically() + fadeOut()
+                                    ) {
+                                        Column {
+                                            Spacer(Modifier.height(12.dp))
+                                            CardDivider()
+                                            Spacer(Modifier.height(12.dp))
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        Icons.Default.Schedule,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(
+                                                        stringResource(R.string.summary_time),
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                }
+                                                Text(
+                                                    String.format(java.util.Locale.US, "%02d:00", summaryHour),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            Slider(
+                                                value = summaryHour.toFloat(),
+                                                onValueChange = { scope.launch { preferences.setSummaryHour(it.toInt()) } },
+                                                valueRange = 0f..23f,
+                                                steps = 22
+                                            )
+
+                                            Spacer(Modifier.height(8.dp))
+
+                                            FilledTonalButton(
+                                                onClick = onSummaryListClick,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(stringResource(R.string.view_summary_history))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // --- HAPTICS ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    SettingsHeaderRow(
+                                        icon = Icons.Default.Vibration,
+                                        title = stringResource(R.string.haptics_title),
+                                        description = stringResource(R.string.haptics_desc),
+                                        checked = hapticsEnabled,
+                                        onCheckedChange = { scope.launch { preferences.setHapticsEnabled(it) } }
                                     )
                                 }
                             }
-                        }
-                    }
-                }
-            }
 
-            // --- NOTIFICATION SUMMARY ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Notifications,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    stringResource(R.string.summary_title),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    stringResource(R.string.summary_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = summaryEnabled,
-                            onCheckedChange = { scope.launch { preferences.setSummaryEnabled(it) } }
-                        )
-                    }
-
-                    AnimatedVisibility(
-                        visible = summaryEnabled,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Column {
-                            Spacer(Modifier.height(12.dp))
-                            CardDivider()
-                            Spacer(Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Schedule,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
+                            // --- DISMISS COOLDOWN ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
                                     Text(
-                                        stringResource(R.string.summary_time),
-                                        style = MaterialTheme.typography.bodyMedium
+                                        stringResource(R.string.cooldown_title),
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        stringResource(R.string.cooldown_desc),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        stringResource(R.string.cooldown_seconds, dismissCooldownSeconds),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    Slider(
+                                        value = dismissCooldownSeconds.toFloat(),
+                                        onValueChange = { scope.launch { preferences.setDismissCooldownSeconds(it.toInt()) } },
+                                        valueRange = 0f..120f,
+                                        steps = 23
                                     )
                                 }
-                                Text(
-                                    String.format(java.util.Locale.US, "%02d:00", summaryHour),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
                             }
-                            Slider(
-                                value = summaryHour.toFloat(),
-                                onValueChange = { scope.launch { preferences.setSummaryHour(it.toInt()) } },
-                                valueRange = 0f..23f,
-                                steps = 22
-                            )
 
-                            Spacer(Modifier.height(8.dp))
+                            // --- SYSTEM BANNERS ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text(
+                                        stringResource(R.string.banners_title),
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        stringResource(R.string.banners_desc),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        stringResource(R.string.banners_warning),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    CardDivider()
+                                    Spacer(Modifier.height(12.dp))
 
-                            FilledTonalButton(
-                                onClick = onSummaryListClick,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(stringResource(R.string.view_summary_history))
+                                    // Bluetooth Connected
+                                    SettingsToggleRow(
+                                        title = stringResource(R.string.banner_bt_title),
+                                        subtitle = stringResource(R.string.banner_bt_desc),
+                                        checked = bannerBtEnabled,
+                                        onCheckedChange = { scope.launch { preferences.setBannerBtConnectedEnabled(it) } },
+                                        icon = Icons.Default.Bluetooth
+                                    )
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    // Battery Low
+                                    SettingsToggleRow(
+                                        title = stringResource(R.string.banner_battery_title),
+                                        subtitle = stringResource(R.string.banner_battery_desc),
+                                        checked = bannerBatteryEnabled,
+                                        onCheckedChange = { scope.launch { preferences.setBannerBatteryLowEnabled(it) } },
+                                        icon = Icons.Default.BatteryAlert
+                                    )
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    // Copied (placeholder)
+                                    SettingsToggleRow(
+                                        title = stringResource(R.string.banner_copied_title),
+                                        subtitle = stringResource(R.string.banner_copied_desc),
+                                        checked = bannerCopiedEnabled,
+                                        onCheckedChange = { scope.launch { preferences.setBannerCopiedEnabled(it) } },
+                                        enabled = false
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            }
-
-            // --- HAPTICS ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    SettingsHeaderRow(
-                        icon = Icons.Default.Vibration,
-                        title = stringResource(R.string.haptics_title),
-                        description = stringResource(R.string.haptics_desc),
-                        checked = hapticsEnabled,
-                        onCheckedChange = { scope.launch { preferences.setHapticsEnabled(it) } }
-                    )
-                }
-            }
-
-            // --- DISMISS COOLDOWN ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        stringResource(R.string.cooldown_title),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        stringResource(R.string.cooldown_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        stringResource(R.string.cooldown_seconds, dismissCooldownSeconds),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Slider(
-                        value = dismissCooldownSeconds.toFloat(),
-                        onValueChange = { scope.launch { preferences.setDismissCooldownSeconds(it.toInt()) } },
-                        valueRange = 0f..120f,
-                        steps = 23
-                    )
-                }
-            }
-
-            // --- SYSTEM BANNERS ---
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        stringResource(R.string.banners_title),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        stringResource(R.string.banners_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.banners_warning),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    CardDivider()
-                    Spacer(Modifier.height(12.dp))
-
-                    // Bluetooth Connected
-                    SettingsToggleRow(
-                        title = stringResource(R.string.banner_bt_title),
-                        subtitle = stringResource(R.string.banner_bt_desc),
-                        checked = bannerBtEnabled,
-                        onCheckedChange = { scope.launch { preferences.setBannerBtConnectedEnabled(it) } },
-                        icon = Icons.Default.Bluetooth
-                    )
-
-                    Spacer(Modifier.height(8.dp))
-
-                    // Battery Low
-                    SettingsToggleRow(
-                        title = stringResource(R.string.banner_battery_title),
-                        subtitle = stringResource(R.string.banner_battery_desc),
-                        checked = bannerBatteryEnabled,
-                        onCheckedChange = { scope.launch { preferences.setBannerBatteryLowEnabled(it) } },
-                        icon = Icons.Default.BatteryAlert
-                    )
-
-                    Spacer(Modifier.height(8.dp))
-
-                    // Copied (placeholder)
-                    SettingsToggleRow(
-                        title = stringResource(R.string.banner_copied_title),
-                        subtitle = stringResource(R.string.banner_copied_desc),
-                        checked = bannerCopiedEnabled,
-                        onCheckedChange = { scope.launch { preferences.setBannerCopiedEnabled(it) } },
-                        enabled = false
-                    )
                 }
             }
 
             // --- DEBUG DIAGNOSTICS (debug builds only) ---
             if (BuildConfig.DEBUG) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text(
-                            stringResource(R.string.debug_section_title),
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Speed,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Column {
+                                Text(
+                                    stringResource(R.string.diagnostics_title),
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    stringResource(R.string.diagnostics_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(12.dp))
 
                         SettingsToggleRow(
@@ -1025,6 +1162,32 @@ private fun SettingsToggleRow(
             checked = checked,
             onCheckedChange = onCheckedChange,
             enabled = enabled
+        )
+    }
+}
+
+@Composable
+private fun BenefitChip(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            maxLines = 1
         )
     }
 }
