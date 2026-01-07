@@ -82,6 +82,8 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         builder.setEnableFloat(shouldFloat)
         builder.setTimeout(finalTimeout)
         builder.setShowNotification(config.isShowShade ?: true)
+        // Enable swipe-to-dismiss for user gesture handling
+        builder.setIslandConfig(dismissible = true)
 
         // Ongoing calls: collapse to small island (no expanded state)
         // Incoming calls: allow expanded state for accept/reject visibility

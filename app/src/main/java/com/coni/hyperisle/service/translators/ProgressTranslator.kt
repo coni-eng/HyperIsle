@@ -43,6 +43,8 @@ class ProgressTranslator(context: Context) : BaseTranslator(context) {
         builder.setEnableFloat(shouldFloat)
         builder.setTimeout(finalTimeout)
         builder.setShowNotification(config.isShowShade ?: true)
+        // Enable swipe-to-dismiss for user gesture handling
+        builder.setIslandConfig(dismissible = true)
         // ---------------------
 
         val extras = sbn.notification.extras

@@ -761,9 +761,11 @@ class NotificationReaderService : NotificationListenerService() {
             IslandCooldownManager.setContentIntent(bridgeId, originalContentIntent)
             
             // Create wrapper PendingIntent that broadcasts tap-open action
+            // Must use explicit component for receiver to receive dynamic action strings
             val tapOpenActionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_TAP_OPEN, bridgeId)
             val tapOpenIntent = Intent(tapOpenActionString).apply {
                 setPackage(packageName)
+                setClass(this@NotificationReaderService, com.coni.hyperisle.receiver.IslandActionReceiver::class.java)
             }
             val wrapperIntent = PendingIntent.getBroadcast(
                 this,
@@ -1085,6 +1087,7 @@ class NotificationReaderService : NotificationListenerService() {
                         val tapOpenActionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_TAP_OPEN, bridgeId)
                         val tapOpenIntent = Intent(tapOpenActionString).apply {
                             setPackage(packageName)
+                            setClass(this@NotificationReaderService, com.coni.hyperisle.receiver.IslandActionReceiver::class.java)
                         }
                         val wrapperIntent = PendingIntent.getBroadcast(
                             this@NotificationReaderService,

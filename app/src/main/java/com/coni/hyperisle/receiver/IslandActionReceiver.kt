@@ -126,6 +126,14 @@ class IslandActionReceiver : BroadcastReceiver() {
             try {
                 NotificationManagerCompat.from(context).cancel(targetId)
                 Log.d(TAG, "Cancelled notification id: $targetId")
+                
+                // Timeline: autoDismissTriggered event for user dismiss
+                DebugTimeline.log(
+                    "autoDismissTriggered",
+                    targetPackage,
+                    targetId,
+                    mapOf("reason" to "USER_DISMISS")
+                )
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to cancel notification: ${e.message}")
             }
@@ -177,12 +185,12 @@ class IslandActionReceiver : BroadcastReceiver() {
             Log.d(TAG, "event=tapOpen pkg=${targetPackage ?: "unknown"} keyHash=${targetId?.hashCode() ?: "N/A"}")
         }
         
-        // Timeline: tapOpenSourceApp event
+        // Timeline: tapOpenSourceApp event (PII-safe)
         DebugTimeline.log(
             "tapOpenSourceApp",
             targetPackage,
             targetId,
-            emptyMap()
+            mapOf("bridgeId" to targetId)
         )
         
         // Get the original content intent before clearing
@@ -195,10 +203,18 @@ class IslandActionReceiver : BroadcastReceiver() {
             try {
                 NotificationManagerCompat.from(context).cancel(targetId)
                 
-                // Debug log: autoDismiss event
+                // Debug log: autoDismissTriggered event
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "event=autoDismiss reason=OPENED_APP pkg=${targetPackage ?: "unknown"} keyHash=${targetId.hashCode()}")
+                    Log.d(TAG, "event=autoDismissTriggered reason=OPENED_APP pkg=${targetPackage ?: "unknown"} keyHash=${targetId.hashCode()}")
                 }
+                
+                // Timeline: autoDismissTriggered event
+                DebugTimeline.log(
+                    "autoDismissTriggered",
+                    targetPackage,
+                    targetId,
+                    mapOf("reason" to "OPENED_APP")
+                )
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to cancel island notification: ${e.message}")
             }
