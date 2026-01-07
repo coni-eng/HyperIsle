@@ -76,9 +76,13 @@ object PriorityDiagnostics {
     /**
      * Returns a summary string with counters and recent diagnostic lines.
      * Format is designed to be copy-pasteable for debugging.
+     * @param timeRangeMs Time range in milliseconds (0 = all entries)
      */
-    fun summary(): String {
+    fun summary(timeRangeMs: Long = 0): String {
         if (!BuildConfig.DEBUG) return "Priority diagnostics unavailable in release builds"
+        
+        val now = System.currentTimeMillis()
+        val cutoffTime = if (timeRangeMs > 0) now - timeRangeMs else 0L
         
         val sb = StringBuilder()
         sb.appendLine("=== Priority Diagnostics Summary ===")
@@ -89,12 +93,18 @@ object PriorityDiagnostics {
         sb.appendLine("  Deny (Burst): $denyBurstCount")
         sb.appendLine("  Deny (Throttle): $denyThrottleCount")
         sb.appendLine()
-        sb.appendLine("Recent Decisions (last ${ringBuffer.size}):")
-        sb.appendLine("Format: timestamp|pkg|keyHash|decision|reasons")
-        synchronized(ringBuffer) {
-            ringBuffer.forEachIndexed { index, line ->
-                sb.appendLine("  ${index + 1}. $line")
+        
+        val filteredEntries = synchronized(ringBuffer) {
+            ringBuffer.filter { line ->
+                val timestamp = line.substringBefore('|').toLongOrNull() ?: 0L
+                timestamp >= cutoffTime
             }
+        }
+        
+        sb.appendLine("Recent Decisions (last ${filteredEntries.size}):")
+        sb.appendLine("Format: timestamp|pkg|keyHash|decision|reasons")
+        filteredEntries.forEachIndexed { index, line ->
+            sb.appendLine("  ${index + 1}. $line")
         }
         return sb.toString()
     }

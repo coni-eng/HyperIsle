@@ -32,8 +32,9 @@ object ActionDiagnostics {
     var fallbackUsedCount: Int = 0
         private set
 
-    // Ring buffer for last 50 diagnostic lines
-    private val ringBuffer = ArrayDeque<String>(50)
+    // Ring buffer for last 50 diagnostic lines with timestamps
+    private data class DiagnosticEntry(val timestamp: Long, val line: String)
+    private val ringBuffer = ArrayDeque<DiagnosticEntry>(50)
     private const val MAX_BUFFER_SIZE = 50
 
     /**
@@ -99,15 +100,19 @@ object ActionDiagnostics {
             if (ringBuffer.size >= MAX_BUFFER_SIZE) {
                 ringBuffer.removeFirst()
             }
-            ringBuffer.addLast(line)
+            ringBuffer.addLast(DiagnosticEntry(System.currentTimeMillis(), line))
         }
     }
 
     /**
      * Returns a summary string with counters and recent diagnostic lines.
+     * @param timeRangeMs Time range in milliseconds (0 = all entries)
      */
-    fun summary(): String {
+    fun summary(timeRangeMs: Long = 0): String {
         if (!BuildConfig.DEBUG) return "Diagnostics unavailable in release builds"
+        
+        val now = System.currentTimeMillis()
+        val cutoffTime = if (timeRangeMs > 0) now - timeRangeMs else 0L
         
         val sb = StringBuilder()
         sb.appendLine("=== Action Diagnostics Summary ===")
@@ -120,11 +125,14 @@ object ActionDiagnostics {
         sb.appendLine("  Unknown: $inferredUnknownCount")
         sb.appendLine("  Fallback Used: $fallbackUsedCount")
         sb.appendLine()
-        sb.appendLine("Recent Diagnostic Lines (last ${ringBuffer.size}):")
-        synchronized(ringBuffer) {
-            ringBuffer.forEachIndexed { index, line ->
-                sb.appendLine("  ${index + 1}. $line")
-            }
+        
+        val filteredEntries = synchronized(ringBuffer) {
+            ringBuffer.filter { it.timestamp >= cutoffTime }
+        }
+        
+        sb.appendLine("Recent Diagnostic Lines (last ${filteredEntries.size}):")
+        filteredEntries.forEachIndexed { index, entry ->
+            sb.appendLine("  ${index + 1}. ${entry.line}")
         }
         return sb.toString()
     }

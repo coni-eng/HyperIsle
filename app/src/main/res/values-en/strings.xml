@@ -565,4 +565,13 @@
     <!-- Time Visibility on Islands (v0.9.4) -->
     <string name="show_time_on_islands_title">Show Time on Islands</string>
     <string name="show_time_on_islands_desc">Display relative time label on notification islands</string>
+
+    <!-- Debug Time Range (debug builds only) -->
+    <string name="debug_time_range_label">Time Range</string>
+    <string name="debug_time_range_10m">10m</string>
+    <string name="debug_time_range_30m">30m</string>
+    <string name="debug_time_range_1h">1h</string>
+    <string name="debug_time_range_6h">6h</string>
+    <string name="debug_time_range_12h">12h</string>
+    <string name="debug_time_range_24h">24h</string>
 </resources>

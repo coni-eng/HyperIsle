@@ -91,6 +91,9 @@ fun SmartFeaturesScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val diagnosticsCopiedMessage = stringResource(R.string.debug_diagnostics_copied)
     val priorityDiagnosticsCopiedMessage = stringResource(R.string.debug_priority_diagnostics_copied)
+    
+    // Time range selector for diagnostics (default: 1 hour)
+    var selectedTimeRangeMs by remember { mutableLongStateOf(60 * 60 * 1000L) }
 
     Scaffold(
         topBar = {
@@ -636,9 +639,50 @@ fun SmartFeaturesScreen(
 
                         Spacer(Modifier.height(12.dp))
 
+                        Text(
+                            stringResource(R.string.debug_time_range_label),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        val timeRangeOptions = listOf(
+                            10 * 60 * 1000L to stringResource(R.string.debug_time_range_10m),
+                            30 * 60 * 1000L to stringResource(R.string.debug_time_range_30m),
+                            60 * 60 * 1000L to stringResource(R.string.debug_time_range_1h),
+                            6 * 60 * 60 * 1000L to stringResource(R.string.debug_time_range_6h),
+                            12 * 60 * 60 * 1000L to stringResource(R.string.debug_time_range_12h),
+                            24 * 60 * 60 * 1000L to stringResource(R.string.debug_time_range_24h)
+                        )
+
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            timeRangeOptions.take(3).forEachIndexed { index, (timeMs, label) ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                                    onClick = { selectedTimeRangeMs = timeMs },
+                                    selected = selectedTimeRangeMs == timeMs
+                                ) {
+                                    Text(label, maxLines = 1)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            timeRangeOptions.drop(3).forEachIndexed { index, (timeMs, label) ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                                    onClick = { selectedTimeRangeMs = timeMs },
+                                    selected = selectedTimeRangeMs == timeMs
+                                ) {
+                                    Text(label, maxLines = 1)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
                         FilledTonalButton(
                             onClick = {
-                                val summary = ActionDiagnostics.summary()
+                                val summary = ActionDiagnostics.summary(selectedTimeRangeMs)
                                 clipboardManager.setText(AnnotatedString(summary))
                                 scope.launch {
                                     snackbarHostState.showSnackbar(diagnosticsCopiedMessage)
@@ -664,7 +708,7 @@ fun SmartFeaturesScreen(
 
                         FilledTonalButton(
                             onClick = {
-                                val summary = PriorityDiagnostics.summary()
+                                val summary = PriorityDiagnostics.summary(selectedTimeRangeMs)
                                 clipboardManager.setText(AnnotatedString(summary))
                                 scope.launch {
                                     snackbarHostState.showSnackbar(priorityDiagnosticsCopiedMessage)

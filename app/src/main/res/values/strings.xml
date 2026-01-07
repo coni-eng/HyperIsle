@@ -564,4 +564,13 @@
     <!-- Time Visibility on Islands (v0.9.4) -->
     <string name="show_time_on_islands_title">Adalarda Zaman Göster</string>
     <string name="show_time_on_islands_desc">Bildirim adalarında göreli zaman etiketi göster</string>
+
+    <!-- Debug Time Range (debug builds only) -->
+    <string name="debug_time_range_label">Zaman Aralığı</string>
+    <string name="debug_time_range_10m">10dk</string>
+    <string name="debug_time_range_30m">30dk</string>
+    <string name="debug_time_range_1h">1sa</string>
+    <string name="debug_time_range_6h">6sa</string>
+    <string name="debug_time_range_12h">12sa</string>
+    <string name="debug_time_range_24h">24sa</string>
 </resources>
