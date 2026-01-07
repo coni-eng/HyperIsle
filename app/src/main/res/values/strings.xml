@@ -631,4 +631,26 @@
     <string name="setup_banner_message">%d gerekli izin eksik</string>
     <string name="setup_banner_fix_now">Şimdi Düzelt</string>
     <string name="setup_banner_later">Sonra</string>
+
+    <!-- Notification Management (v0.9.7) -->
+    <string name="notification_management_title">Bildirim Yönetimi</string>
+    <string name="notification_management_desc">Sistem paneli gizleme ve arama ayarları</string>
+    <string name="notification_management_status_title">Durum</string>
+    <string name="notification_management_hidden_apps">Gizli uygulamalar</string>
+    <string name="notification_management_calls_only_island">Sadece ada aramaları</string>
+    <string name="notification_management_off">Kapalı</string>
+    <string name="notification_management_section_apps">Uygulamalar</string>
+    <string name="notification_management_apps_title">Sistem bildirimlerini gizle (seçili uygulamalar)</string>
+    <string name="notification_management_apps_desc">Uygulama başına panel gizlemeyi etkinleştir/devre dışı bırak</string>
+    <string name="notification_management_apps_safety_note">Aramalar, alarmlar, devam eden ve tam ekran bildirimleri güvenlik için hariç tutulur.</string>
+    <string name="notification_management_section_calls">Aramalar</string>
+    <string name="notification_management_calls_title">Aramalar: sadece adada göster</string>
+    <string name="notification_management_calls_desc">Devam eden arama bildirimlerini sistem panelinden gizle</string>
+    <string name="notification_management_calls_safety_note">Gelen aramalar ve tam ekran arama bildirimleri GİZLENMEZ. Yalnızca uygun devam eden aramalar gizlenebilir.</string>
+    <string name="notification_management_calls_confirm_title">Uyarı: Arama Bildirimleri</string>
+    <string name="notification_management_calls_confirm_message">Bu, devam eden arama bildirimlerini sistem panelinden gizleyecektir.\n\nGelen aramalar ve tam ekran bildirimler etkilenmez.\n\nBu özelliği etkinleştirmek istediğinizden emin misiniz?</string>
+    <string name="notification_management_calls_confirm_enable">Etkinleştir</string>
+    <string name="notification_management_apps_screen_title">Gizlenecek Uygulamalar</string>
+    <string name="notification_management_apps_empty">Aktif uygulama yok</string>
+    <string name="notification_management_apps_empty_desc">Önce Kütüphane\'den uygulamaları etkinleştirin</string>
 </resources>

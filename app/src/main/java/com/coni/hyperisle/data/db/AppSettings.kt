@@ -101,4 +101,9 @@ object SettingsKeys {
 
     // Permission banner snooze (v0.9.6)
     const val PERMISSION_BANNER_SNOOZE_UNTIL = "permission_banner_snooze_until"
+
+    // Calls-only-island (v0.9.7)
+    // Global boolean: hide ongoing call notifications from system shade
+    const val CALLS_ONLY_ISLAND_ENABLED = "calls_only_island_enabled"
+    const val CALLS_ONLY_ISLAND_CONFIRMED = "calls_only_island_confirmed"
 }

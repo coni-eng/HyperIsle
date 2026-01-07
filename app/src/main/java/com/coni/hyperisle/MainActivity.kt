@@ -54,6 +54,8 @@ import com.coni.hyperisle.ui.screens.settings.PrioritySettingsScreen
 import com.coni.hyperisle.ui.screens.settings.SetupHealthScreen
 import com.coni.hyperisle.ui.screens.settings.SmartFeaturesScreen
 import com.coni.hyperisle.ui.screens.settings.NotificationSummaryScreenV2
+import com.coni.hyperisle.ui.screens.settings.NotificationManagementScreen
+import com.coni.hyperisle.ui.screens.settings.NotificationManagementAppsScreen
 import com.coni.hyperisle.ui.theme.HyperIsleTheme
 import com.coni.hyperisle.util.BackupManager
 import com.coni.hyperisle.worker.NotificationSummaryWorker
@@ -87,7 +89,8 @@ enum class Screen(val depth: Int) {
     MUSIC_ISLAND(3), // Music Island Settings
     SMART_FEATURES(3), // Smart Silence, Focus, Summary settings
     NOTIFICATION_SUMMARY(4), // Summary list screen
-    ISLAND_QUICK_ACTIONS(3) // Quick actions for island (mute/block app)
+    ISLAND_QUICK_ACTIONS(3), // Quick actions for island (mute/block app)
+    NOTIFICATION_MANAGEMENT(3), NOTIFICATION_MANAGEMENT_APPS(4) // Notification Management (v0.9.7)
 }
 
 @Composable
@@ -175,8 +178,9 @@ fun MainRootNavigation(
             Screen.GLOBAL_SETTINGS -> Screen.INFO
             Screen.APP_PRIORITY -> Screen.BEHAVIOR
             Screen.HISTORY -> Screen.INFO
-            Screen.BEHAVIOR, Screen.SETUP, Screen.LICENSES, Screen.MUSIC_ISLAND, Screen.SMART_FEATURES -> Screen.INFO
+            Screen.BEHAVIOR, Screen.SETUP, Screen.LICENSES, Screen.MUSIC_ISLAND, Screen.SMART_FEATURES, Screen.NOTIFICATION_MANAGEMENT -> Screen.INFO
             Screen.NOTIFICATION_SUMMARY -> Screen.SMART_FEATURES
+            Screen.NOTIFICATION_MANAGEMENT_APPS -> Screen.NOTIFICATION_MANAGEMENT
             Screen.INFO -> Screen.HOME
             else -> Screen.HOME
         }
@@ -223,7 +227,8 @@ fun MainRootNavigation(
                     onBlocklistClick = { currentScreen = Screen.GLOBAL_BLOCKLIST },
                     onBackupClick = { currentScreen = Screen.BACKUP },
                     onMusicIslandClick = { currentScreen = Screen.MUSIC_ISLAND },
-                    onSmartFeaturesClick = { currentScreen = Screen.SMART_FEATURES }
+                    onSmartFeaturesClick = { currentScreen = Screen.SMART_FEATURES },
+                    onNotificationManagementClick = { currentScreen = Screen.NOTIFICATION_MANAGEMENT }
                 )
                 Screen.GLOBAL_SETTINGS -> GlobalSettingsScreen(onBack = { currentScreen = Screen.INFO }, onNavSettingsClick = { navConfigPackage = null; currentScreen = Screen.NAV_CUSTOMIZATION })
                 Screen.NAV_CUSTOMIZATION -> NavCustomizationScreen(onBack = { currentScreen = if (navConfigPackage != null) Screen.HOME else Screen.GLOBAL_SETTINGS }, packageName = navConfigPackage)
@@ -281,7 +286,6 @@ fun MainRootNavigation(
                                     val result = backupManager.restoreBackup(pendingImportBackup!!, selection)
                                     if (result.isSuccess) {
                                         Toast.makeText(context, context.getString(R.string.import_success), Toast.LENGTH_LONG).show()
-                                        // Force restart navigation to reflect changes immediately
                                         currentScreen = Screen.HOME
                                     } else {
                                         Toast.makeText(context, context.getString(R.string.import_failed, result.exceptionOrNull()?.message), Toast.LENGTH_LONG).show()
@@ -290,10 +294,18 @@ fun MainRootNavigation(
                             }
                         )
                     } else {
-                        // Fallback logic
                         LaunchedEffect(Unit) { currentScreen = Screen.BACKUP }
                     }
                 }
+
+                // --- NOTIFICATION MANAGEMENT (v0.9.7) ---
+                Screen.NOTIFICATION_MANAGEMENT -> NotificationManagementScreen(
+                    onBack = { currentScreen = Screen.INFO },
+                    onAppsListClick = { currentScreen = Screen.NOTIFICATION_MANAGEMENT_APPS }
+                )
+                Screen.NOTIFICATION_MANAGEMENT_APPS -> NotificationManagementAppsScreen(
+                    onBack = { currentScreen = Screen.NOTIFICATION_MANAGEMENT }
+                )
             }
         }
     }

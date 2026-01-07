@@ -690,4 +690,34 @@ class AppPreferences(context: Context) {
         val snoozeUntil = getPermissionBannerSnoozeUntil()
         return System.currentTimeMillis() < snoozeUntil
     }
+
+    // --- CALLS-ONLY-ISLAND (v0.9.7) ---
+    // Global boolean: hide ongoing call notifications from system shade
+    val callsOnlyIslandEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CALLS_ONLY_ISLAND_ENABLED).map { it.toBoolean(false) }
+    val callsOnlyIslandConfirmedFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CALLS_ONLY_ISLAND_CONFIRMED).map { it.toBoolean(false) }
+
+    suspend fun isCallsOnlyIslandEnabled(): Boolean {
+        return dao.getSetting(SettingsKeys.CALLS_ONLY_ISLAND_ENABLED).toBoolean(false)
+    }
+
+    suspend fun setCallsOnlyIslandEnabled(enabled: Boolean) {
+        save(SettingsKeys.CALLS_ONLY_ISLAND_ENABLED, enabled.toString())
+    }
+
+    suspend fun isCallsOnlyIslandConfirmed(): Boolean {
+        return dao.getSetting(SettingsKeys.CALLS_ONLY_ISLAND_CONFIRMED).toBoolean(false)
+    }
+
+    suspend fun setCallsOnlyIslandConfirmed(confirmed: Boolean) {
+        save(SettingsKeys.CALLS_ONLY_ISLAND_CONFIRMED, confirmed.toString())
+    }
+
+    /**
+     * Counts how many apps have shade cancel enabled.
+     * Used for diagnostics header.
+     */
+    suspend fun getShadeCancelEnabledCount(): Int {
+        val entries = dao.getByPrefix("shade_cancel_")
+        return entries.count { it.value.toBoolean(false) }
+    }
 }

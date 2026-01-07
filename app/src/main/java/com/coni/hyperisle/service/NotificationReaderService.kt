@@ -646,18 +646,20 @@ class NotificationReaderService : NotificationListenerService() {
                 )
             }
 
+            // v0.9.7: Detect if call is ongoing (for calls-only-island feature)
+            val isOngoingCall = if (type == NotificationType.CALL) {
+                val isChronometerShown = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)
+                val actions = sbn.notification.actions ?: emptyArray()
+                val answerKeywords = resources.getStringArray(R.array.call_keywords_answer).toList()
+                val hasAnswerAction = actions.any { action ->
+                    val txt = action.title.toString().lowercase(java.util.Locale.getDefault())
+                    answerKeywords.any { k -> txt.contains(k) }
+                }
+                isChronometerShown && !hasAnswerAction
+            } else false
+
             val data: HyperIslandData = when (type) {
                 NotificationType.CALL -> {
-                    // Detect if call is ongoing (has chronometer shown and no answer action)
-                    val isChronometerShown = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)
-                    val actions = sbn.notification.actions ?: emptyArray()
-                    val answerKeywords = resources.getStringArray(R.array.call_keywords_answer).toList()
-                    val hasAnswerAction = actions.any { action ->
-                        val txt = action.title.toString().lowercase(java.util.Locale.getDefault())
-                        answerKeywords.any { k -> txt.contains(k) }
-                    }
-                    val isOngoingCall = isChronometerShown && !hasAnswerAction
-                    
                     // Calculate duration for ongoing calls
                     val durationSeconds = if (isOngoingCall) {
                         val existingTimer = activeCallTimers[groupKey]
@@ -707,7 +709,7 @@ class NotificationReaderService : NotificationListenerService() {
             when (activityResult) {
                 is IslandActivityStateMachine.ActivityResult.Completed -> {
                     postNotification(sbn, bridgeId, groupKey, type.name, data)
-                    attemptShadeCancel(sbn, type) // v0.9.5: Cancel from shade if enabled
+                    attemptShadeCancel(sbn, type, isOngoingCall) // v0.9.5/v0.9.7: Cancel from shade if enabled
                     Haptics.hapticOnIslandSuccess(applicationContext)
                     serviceScope.launch {
                         delay(activityResult.timeoutMs)
@@ -723,7 +725,7 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 else -> {
                     postNotification(sbn, bridgeId, groupKey, type.name, data)
-                    attemptShadeCancel(sbn, type) // v0.9.5: Cancel from shade if enabled
+                    attemptShadeCancel(sbn, type, isOngoingCall) // v0.9.5/v0.9.7: Cancel from shade if enabled
                 }
             }
 
@@ -816,11 +818,37 @@ class NotificationReaderService : NotificationListenerService() {
      * 1. Per-app shade cancel is enabled for this package
      * 2. Notification is eligible (not ongoing, not call/alarm/timer/nav, not foreground service, etc.)
      * 
+     * v0.9.7: Also handles calls-only-island for call notifications.
+     * 
      * This is safe-by-default: only cancels if user explicitly enabled for this app.
      */
-    private suspend fun attemptShadeCancel(sbn: StatusBarNotification, type: NotificationType) {
+    private suspend fun attemptShadeCancel(sbn: StatusBarNotification, type: NotificationType, isOngoingCall: Boolean = false) {
         val pkg = sbn.packageName
         val keyHash = sbn.key.hashCode()
+        
+        // v0.9.7: Check calls-only-island for call notifications
+        if (type == NotificationType.CALL) {
+            val callsOnlyIslandEnabled = preferences.isCallsOnlyIslandEnabled()
+            if (callsOnlyIslandEnabled) {
+                val callEligibility = checkCallShadeCancelEligibility(sbn, isOngoingCall)
+                
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "event=callShadeCancelAttempt pkg=$pkg keyHash=$keyHash eligible=${callEligibility.first} reason=${callEligibility.second} isOngoingCall=$isOngoingCall")
+                }
+                
+                if (callEligibility.first) {
+                    try {
+                        cancelNotification(sbn.key)
+                        if (BuildConfig.DEBUG) {
+                            Log.d(TAG, "event=callShadeCancelled pkg=$pkg keyHash=$keyHash")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to cancel call notification from shade: ${e.message}")
+                    }
+                }
+            }
+            return // Call notifications are handled separately, don't continue to per-app check
+        }
         
         // Check if shade cancel is enabled for this app
         val shadeCancelEnabled = preferences.isShadeCancel(pkg)
@@ -849,6 +877,44 @@ class NotificationReaderService : NotificationListenerService() {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
         }
+    }
+    
+    /**
+     * v0.9.7: Checks if a call notification is eligible for shade cancellation.
+     * Returns Pair(eligible, reason) where reason explains why not eligible (if false).
+     * 
+     * Eligibility rules for calls-only-island (must ALL be true):
+     * - isOngoingCall == true (not incoming)
+     * - isOngoing flag set (FLAG_ONGOING_EVENT)
+     * - No full-screen intent
+     * - Not a group summary
+     */
+    private fun checkCallShadeCancelEligibility(sbn: StatusBarNotification, isOngoingCall: Boolean): Pair<Boolean, String> {
+        val notification = sbn.notification
+        val flags = notification.flags
+        
+        // Must be an ongoing call (not incoming)
+        if (!isOngoingCall) {
+            return Pair(false, "NOT_ONGOING_CALL")
+        }
+        
+        // Must have ongoing flag set
+        if ((flags and Notification.FLAG_ONGOING_EVENT) == 0) {
+            return Pair(false, "NO_ONGOING_FLAG")
+        }
+        
+        // Check group summary flag
+        if ((flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+            return Pair(false, "GROUP_SUMMARY")
+        }
+        
+        // Check full-screen intent - never hide incoming/full-screen calls
+        if (notification.fullScreenIntent != null) {
+            return Pair(false, "FULLSCREEN_INTENT")
+        }
+        
+        // All checks passed - eligible for cancellation
+        return Pair(true, "ELIGIBLE")
     }
 
     /**

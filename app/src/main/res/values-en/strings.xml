@@ -619,4 +619,26 @@
     <string name="debug_export_format_label">Extract Format</string>
     <string name="profile_normal_hint">Balanced behavior</string>
     <string name="profile_lenient_hint">Allow more notifications from this app</string>
+
+    <!-- Notification Management (v0.9.7) -->
+    <string name="notification_management_title">Notification Management</string>
+    <string name="notification_management_desc">System shade hiding and call settings</string>
+    <string name="notification_management_status_title">Status</string>
+    <string name="notification_management_hidden_apps">Hidden apps</string>
+    <string name="notification_management_calls_only_island">Calls-only-island</string>
+    <string name="notification_management_off">Off</string>
+    <string name="notification_management_section_apps">Apps</string>
+    <string name="notification_management_apps_title">Hide system notifications (selected apps)</string>
+    <string name="notification_management_apps_desc">Enable/disable shade hiding per app</string>
+    <string name="notification_management_apps_safety_note">Calls, alarms, ongoing, and full-screen notifications are excluded for safety.</string>
+    <string name="notification_management_section_calls">Calls</string>
+    <string name="notification_management_calls_title">Calls: show only in island</string>
+    <string name="notification_management_calls_desc">Hide ongoing call notifications from system shade</string>
+    <string name="notification_management_calls_safety_note">Incoming calls and full-screen call notifications are NOT hidden. Only eligible ongoing calls may be hidden.</string>
+    <string name="notification_management_calls_confirm_title">Warning: Call Notifications</string>
+    <string name="notification_management_calls_confirm_message">This will hide ongoing call notifications from the system shade.\n\nIncoming calls and full-screen notifications are not affected.\n\nAre you sure you want to enable this feature?</string>
+    <string name="notification_management_calls_confirm_enable">Enable</string>
+    <string name="notification_management_apps_screen_title">Apps to Hide</string>
+    <string name="notification_management_apps_empty">No active apps</string>
+    <string name="notification_management_apps_empty_desc">Enable apps from the Library first</string>
 </resources>
