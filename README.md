@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  HyperIsle bridges standard Android notifications into the pill-shaped UI around the camera cutout,
-  delivering an iOS-inspired Dynamic Island experience on Xiaomi / HyperOS devices.
+  HyperIsle brings boring and useless HOS pill new life by adding 
+    iOS-inspired Dynamic Island features and experience on Xiaomi / HyperOS devices.
 </p>
 
 <br>
@@ -120,6 +120,9 @@ HyperIsle lets you control how Music Island behaves on Xiaomi / HyperOS devices.
 
 By default, the system’s native (HyperOS) music island is used, and HyperIsle does not create duplicates.
 
+<details>
+<summary><strong>🔍 Full feature list</strong></summary>
+
 ### Modes
 
 #### 🟢 SYSTEM_ONLY (Default – Recommended)
@@ -139,9 +142,11 @@ By default, the system’s native (HyperOS) music island is used, and HyperIsle 
 
 👉 If you are unsure, keep **SYSTEM_ONLY** enabled.
 
+</details>
+
 ---
 
-## 👀 Who is HyperIsle for?
+## 👀 For whom is HyperIsle?
 
 * Xiaomi / HyperOS users who like the Dynamic Island concept.
 * Power users who want fine-grained control over notifications.
