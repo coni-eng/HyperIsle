@@ -1,5 +1,6 @@
 package com.coni.hyperisle.util
 
+import android.content.Context
 import com.coni.hyperisle.BuildConfig
 import org.json.JSONArray
 import org.json.JSONObject
@@ -141,6 +142,7 @@ object ActionDiagnostics {
 
     /**
      * Generates export content with app metadata and time range info.
+     * @param context Application context (for session header)
      * @param appName Application name
      * @param versionName Version name
      * @param versionCode Build number
@@ -149,6 +151,7 @@ object ActionDiagnostics {
      * @param format Export format ("plain" or "json")
      */
     fun exportContent(
+        context: Context,
         appName: String,
         versionName: String,
         versionCode: Int,
@@ -159,13 +162,14 @@ object ActionDiagnostics {
         if (!BuildConfig.DEBUG) return "Export unavailable in release builds"
         
         return if (format == "json") {
-            exportContentJson(appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
+            exportContentJson(context, appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
         } else {
-            exportContentPlain(appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
+            exportContentPlain(context, appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
         }
     }
 
     private fun exportContentPlain(
+        context: Context,
         appName: String,
         versionName: String,
         versionCode: Int,
@@ -173,6 +177,20 @@ object ActionDiagnostics {
         timeRangeLabel: String
     ): String {
         val sb = StringBuilder()
+        
+        // DEBUG-ONLY: Prepend session header
+        if (BuildConfig.DEBUG) {
+            val sessionHeader = SessionHeaderHelper.generatePlainTextHeader(
+                context = context,
+                appName = appName,
+                versionName = versionName,
+                versionCode = versionCode,
+                timeRangeLabel = timeRangeLabel,
+                timelineEnabled = DebugTimeline.isEnabled()
+            )
+            sb.append(sessionHeader)
+        }
+        
         sb.appendLine("$appName Action Diagnostics Export")
         sb.appendLine("Version: $versionName (Build $versionCode)")
         sb.appendLine("Time Range: $timeRangeLabel")
@@ -191,6 +209,7 @@ object ActionDiagnostics {
     }
 
     private fun exportContentJson(
+        context: Context,
         appName: String,
         versionName: String,
         versionCode: Int,
@@ -205,6 +224,20 @@ object ActionDiagnostics {
         }
         
         val json = JSONObject()
+        
+        // DEBUG-ONLY: Add session header as top-level object
+        if (BuildConfig.DEBUG) {
+            val sessionHeader = SessionHeaderHelper.generateJsonHeader(
+                context = context,
+                appName = appName,
+                versionName = versionName,
+                versionCode = versionCode,
+                timeRangeLabel = timeRangeLabel,
+                timelineEnabled = DebugTimeline.isEnabled()
+            )
+            sessionHeader?.let { json.put("session", it) }
+        }
+        
         json.put("export_type", "action_diagnostics")
         json.put("app_name", appName)
         json.put("version_name", versionName)

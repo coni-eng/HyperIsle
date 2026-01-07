@@ -878,6 +878,7 @@ fun SmartFeaturesScreen(
                                 onClick = {
                                     val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
                                     val exportContent = ActionDiagnostics.exportContent(
+                                        context = context,
                                         appName = context.getString(R.string.app_name),
                                         versionName = BuildConfig.VERSION_NAME,
                                         versionCode = BuildConfig.VERSION_CODE,
@@ -904,6 +905,7 @@ fun SmartFeaturesScreen(
                             onClick = {
                                 val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
                                 val exportContent = ActionDiagnostics.exportContent(
+                                    context = context,
                                     appName = context.getString(R.string.app_name),
                                     versionName = BuildConfig.VERSION_NAME,
                                     versionCode = BuildConfig.VERSION_CODE,
@@ -974,6 +976,7 @@ fun SmartFeaturesScreen(
                                 onClick = {
                                     val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
                                     val exportContent = PriorityDiagnostics.exportContent(
+                                        context = context,
                                         appName = context.getString(R.string.app_name),
                                         versionName = BuildConfig.VERSION_NAME,
                                         versionCode = BuildConfig.VERSION_CODE,
@@ -1000,6 +1003,7 @@ fun SmartFeaturesScreen(
                             onClick = {
                                 val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
                                 val exportContent = PriorityDiagnostics.exportContent(
+                                    context = context,
                                     appName = context.getString(R.string.app_name),
                                     versionName = BuildConfig.VERSION_NAME,
                                     versionCode = BuildConfig.VERSION_CODE,
