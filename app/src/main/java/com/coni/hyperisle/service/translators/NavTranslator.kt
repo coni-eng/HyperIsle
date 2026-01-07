@@ -106,10 +106,10 @@ class NavTranslator(context: Context) : BaseTranslator(context) {
         // --- ISLAND INFO ---
         fun getTextInfo(type: NavContent): TextInfo {
             return when (type) {
-                NavContent.INSTRUCTION -> TextInfo(instruction, null)
-                NavContent.DISTANCE -> TextInfo(distance, null)
-                NavContent.ETA -> TextInfo(eta, null)
-                NavContent.DISTANCE_ETA -> TextInfo(distance, eta)
+                NavContent.INSTRUCTION -> TextInfo(instruction, null, narrowFont = true)
+                NavContent.DISTANCE -> TextInfo(distance, null, narrowFont = true)
+                NavContent.ETA -> TextInfo(eta, null, narrowFont = true)
+                NavContent.DISTANCE_ETA -> TextInfo(distance, eta, narrowFont = true)
                 NavContent.NONE -> TextInfo("", "")
             }
         }

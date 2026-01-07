@@ -95,13 +95,21 @@ class ProgressTranslator(context: Context) : BaseTranslator(context) {
         if (isFinished) {
             builder.setBigIslandInfo(
                 left = ImageTextInfoLeft(1, PicInfo(1, hiddenKey), TextInfo("", "")),
-                right = ImageTextInfoRight(1, PicInfo(1, tickKey), TextInfo("Finished", title))
+                right = ImageTextInfoRight(
+                    1,
+                    PicInfo(1, tickKey),
+                    TextInfo("Finished", title, narrowFont = true)
+                )
             )
             builder.setSmallIsland(tickKey)
         } else {
             builder.setBigIslandInfo(
                 left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo("", "")),
-                right = ImageTextInfoRight(1, PicInfo(1, hiddenKey), TextInfo(title, "$percent%"))
+                right = ImageTextInfoRight(
+                    1,
+                    PicInfo(1, hiddenKey),
+                    TextInfo(title, "$percent%", narrowFont = true)
+                )
             )
 
             if (!indeterminate) {

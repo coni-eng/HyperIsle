@@ -123,8 +123,8 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         )
 
         builder.setBigIslandInfo(
-            left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo(title, "")),
-            right = ImageTextInfoRight(2, PicInfo(1, hiddenKey), TextInfo(rightText, ""))
+            left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo(title, "", narrowFont = true)),
+            right = ImageTextInfoRight(2, PicInfo(1, hiddenKey), TextInfo(rightText, "", narrowFont = true))
         )
 
         builder.setSmallIsland(picKey)

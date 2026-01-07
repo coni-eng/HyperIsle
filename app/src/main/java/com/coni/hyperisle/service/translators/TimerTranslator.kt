@@ -53,7 +53,11 @@ class TimerTranslator(context: Context) : BaseTranslator(context) {
         } else {
             builder.setBigIslandInfo(
                 left = ImageTextInfoLeft(1, PicInfo(1, picKey), TextInfo("", "")),
-                right = ImageTextInfoRight(1, PicInfo(1, hiddenKey), TextInfo(title, context.getString(R.string.status_active)))
+                right = ImageTextInfoRight(
+                    1,
+                    PicInfo(1, hiddenKey),
+                    TextInfo(title, context.getString(R.string.status_active), narrowFont = true)
+                )
             )
         }
 
