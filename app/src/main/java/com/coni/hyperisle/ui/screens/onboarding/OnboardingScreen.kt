@@ -586,5 +586,46 @@ fun OptimizationPage(context: Context) {
         ) {
             Text(stringResource(R.string.no_restrictions), style = MaterialTheme.typography.bodyLarge)
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedButton(
+            onClick = {
+                try {
+                    // 1. Try standard Android overlay settings
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                        data = "package:${context.packageName}".toUri()
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    try {
+                        // 2. Try MIUI / HyperOS specific permission editor
+                        val intent = Intent().apply {
+                            component = android.content.ComponentName(
+                                "com.miui.securitycenter",
+                                "com.miui.permcenter.permissions.PermissionsEditorActivity"
+                            )
+                            putExtra("extra_pkgname", context.packageName)
+                        }
+                        context.startActivity(intent)
+                    } catch (e2: Exception) {
+                        try {
+                            // 3. Fall back to app details settings
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = "package:${context.packageName}".toUri()
+                            }
+                            context.startActivity(intent)
+                        } catch (e3: Exception) {
+                            // All attempts failed - no-op
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(stringResource(R.string.enable_overlay), style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }

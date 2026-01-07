@@ -377,6 +377,7 @@
 
     <string name="optimization_title">Device Optimization</string>
     <string name="no_restrictions">Set "No Restrictions"</string>
+    <string name="enable_overlay">3. Display Over Other Apps</string>
 
     <string name="privacy_card_title">Offline First</string>
     <string name="privacy_card_desc">No internet connection required.</string>

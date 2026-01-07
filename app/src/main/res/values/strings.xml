@@ -376,6 +376,7 @@
 
     <string name="optimization_title">Cihaz Optimizasyonu</string>
     <string name="no_restrictions">"2. Kısıtlama Yok" Ayarla</string>
+    <string name="enable_overlay">3. Diğer Uygulamaların Üzerinde Göster</string>
 
     <string name="privacy_card_title">Önce Çevrimdışı</string>
     <string name="privacy_card_desc">İnternet bağlantısı gerekmez.</string>
