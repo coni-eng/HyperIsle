@@ -203,10 +203,21 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
+    override fun onNotificationRemoved(
+        sbn: StatusBarNotification?,
+        rankingMap: RankingMap?,
+        reason: Int
+    ) {
         sbn?.let {
             val key = it.key
             val groupKey = sbnKeyToGroupKey[key]
+            
+            // Debug-only logging (PII-free)
+            if (BuildConfig.DEBUG) {
+                val reasonName = mapRemovalReason(reason)
+                Log.d(TAG, "event=onRemoved pkg=${it.packageName} keyHash=${key.hashCode()} reason=$reasonName")
+            }
+            
             if (groupKey != null && activeTranslations.containsKey(groupKey)) {
                 val hyperId = activeTranslations[groupKey] ?: return
                 try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
@@ -221,6 +232,34 @@ class NotificationReaderService : NotificationListenerService() {
                 activeCallTimers.remove(groupKey)
             }
             sbnKeyToGroupKey.remove(key)
+        }
+    }
+    
+    private fun mapRemovalReason(reason: Int): String {
+        return when (reason) {
+            REASON_CLICK -> "CLICK"
+            REASON_CANCEL -> "CANCEL"
+            REASON_CANCEL_ALL -> "CANCEL_ALL"
+            REASON_ERROR -> "ERROR"
+            REASON_PACKAGE_CHANGED -> "PACKAGE_CHANGED"
+            REASON_USER_STOPPED -> "USER_STOPPED"
+            REASON_PACKAGE_BANNED -> "PACKAGE_BANNED"
+            REASON_APP_CANCEL -> "APP_CANCEL"
+            REASON_APP_CANCEL_ALL -> "APP_CANCEL_ALL"
+            REASON_LISTENER_CANCEL -> "LISTENER_CANCEL"
+            REASON_LISTENER_CANCEL_ALL -> "LISTENER_CANCEL_ALL"
+            REASON_GROUP_SUMMARY_CANCELED -> "GROUP_SUMMARY_CANCELED"
+            REASON_GROUP_OPTIMIZATION -> "GROUP_OPTIMIZATION"
+            REASON_PACKAGE_SUSPENDED -> "PACKAGE_SUSPENDED"
+            REASON_PROFILE_TURNED_OFF -> "PROFILE_TURNED_OFF"
+            REASON_UNAUTOBUNDLED -> "UNAUTOBUNDLED"
+            REASON_CHANNEL_BANNED -> "CHANNEL_BANNED"
+            REASON_SNOOZED -> "SNOOZED"
+            REASON_TIMEOUT -> "TIMEOUT"
+            REASON_CHANNEL_REMOVED -> "CHANNEL_REMOVED"
+            REASON_CLEAR_DATA -> "CLEAR_DATA"
+            REASON_ASSISTANT_CANCEL -> "ASSISTANT_CANCEL"
+            else -> "UNKNOWN($reason)"
         }
     }
 
