@@ -61,14 +61,21 @@ object PriorityEngine {
     private const val REASON_MUTE_NEGATIVE = "MUTE_NEGATIVE"
     private const val REASON_PRESET_BYPASS = "PRESET_BYPASS"
     private const val REASON_PRESET_BIAS = "PRESET_BIAS"
-    private const val REASON_PROFILE_STRICT = "PROFILE_STRICT"
-    private const val REASON_PROFILE_LENIENT = "PROFILE_LENIENT"
+    private const val REASON_PROFILE_STRICT = "PROFILE_STRICT_APPLIED"
+    private const val REASON_PROFILE_LENIENT = "PROFILE_LENIENT_APPLIED"
     private const val DECISION_ALLOW = "ALLOW"
     private const val DECISION_DENY = "DENY"
     private const val TYPENAME_STANDARD = "STANDARD"
 
     // v0.9.4: Per-app profile bias multipliers (conservative, bounded)
     // Applied only to STANDARD notifications, does NOT affect CALL/TIMER/NAV
+    //
+    // WHY CONSERVATIVE MULTIPLIERS:
+    // - 1.15f/0.85f are intentionally small (±15%) to prevent runaway bias accumulation
+    // - Larger multipliers could cause profiles to dominate all other signals
+    // - These values provide noticeable but bounded influence on suppression decisions
+    // - Profile influence is capped: cannot override CALL/TIMER/NAV bypass logic
+    // - No compounding: multipliers are applied once per decision, not accumulated
     private const val PROFILE_STRICT_MULTIPLIER = 1.15f   // Slightly more aggressive
     private const val PROFILE_LENIENT_MULTIPLIER = 0.85f  // Slightly less aggressive
 
@@ -240,6 +247,12 @@ object PriorityEngine {
         // LENIENT: slightly less aggressive (higher threshold)
         // NORMAL: no change (default behavior)
         // Only affects STANDARD notifications; CALL/TIMER/NAV already bypassed at GATE 2
+        //
+        // SAFETY & BOUNDS (v0.9.5):
+        // - Profile influence is bounded: threshold adjustment is ±1, never more
+        // - No runaway bias: profile is evaluated once per decision, not accumulated
+        // - CALL/TIMER/NAV bypass at GATE 2 ensures critical notifications always pass
+        // - NORMAL profile = identical behavior to previous versions (no change)
         if (typeName == TYPENAME_STANDARD && appProfile != com.coni.hyperisle.models.SmartPriorityProfile.NORMAL) {
             val timestamps = burstTracker[packageName] ?: emptyList<Long>()
             val now = System.currentTimeMillis()

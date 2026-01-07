@@ -342,6 +342,17 @@ fun IslandQuickActionsScreen(
                             )
                         }
                     }
+                    
+                    // v0.9.5: Helper text for selected profile (UX clarity)
+                    Text(
+                        text = when (smartPriorityProfile) {
+                            SmartPriorityProfile.STRICT -> stringResource(R.string.profile_strict_hint)
+                            SmartPriorityProfile.LENIENT -> stringResource(R.string.profile_lenient_hint)
+                            SmartPriorityProfile.NORMAL -> stringResource(R.string.profile_normal_hint)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

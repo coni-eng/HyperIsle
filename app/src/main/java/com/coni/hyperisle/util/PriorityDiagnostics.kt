@@ -1,6 +1,8 @@
 package com.coni.hyperisle.util
 
 import com.coni.hyperisle.BuildConfig
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * In-memory diagnostics for PriorityEngine decisions.
@@ -25,6 +27,14 @@ object PriorityDiagnostics {
         private set
     @Volatile
     var denyThrottleCount: Int = 0
+        private set
+    
+    // v0.9.5: Profile-affected decision counters (debug visibility)
+    @Volatile
+    var profileStrictAppliedCount: Int = 0
+        private set
+    @Volatile
+    var profileLenientAppliedCount: Int = 0
         private set
 
     // Ring buffer for last 50 diagnostic lines
@@ -71,6 +81,10 @@ object PriorityDiagnostics {
             reason.contains("BURST") -> denyBurstCount++
             reason.contains("THROTTLE") -> denyThrottleCount++
         }
+        
+        // v0.9.5: Track profile-affected decisions for diagnostics clarity
+        if (reason.contains("PROFILE_STRICT_APPLIED")) profileStrictAppliedCount++
+        if (reason.contains("PROFILE_LENIENT_APPLIED")) profileLenientAppliedCount++
     }
 
     /**
@@ -92,6 +106,10 @@ object PriorityDiagnostics {
         sb.appendLine("  Allow: $allowCount")
         sb.appendLine("  Deny (Burst): $denyBurstCount")
         sb.appendLine("  Deny (Throttle): $denyThrottleCount")
+        sb.appendLine()
+        sb.appendLine("Profile Impact (decisions materially affected):")
+        sb.appendLine("  STRICT profile applied: $profileStrictAppliedCount")
+        sb.appendLine("  LENIENT profile applied: $profileLenientAppliedCount")
         sb.appendLine()
         
         val filteredEntries = synchronized(ringBuffer) {
@@ -116,20 +134,37 @@ object PriorityDiagnostics {
      * @param versionCode Build number
      * @param timeRangeMs Time range in milliseconds
      * @param timeRangeLabel Human-readable time range label
+     * @param format Export format ("plain" or "json")
      */
     fun exportContent(
         appName: String,
         versionName: String,
         versionCode: Int,
         timeRangeMs: Long,
-        timeRangeLabel: String
+        timeRangeLabel: String,
+        format: String = "plain"
     ): String {
         if (!BuildConfig.DEBUG) return "Export unavailable in release builds"
         
+        return if (format == "json") {
+            exportContentJson(appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
+        } else {
+            exportContentPlain(appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
+        }
+    }
+
+    private fun exportContentPlain(
+        appName: String,
+        versionName: String,
+        versionCode: Int,
+        timeRangeMs: Long,
+        timeRangeLabel: String
+    ): String {
         val sb = StringBuilder()
         sb.appendLine("$appName Priority Diagnostics Export")
         sb.appendLine("Version: $versionName (Build $versionCode)")
         sb.appendLine("Time Range: $timeRangeLabel")
+        sb.appendLine("Export Format: Plain Text")
         sb.appendLine("Exported: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
         sb.appendLine()
         sb.appendLine(summary(timeRangeMs))
@@ -137,6 +172,67 @@ object PriorityDiagnostics {
         sb.appendLine("---")
         sb.appendLine("No notification content included.")
         return sb.toString()
+    }
+
+    private fun exportContentJson(
+        appName: String,
+        versionName: String,
+        versionCode: Int,
+        timeRangeMs: Long,
+        timeRangeLabel: String
+    ): String {
+        val now = System.currentTimeMillis()
+        val cutoffTime = if (timeRangeMs > 0) now - timeRangeMs else 0L
+        
+        val filteredEntries = synchronized(ringBuffer) {
+            ringBuffer.filter { line ->
+                val timestamp = line.substringBefore('|').toLongOrNull() ?: 0L
+                timestamp >= cutoffTime
+            }
+        }
+        
+        val json = JSONObject()
+        json.put("export_type", "priority_diagnostics")
+        json.put("app_name", appName)
+        json.put("version_name", versionName)
+        json.put("version_code", versionCode)
+        json.put("time_range", timeRangeLabel)
+        json.put("export_format", "JSON")
+        json.put("exported_at", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date()))
+        json.put("enabled", enabled)
+        
+        val counters = JSONObject()
+        counters.put("allow", allowCount)
+        counters.put("deny_burst", denyBurstCount)
+        counters.put("deny_throttle", denyThrottleCount)
+        json.put("counters", counters)
+        
+        // v0.9.5: Include profile impact in JSON export (debug builds only)
+        val profileImpact = JSONObject()
+        profileImpact.put("strict_applied_count", profileStrictAppliedCount)
+        profileImpact.put("lenient_applied_count", profileLenientAppliedCount)
+        profileImpact.put("description", "Count of decisions where per-app profile materially affected suppression")
+        json.put("profile_impact", profileImpact)
+        
+        val decisions = JSONArray()
+        filteredEntries.forEach { line ->
+            val parts = line.split('|')
+            if (parts.size >= 5) {
+                val decisionObj = JSONObject()
+                decisionObj.put("timestamp", parts[0].toLongOrNull() ?: 0L)
+                decisionObj.put("package", parts[1])
+                decisionObj.put("key_hash", parts[2].toIntOrNull() ?: 0)
+                decisionObj.put("decision", parts[3])
+                decisionObj.put("reason", parts[4])
+                decisions.put(decisionObj)
+            }
+        }
+        json.put("decisions", decisions)
+        json.put("decision_count", filteredEntries.size)
+        
+        json.put("privacy_note", "No notification content included.")
+        
+        return json.toString(2)
     }
 
     /**
@@ -147,6 +243,8 @@ object PriorityDiagnostics {
         allowCount = 0
         denyBurstCount = 0
         denyThrottleCount = 0
+        profileStrictAppliedCount = 0
+        profileLenientAppliedCount = 0
         synchronized(ringBuffer) {
             ringBuffer.clear()
         }

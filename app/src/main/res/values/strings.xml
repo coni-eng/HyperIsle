@@ -560,6 +560,10 @@
     <string name="profile_normal">Normal</string>
     <string name="profile_lenient">Esnek</string>
     <string name="profile_strict">Katı</string>
+    <!-- v0.9.5: Profile helper text for UX clarity -->
+    <string name="profile_normal_hint">Dengeli davranış</string>
+    <string name="profile_lenient_hint">Bu uygulamadan daha fazla bildirime izin ver</string>
+    <string name="profile_strict_hint">Bu uygulama için gürültüyü agresif şekilde azalt</string>
 
     <!-- Time Visibility on Islands (v0.9.4) -->
     <string name="show_time_on_islands_title">Adalarda Zaman Göster</string>
@@ -577,4 +581,11 @@
     <!-- Debug Export (debug builds only) -->
     <string name="debug_share_diagnostics">Tanılamayı Paylaş</string>
     <string name="debug_share_priority_diagnostics">Öncelik Tanılamasını Paylaş</string>
+    <string name="debug_save_diagnostics">Dosya Olarak Kaydet</string>
+    <string name="debug_save_priority_diagnostics">Dosya Olarak Kaydet</string>
+    <string name="debug_export_format_label">Dışa Aktarma Formatı</string>
+    <string name="debug_format_plain">Düz Metin</string>
+    <string name="debug_format_json">JSON</string>
+    <string name="debug_file_saved">Dosya kaydedildi: %s</string>
+    <string name="debug_file_save_failed">Dosya kaydetme başarısız</string>
 </resources>

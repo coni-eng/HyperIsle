@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.util.ActionDiagnostics
+import com.coni.hyperisle.util.DiagnosticsFileHelper
 import com.coni.hyperisle.util.PriorityDiagnostics
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.ContextPreset
@@ -95,6 +96,9 @@ fun SmartFeaturesScreen(
     
     // Time range selector for diagnostics (default: 1 hour)
     var selectedTimeRangeMs by remember { mutableLongStateOf(60 * 60 * 1000L) }
+    
+    // Export format selector (default: plain text)
+    var selectedExportFormat by remember { mutableStateOf("plain") }
 
     Scaffold(
         topBar = {
@@ -681,6 +685,31 @@ fun SmartFeaturesScreen(
 
                         Spacer(Modifier.height(12.dp))
 
+                        Text(
+                            stringResource(R.string.debug_export_format_label),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                                onClick = { selectedExportFormat = "plain" },
+                                selected = selectedExportFormat == "plain"
+                            ) {
+                                Text(stringResource(R.string.debug_format_plain))
+                            }
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                onClick = { selectedExportFormat = "json" },
+                                selected = selectedExportFormat == "json"
+                            ) {
+                                Text(stringResource(R.string.debug_format_json))
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -705,7 +734,8 @@ fun SmartFeaturesScreen(
                                         versionName = BuildConfig.VERSION_NAME,
                                         versionCode = BuildConfig.VERSION_CODE,
                                         timeRangeMs = selectedTimeRangeMs,
-                                        timeRangeLabel = timeRangeLabel
+                                        timeRangeLabel = timeRangeLabel,
+                                        format = selectedExportFormat
                                     )
                                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                         type = "text/plain"
@@ -718,6 +748,49 @@ fun SmartFeaturesScreen(
                             ) {
                                 Text(stringResource(R.string.debug_share_diagnostics))
                             }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        FilledTonalButton(
+                            onClick = {
+                                val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
+                                val exportContent = ActionDiagnostics.exportContent(
+                                    appName = context.getString(R.string.app_name),
+                                    versionName = BuildConfig.VERSION_NAME,
+                                    versionCode = BuildConfig.VERSION_CODE,
+                                    timeRangeMs = selectedTimeRangeMs,
+                                    timeRangeLabel = timeRangeLabel,
+                                    format = selectedExportFormat
+                                )
+                                val file = DiagnosticsFileHelper.saveDiagnosticsToFile(
+                                    context = context,
+                                    content = exportContent,
+                                    diagnosticType = "action"
+                                )
+                                scope.launch {
+                                    if (file != null) {
+                                        val message = context.getString(R.string.debug_file_saved, file.name)
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = message,
+                                            actionLabel = "Share",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            DiagnosticsFileHelper.shareFile(
+                                                context = context,
+                                                file = file,
+                                                subject = "${context.getString(R.string.app_name)} Action Diagnostics"
+                                            )
+                                        }
+                                    } else {
+                                        snackbarHostState.showSnackbar(context.getString(R.string.debug_file_save_failed))
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.debug_save_diagnostics))
                         }
 
                         Spacer(Modifier.height(16.dp))
@@ -757,7 +830,8 @@ fun SmartFeaturesScreen(
                                         versionName = BuildConfig.VERSION_NAME,
                                         versionCode = BuildConfig.VERSION_CODE,
                                         timeRangeMs = selectedTimeRangeMs,
-                                        timeRangeLabel = timeRangeLabel
+                                        timeRangeLabel = timeRangeLabel,
+                                        format = selectedExportFormat
                                     )
                                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                         type = "text/plain"
@@ -770,6 +844,49 @@ fun SmartFeaturesScreen(
                             ) {
                                 Text(stringResource(R.string.debug_share_priority_diagnostics))
                             }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        FilledTonalButton(
+                            onClick = {
+                                val timeRangeLabel = timeRangeOptions.find { it.first == selectedTimeRangeMs }?.second ?: "All"
+                                val exportContent = PriorityDiagnostics.exportContent(
+                                    appName = context.getString(R.string.app_name),
+                                    versionName = BuildConfig.VERSION_NAME,
+                                    versionCode = BuildConfig.VERSION_CODE,
+                                    timeRangeMs = selectedTimeRangeMs,
+                                    timeRangeLabel = timeRangeLabel,
+                                    format = selectedExportFormat
+                                )
+                                val file = DiagnosticsFileHelper.saveDiagnosticsToFile(
+                                    context = context,
+                                    content = exportContent,
+                                    diagnosticType = "priority"
+                                )
+                                scope.launch {
+                                    if (file != null) {
+                                        val message = context.getString(R.string.debug_file_saved, file.name)
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = message,
+                                            actionLabel = "Share",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            DiagnosticsFileHelper.shareFile(
+                                                context = context,
+                                                file = file,
+                                                subject = "${context.getString(R.string.app_name)} Priority Diagnostics"
+                                            )
+                                        }
+                                    } else {
+                                        snackbarHostState.showSnackbar(context.getString(R.string.debug_file_save_failed))
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.debug_save_priority_diagnostics))
                         }
 
                         Spacer(Modifier.height(16.dp))

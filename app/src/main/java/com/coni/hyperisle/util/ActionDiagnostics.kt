@@ -1,6 +1,8 @@
 package com.coni.hyperisle.util
 
 import com.coni.hyperisle.BuildConfig
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * In-memory diagnostics for notification action handling.
@@ -144,20 +146,37 @@ object ActionDiagnostics {
      * @param versionCode Build number
      * @param timeRangeMs Time range in milliseconds
      * @param timeRangeLabel Human-readable time range label
+     * @param format Export format ("plain" or "json")
      */
     fun exportContent(
         appName: String,
         versionName: String,
         versionCode: Int,
         timeRangeMs: Long,
-        timeRangeLabel: String
+        timeRangeLabel: String,
+        format: String = "plain"
     ): String {
         if (!BuildConfig.DEBUG) return "Export unavailable in release builds"
         
+        return if (format == "json") {
+            exportContentJson(appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
+        } else {
+            exportContentPlain(appName, versionName, versionCode, timeRangeMs, timeRangeLabel)
+        }
+    }
+
+    private fun exportContentPlain(
+        appName: String,
+        versionName: String,
+        versionCode: Int,
+        timeRangeMs: Long,
+        timeRangeLabel: String
+    ): String {
         val sb = StringBuilder()
-        sb.appendLine("$appName Diagnostics Export")
+        sb.appendLine("$appName Action Diagnostics Export")
         sb.appendLine("Version: $versionName (Build $versionCode)")
         sb.appendLine("Time Range: $timeRangeLabel")
+        sb.appendLine("Export Format: Plain Text")
         sb.appendLine("Exported: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
         sb.appendLine()
         sb.appendLine(summary(timeRangeMs))
@@ -165,6 +184,53 @@ object ActionDiagnostics {
         sb.appendLine("---")
         sb.appendLine("No notification content included.")
         return sb.toString()
+    }
+
+    private fun exportContentJson(
+        appName: String,
+        versionName: String,
+        versionCode: Int,
+        timeRangeMs: Long,
+        timeRangeLabel: String
+    ): String {
+        val now = System.currentTimeMillis()
+        val cutoffTime = if (timeRangeMs > 0) now - timeRangeMs else 0L
+        
+        val filteredEntries = synchronized(ringBuffer) {
+            ringBuffer.filter { it.timestamp >= cutoffTime }
+        }
+        
+        val json = JSONObject()
+        json.put("export_type", "action_diagnostics")
+        json.put("app_name", appName)
+        json.put("version_name", versionName)
+        json.put("version_code", versionCode)
+        json.put("time_range", timeRangeLabel)
+        json.put("export_format", "JSON")
+        json.put("exported_at", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date()))
+        json.put("enabled", enabled)
+        
+        val counters = JSONObject()
+        counters.put("activity", inferredActivityCount)
+        counters.put("broadcast", inferredBroadcastCount)
+        counters.put("service", inferredServiceCount)
+        counters.put("unknown", inferredUnknownCount)
+        counters.put("fallback_used", fallbackUsedCount)
+        json.put("counters", counters)
+        
+        val entries = JSONArray()
+        filteredEntries.forEach { entry ->
+            val entryObj = JSONObject()
+            entryObj.put("timestamp", entry.timestamp)
+            entryObj.put("line", entry.line)
+            entries.put(entryObj)
+        }
+        json.put("diagnostic_entries", entries)
+        json.put("entry_count", filteredEntries.size)
+        
+        json.put("privacy_note", "No notification content included.")
+        
+        return json.toString(2)
     }
 
     /**
