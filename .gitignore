@@ -1,15 +1,64 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Gradle ve Build Dosyaları (En Önemlisi)
+.gradle/
+build/
+!gradle-wrapper.jar
+
+# Local configuration file (SDK yolu ve kişisel ayarlar)
 local.properties
+
+# Android Studio / IntelliJ IDEA Dosyaları
+*.iml
+.idea/classLayout.txt
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/dictionaries
+.idea/libraries
+.idea/caches
+.idea/codeStyles
+.idea/encodings.xml
+.idea/gradle.xml
+.idea/misc.xml
+.idea/runConfigurations.xml
+.idea/vcs.xml
+
+# Android Profiling ve Loglar
+captures/
+*.log
+
+# Generated files (Derleme çıktıları)
+bin/
+gen/
+out/
+
+# Android Compiled files
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+*.class
+
+# C++ / Native (Eğer kullanılıyorsa)
+.externalNativeBuild
+.cxx/
+
+# Google Services (Eğer google-services.json kullanırsan bunu kesinlikle gizlemelisin)
+google-services.json
+
+# Keystore Files (İmzalama anahtarlarını ASLA yükleme)
+*.jks
+*.keystore
+*.pem
+*.p12
+*.key
+
+# OS Specific (Mac/Windows gereksiz dosyaları)
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
