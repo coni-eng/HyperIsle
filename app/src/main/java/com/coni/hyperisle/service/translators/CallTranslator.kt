@@ -36,7 +36,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         context.resources.getStringArray(R.array.call_keywords_speaker).toList()
     }
 
-    fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig): HyperIslandData {
+    fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig, durationSeconds: Long? = null): HyperIslandData {
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE) ?: "Call"
 
@@ -79,7 +79,12 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             rightText = context.getString(R.string.call_incoming)
         } else {
             val subText = extras.getString(Notification.EXTRA_TEXT)
-            rightText = if (!subText.isNullOrEmpty() && subText.contains(":")) subText else context.getString(R.string.call_ongoing)
+            // Priority: 1. System-provided time (subText with ":"), 2. Our timer, 3. Fallback label
+            rightText = when {
+                !subText.isNullOrEmpty() && subText.contains(":") -> subText
+                durationSeconds != null -> formatDuration(durationSeconds)
+                else -> context.getString(R.string.call_ongoing)
+            }
         }
 
         builder.setBaseInfo(
@@ -194,5 +199,16 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         paint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
         canvas.drawBitmap(source, 0f, 0f, paint)
         return result
+    }
+
+    private fun formatDuration(seconds: Long): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        val secs = seconds % 60
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, secs)
+        } else {
+            String.format("%d:%02d", minutes, secs)
+        }
     }
 }

@@ -100,6 +100,9 @@ class NotificationReaderService : NotificationListenerService() {
     // Map original sbn.key to groupKey for cleanup
     private val sbnKeyToGroupKey = ConcurrentHashMap<String, String>()
 
+    // Call timer tracking: groupKey -> (startTime, timerJob)
+    private val activeCallTimers = ConcurrentHashMap<String, Pair<Long, Job>>()
+
     private lateinit var database: AppDatabase
 
     private val UPDATE_INTERVAL_MS = 200L
@@ -208,6 +211,10 @@ class NotificationReaderService : NotificationListenerService() {
                 activeTranslations.remove(groupKey)
                 lastUpdateMap.remove(groupKey)
                 lastShownMap.remove(groupKey)
+                
+                // Stop call timer if exists
+                activeCallTimers[groupKey]?.second?.cancel()
+                activeCallTimers.remove(groupKey)
             }
             sbnKeyToGroupKey.remove(key)
         }
@@ -560,7 +567,38 @@ class NotificationReaderService : NotificationListenerService() {
             }
 
             val data: HyperIslandData = when (type) {
-                NotificationType.CALL -> callTranslator.translate(sbn, picKey, finalConfig)
+                NotificationType.CALL -> {
+                    // Detect if call is ongoing (has chronometer shown and no answer action)
+                    val isChronometerShown = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)
+                    val actions = sbn.notification.actions ?: emptyArray()
+                    val answerKeywords = resources.getStringArray(R.array.call_keywords_answer).toList()
+                    val hasAnswerAction = actions.any { action ->
+                        val txt = action.title.toString().lowercase(java.util.Locale.getDefault())
+                        answerKeywords.any { k -> txt.contains(k) }
+                    }
+                    val isOngoingCall = isChronometerShown && !hasAnswerAction
+                    
+                    // Calculate duration for ongoing calls
+                    val durationSeconds = if (isOngoingCall) {
+                        val existingTimer = activeCallTimers[groupKey]
+                        if (existingTimer != null) {
+                            // Use existing start time
+                            (System.currentTimeMillis() - existingTimer.first) / 1000
+                        } else {
+                            // New ongoing call - start timer
+                            val startTime = System.currentTimeMillis()
+                            activeCallTimers[groupKey] = startTime to startCallTimer(sbn, groupKey, picKey, finalConfig, startTime)
+                            0L
+                        }
+                    } else {
+                        // Incoming call or call ended - stop timer if exists
+                        activeCallTimers[groupKey]?.second?.cancel()
+                        activeCallTimers.remove(groupKey)
+                        null
+                    }
+                    
+                    callTranslator.translate(sbn, picKey, finalConfig, durationSeconds)
+                }
                 NotificationType.NAVIGATION -> {
                     val navLayout = preferences.getEffectiveNavLayout(sbn.packageName).first()
                     navTranslator.translate(sbn, picKey, finalConfig, navLayout.first, navLayout.second)
@@ -774,6 +812,44 @@ class NotificationReaderService : NotificationListenerService() {
                 settingsIntent,
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
+        }
+    }
+
+    private fun startCallTimer(sbn: StatusBarNotification, groupKey: String, picKey: String, config: IslandConfig, startTime: Long): Job {
+        return serviceScope.launch {
+            while (true) {
+                delay(1000) // Update every second
+                
+                // Check if call still exists
+                if (!activeCallTimers.containsKey(groupKey)) break
+                
+                val durationSeconds = (System.currentTimeMillis() - startTime) / 1000
+                val data = callTranslator.translate(sbn, picKey, config, durationSeconds)
+                val bridgeId = activeTranslations[groupKey] ?: break
+                
+                // Post updated notification
+                try {
+                    val notificationBuilder = NotificationCompat.Builder(this@NotificationReaderService, ISLAND_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.`ic_launcher_foreground`)
+                        .setContentTitle(getString(R.string.app_name))
+                        .setContentText(getString(R.string.service_active))
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setOngoing(true)
+                        .setOnlyAlertOnce(true)
+                        .addExtras(data.resources)
+                    
+                    val contentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
+                    contentIntent?.let { notificationBuilder.setContentIntent(it) }
+                    
+                    val notification = notificationBuilder.build()
+                    notification.extras.putString("miui.focus.param", data.jsonParam)
+                    
+                    NotificationManagerCompat.from(this@NotificationReaderService).notify(bridgeId, notification)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to update call timer: ${e.message}")
+                    break
+                }
+            }
         }
     }
 
