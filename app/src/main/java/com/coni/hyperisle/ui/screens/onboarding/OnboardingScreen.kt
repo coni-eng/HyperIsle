@@ -139,8 +139,11 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Pagination Dots
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Progress Indicator
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         repeat(6) { iteration ->
                             val active = (pagerState.currentPage - 1) == iteration
                             val width = if (active) 32.dp else 10.dp
@@ -153,6 +156,12 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                                     .background(color)
                             )
                         }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${pagerState.currentPage} of 7",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     // Blocking Logic
@@ -175,7 +184,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text(
-                            text = stringResource(if (isLastPage) R.string.finish else R.string.next),
+                            text = stringResource(if (isLastPage) R.string.finish else R.string.onboarding_continue),
                             style = MaterialTheme.typography.labelLarge,
                             fontSize = 16.sp
                         )
@@ -225,7 +234,7 @@ fun WelcomePage(onStartClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -247,7 +256,7 @@ fun WelcomePage(onStartClick: () -> Unit) {
             )
         }
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(56.dp))
 
         Text(
             text = stringResource(R.string.welcome_title),
@@ -256,14 +265,15 @@ fun WelcomePage(onStartClick: () -> Unit) {
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = stringResource(R.string.welcome_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            lineHeight = 26.sp,
+            modifier = Modifier.padding(horizontal = 8.dp)
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -282,7 +292,7 @@ fun WelcomePage(onStartClick: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -299,10 +309,10 @@ fun OnboardingPageLayout(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.weight(0.5f))
+        Spacer(modifier = Modifier.height(48.dp))
 
         // Expressive Icon Container
         Box(
@@ -319,26 +329,26 @@ fun OnboardingPageLayout(
             )
         }
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = description,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            lineHeight = 24.sp
+            lineHeight = 26.sp
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
         // Content Area
         Box(
@@ -350,7 +360,7 @@ fun OnboardingPageLayout(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(48.dp))
     }
 }
 
@@ -494,8 +504,9 @@ fun PostPermissionPage(isGranted: Boolean, onRequest: () -> Unit) {
             )
         ) {
             Text(
-                stringResource(if (isGranted) R.string.perm_granted else R.string.allow_notifications),
-                style = MaterialTheme.typography.titleMedium
+                stringResource(if (isGranted) R.string.perm_granted else R.string.onboarding_enable),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -525,8 +536,9 @@ fun ListenerPermissionPage(context: Context, isGranted: Boolean) {
             )
         ) {
             Text(
-                stringResource(if (isGranted) R.string.perm_granted else R.string.open_settings),
-                style = MaterialTheme.typography.titleMedium
+                stringResource(if (isGranted) R.string.perm_granted else R.string.onboarding_enable),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }

@@ -15,6 +15,8 @@
     <string name="welcome_title">Welcome to\nHyperIsle</string>
     <string name="welcome_subtitle">Seamlessly integrate this new and extraordinary island into your HyperOS experience.</string>
     <string name="get_started">Get Started</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_enable">Enable</string>
 
     <string name="how_it_works">How it Works</string>
     <string name="how_it_works_desc">Select your favorite apps (Spotify, Maps, Timer). HyperIsle transforms their notifications into a sleek HyperIsland.</string>

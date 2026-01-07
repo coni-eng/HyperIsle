@@ -15,6 +15,8 @@
     <string name="welcome_title">HyperIsle\'a\nHoş Geldiniz</string>
     <string name="welcome_subtitle">HyperOS deneyiminize yenilikçi ve bu güzel adayı entegre edin.</string>
     <string name="get_started">Başla</string>
+    <string name="onboarding_continue">Devam Et</string>
+    <string name="onboarding_enable">Etkinleştir</string>
 
     <string name="how_it_works">Nasıl Çalışır</string>
     <string name="how_it_works_desc">Favori uygulamalarınızı seçin (Müzik, Haritalar, Zamanlayıcı …). HyperIsle bildirimlerinizi şık bir adaya dönüştürür.</string>
