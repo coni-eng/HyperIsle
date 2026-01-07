@@ -613,6 +613,24 @@ class AppPreferences(context: Context) {
         com.coni.hyperisle.util.PriorityDiagnostics.setEnabled(enabled)
     }
 
+    // --- TIMELINE DIAGNOSTICS (debug builds only) ---
+    val timelineDiagnosticsEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.TIMELINE_DIAGNOSTICS_ENABLED).map { it.toBoolean(false) }
+
+    suspend fun setTimelineDiagnosticsEnabled(enabled: Boolean) {
+        save(SettingsKeys.TIMELINE_DIAGNOSTICS_ENABLED, enabled.toString())
+        com.coni.hyperisle.util.DebugTimeline.setEnabled(enabled)
+    }
+
+    /**
+     * Initializes DebugTimeline enabled state from persisted value.
+     * Should be called once during app startup (in debug builds only).
+     */
+    suspend fun initTimelineDiagnostics() {
+        if (!com.coni.hyperisle.BuildConfig.DEBUG) return
+        val enabled = dao.getSetting(SettingsKeys.TIMELINE_DIAGNOSTICS_ENABLED).toBoolean(false)
+        com.coni.hyperisle.util.DebugTimeline.setEnabled(enabled)
+    }
+
     // --- TIME VISIBILITY ON ISLANDS (v0.9.4) ---
     val showTimeOnIslandsFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SHOW_TIME_ON_ISLANDS).map { it.toBoolean(false) }
 

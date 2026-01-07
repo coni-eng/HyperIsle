@@ -88,6 +88,7 @@ object SettingsKeys {
     const val ACTION_DIAGNOSTICS_ENABLED = "action_diagnostics_enabled"
     const val ACTION_LONG_PRESS_INFO = "debug_action_long_press_info"
     const val PRIORITY_DIAGNOSTICS_ENABLED = "priority_diagnostics_enabled"
+    const val TIMELINE_DIAGNOSTICS_ENABLED = "timeline_diagnostics_enabled"
 
     // Learning signal decay (v0.9.3)
     const val LEARNING_LAST_DECAY_AT = "learning_last_decay_at"

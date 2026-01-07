@@ -11,6 +11,7 @@ import com.coni.hyperisle.MainActivity
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.util.ActionDiagnostics
+import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.FocusActionHelper
 import com.coni.hyperisle.util.Haptics
 import com.coni.hyperisle.util.IslandCooldownManager
@@ -112,6 +113,14 @@ class IslandActionReceiver : BroadcastReceiver() {
             ActionDiagnostics.record("event=closePressed pkg=${targetPackage ?: "unknown"} keyHash=$keyHash")
         }
         
+        // Timeline: closePressed event
+        DebugTimeline.log(
+            "closePressed",
+            targetPackage,
+            targetId,
+            mapOf("type" to targetType)
+        )
+        
         // Cancel the specific notification
         if (targetId != null) {
             try {
@@ -167,6 +176,14 @@ class IslandActionReceiver : BroadcastReceiver() {
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "event=tapOpen pkg=${targetPackage ?: "unknown"} keyHash=${targetId?.hashCode() ?: "N/A"}")
         }
+        
+        // Timeline: tapOpenSourceApp event
+        DebugTimeline.log(
+            "tapOpenSourceApp",
+            targetPackage,
+            targetId,
+            emptyMap()
+        )
         
         // Get the original content intent before clearing
         val originalIntent = if (targetId != null) {

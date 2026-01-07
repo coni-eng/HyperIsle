@@ -16,6 +16,7 @@ import com.coni.hyperisle.R
 import com.coni.hyperisle.models.BridgeAction
 import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
+import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.PendingIntentHelper
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
@@ -56,14 +57,22 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         val isOngoing = !isIncoming && isChronometerShown
 
         // Debug-only lifecycle logging
+        val callState = when {
+            isIncoming -> "INCOMING"
+            isOngoing -> "ONGOING"
+            else -> "ENDED"
+        }
         if (BuildConfig.DEBUG) {
-            val callState = when {
-                isIncoming -> "incoming"
-                isOngoing -> "ongoing"
-                else -> "ended"
-            }
             Log.d(TAG, "event=callState $callState pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()}")
         }
+        
+        // Timeline: call state transition event
+        DebugTimeline.log(
+            "callStateTransition",
+            sbn.packageName,
+            sbn.key.hashCode(),
+            mapOf("callState" to callState)
+        )
 
         val builder = HyperIslandNotification.Builder(context, "bridge_${sbn.packageName}", title)
 

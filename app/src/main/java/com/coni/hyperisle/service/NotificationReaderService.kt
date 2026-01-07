@@ -42,6 +42,7 @@ import com.coni.hyperisle.util.IslandActivityStateMachine
 import com.coni.hyperisle.util.IslandCooldownManager
 import com.coni.hyperisle.util.PriorityEngine
 import com.coni.hyperisle.util.ActionDiagnostics
+import com.coni.hyperisle.util.DebugTimeline
 import android.app.PendingIntent
 import android.content.Intent
 import com.coni.hyperisle.BuildConfig
@@ -213,10 +214,18 @@ class NotificationReaderService : NotificationListenerService() {
             val groupKey = sbnKeyToGroupKey[key]
             
             // Debug-only logging (PII-free)
+            val reasonName = mapRemovalReason(reason)
             if (BuildConfig.DEBUG) {
-                val reasonName = mapRemovalReason(reason)
                 Log.d(TAG, "event=onRemoved pkg=${it.packageName} keyHash=${key.hashCode()} reason=$reasonName")
             }
+            
+            // Timeline: onNotificationRemoved event
+            DebugTimeline.log(
+                "onNotificationRemoved",
+                it.packageName,
+                key.hashCode(),
+                mapOf("reason" to reasonName)
+            )
             
             if (groupKey != null && activeTranslations.containsKey(groupKey)) {
                 val hyperId = activeTranslations[groupKey] ?: return
@@ -355,6 +364,20 @@ class NotificationReaderService : NotificationListenerService() {
     private suspend fun processAndPost(sbn: StatusBarNotification) {
         try {
             val extras = sbn.notification.extras
+
+            // Timeline: onNotificationPosted event (PII-safe)
+            val isOngoingFlag = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
+            val hasFullScreenIntent = sbn.notification.fullScreenIntent != null
+            DebugTimeline.log(
+                "onNotificationPosted",
+                sbn.packageName,
+                sbn.key.hashCode(),
+                mapOf(
+                    "category" to sbn.notification.category,
+                    "isOngoing" to isOngoingFlag,
+                    "hasFullScreenIntent" to hasFullScreenIntent
+                )
+            )
 
             val title = extras.getString(Notification.EXTRA_TITLE) ?: sbn.packageName
             val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
@@ -762,6 +785,14 @@ class NotificationReaderService : NotificationListenerService() {
         
         // v0.9.2: Record island shown timestamp for fast dismiss detection
         PriorityEngine.recordIslandShown(sbn.packageName)
+        
+        // Timeline: islandShown event
+        DebugTimeline.log(
+            "islandShown",
+            sbn.packageName,
+            sbn.key.hashCode(),
+            mapOf("type" to notificationType, "bridgeId" to bridgeId)
+        )
 
         // Store island meta for per-island action handling
         IslandCooldownManager.setIslandMeta(bridgeId, sbn.packageName, notificationType)
