@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
  * Listens for:
  * - miui.focus.action_options -> Opens Quick Actions UI
  * - miui.focus.action_dismiss -> Cancels island + records cooldown + haptic
+ * - miui.focus.action_tapopen -> Dismisses island + opens source app
  */
 class IslandActionReceiver : BroadcastReceiver() {
 
@@ -33,6 +34,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         // Delegate to FocusActionHelper for centralized action string constants
         const val ACTION_OPTIONS = FocusActionHelper.ACTION_OPTIONS
         const val ACTION_DISMISS = FocusActionHelper.ACTION_DISMISS
+        const val ACTION_TAP_OPEN = FocusActionHelper.ACTION_TAP_OPEN
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -41,7 +43,9 @@ class IslandActionReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
         
         // Security: Whitelist - only accept known focus actions
-        if (!FocusActionHelper.isOptionsAction(action) && !FocusActionHelper.isDismissAction(action)) {
+        if (!FocusActionHelper.isOptionsAction(action) && 
+            !FocusActionHelper.isDismissAction(action) &&
+            !FocusActionHelper.isTapOpenAction(action)) {
             // Unknown action - silently ignore (no logging to avoid PII leaks)
             return
         }
@@ -63,6 +67,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         when {
             FocusActionHelper.isOptionsAction(action) -> handleOptions(context, notificationId)
             FocusActionHelper.isDismissAction(action) -> handleDismiss(context, notificationId)
+            FocusActionHelper.isTapOpenAction(action) -> handleTapOpen(context, notificationId)
         }
     }
 
@@ -142,6 +147,76 @@ class IslandActionReceiver : BroadcastReceiver() {
         
         // Trigger success haptic
         Haptics.hapticOnIslandSuccess(context)
+    }
+
+    /**
+     * Handles tap-open action: dismisses island UI and opens the source app.
+     * This is triggered when user taps the island body to open the app.
+     * Does NOT record cooldown (user explicitly wanted to see the notification).
+     */
+    private fun handleTapOpen(context: Context, notificationId: Int?) {
+        // Get meta from map for this specific notification ID
+        val meta = if (notificationId != null) {
+            IslandCooldownManager.getIslandMeta(notificationId)
+        } else null
+        
+        val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
+        val targetPackage = meta?.first ?: IslandCooldownManager.getLastActivePackage()
+        
+        // Debug log: tapOpen event
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "event=tapOpen pkg=${targetPackage ?: "unknown"} keyHash=${targetId?.hashCode() ?: "N/A"}")
+        }
+        
+        // Get the original content intent before clearing
+        val originalIntent = if (targetId != null) {
+            IslandCooldownManager.getContentIntent(targetId)
+        } else null
+        
+        // Cancel the island notification (dismiss UI only, not the source notification)
+        if (targetId != null) {
+            try {
+                NotificationManagerCompat.from(context).cancel(targetId)
+                
+                // Debug log: autoDismiss event
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "event=autoDismiss reason=OPENED_APP pkg=${targetPackage ?: "unknown"} keyHash=${targetId.hashCode()}")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to cancel island notification: ${e.message}")
+            }
+        }
+        
+        // Fire the original content intent to open the source app
+        if (originalIntent != null) {
+            try {
+                originalIntent.send()
+                Log.d(TAG, "Fired original content intent for $targetPackage")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to fire original content intent: ${e.message}")
+            }
+        } else {
+            Log.w(TAG, "No original content intent found for notificationId: $notificationId")
+        }
+        
+        // Record tap-open for PriorityEngine (positive signal)
+        if (targetPackage != null) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val preferences = AppPreferences(context)
+                    PriorityEngine.recordTapOpen(preferences, targetPackage)
+                    Log.d(TAG, "Recorded PriorityEngine tap-open for $targetPackage")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to record PriorityEngine tap-open: ${e.message}")
+                }
+            }
+        }
+        
+        // Clear meta and content intent for this notification ID
+        if (notificationId != null) {
+            IslandCooldownManager.clearIslandMeta(notificationId)
+            IslandCooldownManager.clearContentIntent(notificationId)
+        }
     }
 
     /**

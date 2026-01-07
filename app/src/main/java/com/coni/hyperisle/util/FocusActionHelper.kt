@@ -17,10 +17,12 @@ object FocusActionHelper {
     private const val PREFIX = "miui.focus.action_"
     const val TYPE_OPTIONS = "options"
     const val TYPE_DISMISS = "dismiss"
+    const val TYPE_TAP_OPEN = "tapopen"
 
     // Full action base strings (for receiver registration and startsWith checks)
     const val ACTION_OPTIONS = "${PREFIX}${TYPE_OPTIONS}"
     const val ACTION_DISMISS = "${PREFIX}${TYPE_DISMISS}"
+    const val ACTION_TAP_OPEN = "${PREFIX}${TYPE_TAP_OPEN}"
 
     /**
      * Builds a full action string with notification ID suffix.
@@ -60,4 +62,9 @@ object FocusActionHelper {
      * Checks if the action string is a DISMISS action.
      */
     fun isDismissAction(action: String): Boolean = action.startsWith(ACTION_DISMISS)
+
+    /**
+     * Checks if the action string is a TAP_OPEN action.
+     */
+    fun isTapOpenAction(action: String): Boolean = action.startsWith(ACTION_TAP_OPEN)
 }

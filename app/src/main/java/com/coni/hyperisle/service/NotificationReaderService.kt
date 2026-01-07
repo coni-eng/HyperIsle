@@ -36,11 +36,15 @@ import com.coni.hyperisle.data.db.AppDatabase
 import com.coni.hyperisle.data.db.NotificationDigestItem
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.util.ContextStateManager
+import com.coni.hyperisle.util.FocusActionHelper
 import com.coni.hyperisle.util.Haptics
 import com.coni.hyperisle.util.IslandActivityStateMachine
 import com.coni.hyperisle.util.IslandCooldownManager
 import com.coni.hyperisle.util.PriorityEngine
 import com.coni.hyperisle.util.ActionDiagnostics
+import android.app.PendingIntent
+import android.content.Intent
+import com.coni.hyperisle.BuildConfig
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -672,9 +676,30 @@ class NotificationReaderService : NotificationListenerService() {
             .setOnlyAlertOnce(true)
             .addExtras(data.resources)
 
-        // Set contentIntent: prefer original, fallback to app launch intent
-        val contentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
-        contentIntent?.let { notificationBuilder.setContentIntent(it) }
+        // Set contentIntent: wrap original in tap-open action to dismiss island on open
+        val originalContentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
+        if (originalContentIntent != null) {
+            // Store original intent for later retrieval by IslandActionReceiver
+            IslandCooldownManager.setContentIntent(bridgeId, originalContentIntent)
+            
+            // Create wrapper PendingIntent that broadcasts tap-open action
+            val tapOpenActionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_TAP_OPEN, bridgeId)
+            val tapOpenIntent = Intent(tapOpenActionString).apply {
+                setPackage(packageName)
+            }
+            val wrapperIntent = PendingIntent.getBroadcast(
+                this,
+                "tapopen_$bridgeId".hashCode(),
+                tapOpenIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            notificationBuilder.setContentIntent(wrapperIntent)
+            
+            // Debug log: tapOpen setup
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "event=tapOpenSetup pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()} bridgeId=$bridgeId")
+            }
+        }
 
         val notification = notificationBuilder.build()
         notification.extras.putString("miui.focus.param", data.jsonParam)
@@ -838,8 +863,22 @@ class NotificationReaderService : NotificationListenerService() {
                         .setOnlyAlertOnce(true)
                         .addExtras(data.resources)
                     
-                    val contentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
-                    contentIntent?.let { notificationBuilder.setContentIntent(it) }
+                    // Use tap-open wrapper for call timer updates too
+                    val originalContentIntent = sbn.notification.contentIntent ?: createLaunchIntent(sbn.packageName)
+                    if (originalContentIntent != null) {
+                        IslandCooldownManager.setContentIntent(bridgeId, originalContentIntent)
+                        val tapOpenActionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_TAP_OPEN, bridgeId)
+                        val tapOpenIntent = Intent(tapOpenActionString).apply {
+                            setPackage(packageName)
+                        }
+                        val wrapperIntent = PendingIntent.getBroadcast(
+                            this@NotificationReaderService,
+                            "tapopen_$bridgeId".hashCode(),
+                            tapOpenIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                        notificationBuilder.setContentIntent(wrapperIntent)
+                    }
                     
                     val notification = notificationBuilder.build()
                     notification.extras.putString("miui.focus.param", data.jsonParam)

@@ -1,5 +1,6 @@
 package com.coni.hyperisle.util
 
+import android.app.PendingIntent
 import android.content.Context
 import com.coni.hyperisle.data.AppPreferences
 import kotlinx.coroutines.flow.first
@@ -19,6 +20,10 @@ object IslandCooldownManager {
     // Meta map: notificationId -> (packageName, notificationType)
     // Used for per-island dismiss/options actions
     private val metaMap = ConcurrentHashMap<Int, Pair<String, String>>()
+
+    // Original content intent map: notificationId -> original PendingIntent
+    // Used for tap-open action to fire original intent after dismissing island
+    private val contentIntentMap = ConcurrentHashMap<Int, PendingIntent>()
 
     // Last active island tracking for receiver usage (fallback only)
     @Volatile private var lastActiveNotificationId: Int? = null
@@ -141,6 +146,30 @@ object IslandCooldownManager {
      */
     fun clearIslandMeta(notificationId: Int) {
         metaMap.remove(notificationId)
+    }
+
+    /**
+     * Stores the original content intent for tap-open functionality.
+     * @param notificationId The bridge notification ID
+     * @param pendingIntent The original content PendingIntent from the source notification
+     */
+    fun setContentIntent(notificationId: Int, pendingIntent: PendingIntent) {
+        contentIntentMap[notificationId] = pendingIntent
+    }
+
+    /**
+     * Gets the original content intent for a notification ID.
+     * @return The original PendingIntent or null if not found
+     */
+    fun getContentIntent(notificationId: Int): PendingIntent? {
+        return contentIntentMap[notificationId]
+    }
+
+    /**
+     * Clears the content intent for a specific notification ID.
+     */
+    fun clearContentIntent(notificationId: Int) {
+        contentIntentMap.remove(notificationId)
     }
 
     private fun buildKey(packageName: String, notificationType: String): String {
