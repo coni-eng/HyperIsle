@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.HyperIslandData
@@ -108,8 +109,10 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
 
         // Add Options and Dismiss actions for non-media notifications only
         if (!isMedia) {
-            val optionsAction = createOptionsAction(notificationId)
-            val dismissAction = createDismissAction(notificationId)
+            val (optionsAction, optionsIcon) = createOptionsAction(notificationId, sbn.packageName)
+            val (dismissAction, dismissIcon) = createDismissAction(notificationId)
+            builder.addPicture(optionsIcon)
+            builder.addPicture(dismissIcon)
             builder.addAction(optionsAction)
             builder.addAction(dismissAction)
         }
@@ -120,8 +123,9 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
     /**
      * Creates the "Options" action that opens Quick Actions UI.
      * Uses explicit receiver and unique key per island.
+     * Icon: Settings gear with subtle primary color tint (20dp, 48dp touch target)
      */
-    private fun createOptionsAction(notificationId: Int): HyperAction {
+    private fun createOptionsAction(notificationId: Int, packageName: String): Pair<HyperAction, io.github.d4viddf.hyperisland_kit.HyperPicture> {
         val actionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_OPTIONS, notificationId)
         val intent = Intent(actionString)
         val pendingIntent = PendingIntent.getBroadcast(
@@ -130,19 +134,28 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return HyperAction(
+
+        val accentColor = AccentColorResolver.getAccentColorOrDefault(context, packageName, "#6750A4")
+        val iconKey = "options_icon_$notificationId"
+        val iconPicture = getColoredPicture(iconKey, R.drawable.ic_action_settings, accentColor)
+
+        val action = HyperAction(
             key = "options_$notificationId",
-            title = context.getString(R.string.action_options),
+            title = "",
+            icon = iconPicture.icon,
             pendingIntent = pendingIntent,
             actionIntentType = 2 // Broadcast
         )
+        
+        return Pair(action, iconPicture)
     }
 
     /**
      * Creates the "Dismiss" action that cancels island + records cooldown.
      * Uses explicit receiver and unique key per island.
+     * Icon: Close X with subtle error color tint (20dp, 48dp touch target)
      */
-    private fun createDismissAction(notificationId: Int): HyperAction {
+    private fun createDismissAction(notificationId: Int): Pair<HyperAction, io.github.d4viddf.hyperisland_kit.HyperPicture> {
         val actionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_DISMISS, notificationId)
         val intent = Intent(actionString)
         val pendingIntent = PendingIntent.getBroadcast(
@@ -151,11 +164,18 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return HyperAction(
+
+        val iconKey = "dismiss_icon_$notificationId"
+        val iconPicture = getColoredPicture(iconKey, R.drawable.ic_action_close, "#B3261E")
+
+        val action = HyperAction(
             key = "dismiss_$notificationId",
-            title = context.getString(R.string.action_dismiss),
+            title = "",
+            icon = iconPicture.icon,
             pendingIntent = pendingIntent,
             actionIntentType = 2 // Broadcast
         )
+        
+        return Pair(action, iconPicture)
     }
 }
