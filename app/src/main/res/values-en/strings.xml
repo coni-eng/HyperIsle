@@ -603,4 +603,9 @@
     <!-- Debug Export (debug builds only) -->
     <string name="debug_share_diagnostics">Share Diagnostics</string>
     <string name="debug_share_priority_diagnostics">Share Priority Diagnostics</string>
+
+    <!-- Per-App Shade Cancel (v0.9.5) -->
+    <string name="shade_cancel_title">Hide from System Shade</string>
+    <string name="shade_cancel_desc">Remove notification from system shade after creating island</string>
+    <string name="shade_cancel_warning">This removes the notification from the system shade. You can still access it from the island.</string>
 </resources>

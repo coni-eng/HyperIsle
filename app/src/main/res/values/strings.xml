@@ -613,4 +613,9 @@
     <string name="debug_format_json">JSON</string>
     <string name="debug_file_saved">Dosya kaydedildi: %s</string>
     <string name="debug_file_save_failed">Dosya kaydetme başarısız</string>
+
+    <!-- Per-App Shade Cancel (v0.9.5) -->
+    <string name="shade_cancel_title">Sistem Panelinden Gizle</string>
+    <string name="shade_cancel_desc">Adaya dönüştürüldükten sonra bildirimi sistem panelinden kaldır</string>
+    <string name="shade_cancel_warning">Bu, bildirimi sistem panelinden kaldırır. Adadan hala erişebilirsiniz.</string>
 </resources>

@@ -174,6 +174,19 @@ fun AppConfigBottomSheet(
                     )
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // --- CARD 4: SHADE CANCEL (v0.9.5) ---
+                // Only show for messaging/social style apps (STANDARD type enabled)
+                if (typeConfig.contains("STANDARD")) {
+                    val shadeCancelEnabled by viewModel.isShadeCancelFlow(app.packageName).collectAsState(initial = false)
+                    
+                    ShadeCancelCard(
+                        enabled = shadeCancelEnabled,
+                        onToggle = { viewModel.setShadeCancel(app.packageName, it) }
+                    )
+                }
+
                 // Bottom Spacer for scrolling
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -341,6 +354,63 @@ fun AppearanceSettingsContent(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 8.dp, start = 8.dp)
             )
+        }
+    }
+}
+
+/**
+ * v0.9.5: Shade Cancel Card
+ * Per-app toggle to cancel notifications from system shade after creating island.
+ * Only shown for messaging/social style apps (STANDARD type enabled).
+ */
+@Composable
+fun ShadeCancelCard(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggle(!enabled) }
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.shade_cancel_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(R.string.shade_cancel_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onToggle
+                )
+            }
+            
+            // Warning helper text
+            AnimatedVisibility(
+                visible = enabled,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Text(
+                    text = stringResource(R.string.shade_cancel_warning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
         }
     }
 }

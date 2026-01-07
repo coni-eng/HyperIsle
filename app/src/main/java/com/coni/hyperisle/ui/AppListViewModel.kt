@@ -134,6 +134,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     fun updateAppBlockedTerms(packageName: String, terms: Set<String>) {
         viewModelScope.launch { preferences.setAppBlockedTerms(packageName, terms) }
     }
+
+    // --- PER-APP SHADE CANCEL (v0.9.5) ---
+    fun isShadeCancelFlow(packageName: String) = preferences.isShadeCancelFlow(packageName)
+
+    fun setShadeCancel(packageName: String, enabled: Boolean) {
+        viewModelScope.launch { preferences.setShadeCancel(packageName, enabled) }
+    }
     // ----------------------------------------
 
     // UI State Setters

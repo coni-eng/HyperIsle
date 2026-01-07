@@ -704,6 +704,7 @@ class NotificationReaderService : NotificationListenerService() {
             when (activityResult) {
                 is IslandActivityStateMachine.ActivityResult.Completed -> {
                     postNotification(sbn, bridgeId, groupKey, type.name, data)
+                    attemptShadeCancel(sbn, type) // v0.9.5: Cancel from shade if enabled
                     Haptics.hapticOnIslandSuccess(applicationContext)
                     serviceScope.launch {
                         delay(activityResult.timeoutMs)
@@ -719,6 +720,7 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 else -> {
                     postNotification(sbn, bridgeId, groupKey, type.name, data)
+                    attemptShadeCancel(sbn, type) // v0.9.5: Cancel from shade if enabled
                 }
             }
 
@@ -802,6 +804,111 @@ class NotificationReaderService : NotificationListenerService() {
 
         // Haptic feedback when island is shown
         Haptics.hapticOnIslandShown(applicationContext)
+    }
+
+    /**
+     * v0.9.5: Attempts to cancel the original notification from system shade if:
+     * 1. Per-app shade cancel is enabled for this package
+     * 2. Notification is eligible (not ongoing, not call/alarm/timer/nav, not foreground service, etc.)
+     * 
+     * This is safe-by-default: only cancels if user explicitly enabled for this app.
+     */
+    private suspend fun attemptShadeCancel(sbn: StatusBarNotification, type: NotificationType) {
+        val pkg = sbn.packageName
+        val keyHash = sbn.key.hashCode()
+        
+        // Check if shade cancel is enabled for this app
+        val shadeCancelEnabled = preferences.isShadeCancel(pkg)
+        if (!shadeCancelEnabled) {
+            return // Default OFF - no action
+        }
+        
+        // Eligibility check - must ALL be true to cancel
+        val eligibility = checkShadeCancelEligibility(sbn, type)
+        
+        // Debug logging
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "event=shadeCancelAttempt pkg=$pkg keyHash=$keyHash eligible=${eligibility.first} reason=${eligibility.second}")
+        }
+        
+        if (!eligibility.first) {
+            return // Not eligible - fail safe
+        }
+        
+        // Cancel the notification from system shade
+        try {
+            cancelNotification(sbn.key)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "event=shadeCancelled pkg=$pkg keyHash=$keyHash")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
+        }
+    }
+
+    /**
+     * Checks if a notification is eligible for shade cancellation.
+     * Returns Pair(eligible, reason) where reason explains why not eligible (if false).
+     * 
+     * Eligibility rules (must ALL be true):
+     * - NOT ongoing (FLAG_ONGOING_EVENT)
+     * - NOT call/alarm/timer/navigation category
+     * - NOT foreground service (FLAG_FOREGROUND_SERVICE)
+     * - No full-screen intent
+     * - Not a group summary
+     */
+    private fun checkShadeCancelEligibility(sbn: StatusBarNotification, type: NotificationType): Pair<Boolean, String> {
+        val notification = sbn.notification
+        val flags = notification.flags
+        val category = notification.category
+        
+        // Check ongoing flag
+        if ((flags and Notification.FLAG_ONGOING_EVENT) != 0) {
+            return Pair(false, "ONGOING")
+        }
+        
+        // Check foreground service flag
+        if ((flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
+            return Pair(false, "FOREGROUND_SERVICE")
+        }
+        
+        // Check group summary flag
+        if ((flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+            return Pair(false, "GROUP_SUMMARY")
+        }
+        
+        // Check full-screen intent
+        if (notification.fullScreenIntent != null) {
+            return Pair(false, "FULLSCREEN_INTENT")
+        }
+        
+        // Check notification type (CALL, TIMER, NAVIGATION are never cancelled)
+        if (type == NotificationType.CALL) {
+            return Pair(false, "TYPE_CALL")
+        }
+        if (type == NotificationType.TIMER) {
+            return Pair(false, "TYPE_TIMER")
+        }
+        if (type == NotificationType.NAVIGATION) {
+            return Pair(false, "TYPE_NAVIGATION")
+        }
+        
+        // Check category for alarm-like notifications
+        if (category == Notification.CATEGORY_CALL) {
+            return Pair(false, "CATEGORY_CALL")
+        }
+        if (category == Notification.CATEGORY_ALARM) {
+            return Pair(false, "CATEGORY_ALARM")
+        }
+        if (category == Notification.CATEGORY_NAVIGATION) {
+            return Pair(false, "CATEGORY_NAVIGATION")
+        }
+        if (category == Notification.CATEGORY_STOPWATCH) {
+            return Pair(false, "CATEGORY_STOPWATCH")
+        }
+        
+        // All checks passed - eligible for cancellation
+        return Pair(true, "ELIGIBLE")
     }
 
     private fun isInQuietHours(): Boolean {

@@ -635,4 +635,38 @@ class AppPreferences(context: Context) {
     val showTimeOnIslandsFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.SHOW_TIME_ON_ISLANDS).map { it.toBoolean(false) }
 
     suspend fun setShowTimeOnIslands(enabled: Boolean) = save(SettingsKeys.SHOW_TIME_ON_ISLANDS, enabled.toString())
+
+    // --- PER-APP SHADE CANCEL (v0.9.5) ---
+    // Dynamic keys: shade_cancel_<packageName> -> true/false
+    // Default: false (safe-by-default, no behavior change unless user enables)
+
+    /**
+     * Gets whether shade cancel is enabled for a specific app.
+     * Returns false by default (safe-by-default).
+     */
+    suspend fun isShadeCancel(packageName: String): Boolean {
+        val key = "shade_cancel_$packageName"
+        return dao.getSetting(key).toBoolean(false)
+    }
+
+    /**
+     * Gets shade cancel setting as a Flow for reactive UI.
+     */
+    fun isShadeCancelFlow(packageName: String): Flow<Boolean> {
+        val key = "shade_cancel_$packageName"
+        return dao.getSettingFlow(key).map { it.toBoolean(false) }
+    }
+
+    /**
+     * Sets whether to cancel notifications from system shade for a specific app.
+     * Setting to false removes the key (default behavior).
+     */
+    suspend fun setShadeCancel(packageName: String, enabled: Boolean) {
+        val key = "shade_cancel_$packageName"
+        if (!enabled) {
+            remove(key)
+        } else {
+            save(key, enabled.toString())
+        }
+    }
 }

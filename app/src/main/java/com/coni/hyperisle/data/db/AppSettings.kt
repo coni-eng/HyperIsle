@@ -95,4 +95,7 @@ object SettingsKeys {
 
     // Time visibility on islands (v0.9.4)
     const val SHOW_TIME_ON_ISLANDS = "show_time_on_islands"
+
+    // Per-app shade cancel (v0.9.5)
+    // Dynamic keys: shade_cancel_<packageName> -> true/false
 }
