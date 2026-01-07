@@ -564,6 +564,10 @@
     <string name="debug_action_long_press_info_desc">Eylem tetiklendiğinde yönlendirme türünü göster</string>
     <string name="debug_route_toast">Yönlendirme: %s</string>
 
+    <!-- Timeline Diagnostics (debug builds only) -->
+    <string name="debug_timeline_diagnostics_title">Olay Zaman Çizelgesi</string>
+    <string name="debug_timeline_diagnostics_desc">Ada yaşam döngüsü olaylarını izle (göster, kapat, arama durumları)</string>
+
     <!-- Priority Diagnostics (debug builds only) -->
     <string name="debug_priority_diagnostics_title">Öncelik Tanılama</string>
     <string name="debug_priority_diagnostics_desc">Akıllı Öncelik kararlarını izle (patlama, kısıtlama)</string>

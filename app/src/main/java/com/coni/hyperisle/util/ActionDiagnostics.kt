@@ -182,6 +182,10 @@ object ActionDiagnostics {
         sb.appendLine(summary(timeRangeMs))
         sb.appendLine()
         sb.appendLine("---")
+        sb.appendLine()
+        sb.appendLine(DebugTimeline.summary(timeRangeMs))
+        sb.appendLine()
+        sb.appendLine("---")
         sb.appendLine("No notification content included.")
         return sb.toString()
     }
@@ -227,6 +231,27 @@ object ActionDiagnostics {
         }
         json.put("diagnostic_entries", entries)
         json.put("entry_count", filteredEntries.size)
+        
+        // Include timeline data
+        val timelineEntries = DebugTimeline.getEntriesFiltered(timeRangeMs)
+        val timeline = JSONArray()
+        timelineEntries.forEach { entry ->
+            val entryObj = JSONObject()
+            entryObj.put("ts", entry.wallClockMs)
+            entryObj.put("event", entry.eventName)
+            entry.pkg?.let { entryObj.put("pkg", it) }
+            entry.keyHash?.let { entryObj.put("keyHash", it) }
+            if (entry.fields.isNotEmpty()) {
+                val fieldsObj = JSONObject()
+                entry.fields.forEach { (key, value) ->
+                    fieldsObj.put(key, value)
+                }
+                entryObj.put("fields", fieldsObj)
+            }
+            timeline.put(entryObj)
+        }
+        json.put("timeline", timeline)
+        json.put("timeline_count", timelineEntries.size)
         
         json.put("privacy_note", "No notification content included.")
         

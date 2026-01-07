@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.util.ActionDiagnostics
+import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.DiagnosticsFileHelper
 import com.coni.hyperisle.util.PriorityDiagnostics
 import com.coni.hyperisle.data.AppPreferences
@@ -93,6 +94,7 @@ fun SmartFeaturesScreen(
     val actionDiagnosticsEnabled by preferences.actionDiagnosticsEnabledFlow.collectAsState(initial = false)
     val actionLongPressInfoEnabled by preferences.actionLongPressInfoEnabledFlow.collectAsState(initial = false)
     val priorityDiagnosticsEnabled by preferences.priorityDiagnosticsEnabledFlow.collectAsState(initial = false)
+    val timelineDiagnosticsEnabled by preferences.timelineDiagnosticsEnabledFlow.collectAsState(initial = false)
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val diagnosticsCopiedMessage = stringResource(R.string.debug_diagnostics_copied)
@@ -777,6 +779,15 @@ fun SmartFeaturesScreen(
                             subtitle = stringResource(R.string.debug_action_long_press_info_desc),
                             checked = actionLongPressInfoEnabled,
                             onCheckedChange = { scope.launch { preferences.setActionLongPressInfoEnabled(it) } }
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        SettingsToggleRow(
+                            title = stringResource(R.string.debug_timeline_diagnostics_title),
+                            subtitle = stringResource(R.string.debug_timeline_diagnostics_desc),
+                            checked = timelineDiagnosticsEnabled,
+                            onCheckedChange = { scope.launch { preferences.setTimelineDiagnosticsEnabled(it) } }
                         )
 
                         Spacer(Modifier.height(12.dp))

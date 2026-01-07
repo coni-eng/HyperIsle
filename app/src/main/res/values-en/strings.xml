@@ -565,6 +565,10 @@
     <string name="debug_action_long_press_info_desc">Show route type when action is triggered</string>
     <string name="debug_route_toast">Route: %s</string>
 
+    <!-- Timeline Diagnostics (debug builds only) -->
+    <string name="debug_timeline_diagnostics_title">Event Timeline</string>
+    <string name="debug_timeline_diagnostics_desc">Track island lifecycle events (show, dismiss, call states)</string>
+
     <!-- Priority Diagnostics (debug builds only) -->
     <string name="debug_priority_diagnostics_title">Priority Diagnostics</string>
     <string name="debug_priority_diagnostics_desc">Track Smart Priority decisions (burst, throttle)</string>
