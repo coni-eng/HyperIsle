@@ -588,6 +588,7 @@
     <string name="profile_strict">Strict</string>
 
     <!-- Time Visibility on Islands (v0.9.4) -->
+    <string name="profile_strict_hint">Reduce noise aggresively for this app</string>
     <string name="show_time_on_islands_title">Show Time on Islands</string>
     <string name="show_time_on_islands_desc">Display relative time label on notification islands</string>
 
@@ -605,7 +606,16 @@
     <string name="debug_share_priority_diagnostics">Share Priority Diagnostics</string>
 
     <!-- Per-App Shade Cancel (v0.9.5) -->
+    <string name="debug_file_save_failed">File save failed</string>
     <string name="shade_cancel_title">Hide from System Shade</string>
     <string name="shade_cancel_desc">Remove notification from system shade after creating island</string>
     <string name="shade_cancel_warning">This removes the notification from the system shade. You can still access it from the island.</string>
+    <string name="debug_format_plain">Plain Text</string>
+    <string name="debug_format_json">JSON</string>
+    <string name="debug_file_saved">File Saved: %s</string>
+    <string name="debug_save_diagnostics">Save As File</string>
+    <string name="debug_save_priority_diagnostics">Save As File</string>
+    <string name="debug_export_format_label">Extract Format</string>
+    <string name="profile_normal_hint">Balanced behavior</string>
+    <string name="profile_lenient_hint">Allow more notifications from this app</string>
 </resources>
