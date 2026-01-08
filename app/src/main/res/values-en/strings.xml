@@ -141,6 +141,7 @@
     <string name="fallback_maps">Maps</string>
     <string name="fallback_timer">Timer</string>
     <string name="fallback_stopwatch">Stopwatch</string>
+    <string name="fallback_new_notification">New notification</string>
 
     <string name="whats_new_title">What\'s New in %s</string>
     <string name="awesome">Awesome!</string>

@@ -140,6 +140,7 @@
     <string name="fallback_maps">Haritalar</string>
     <string name="fallback_timer">Zamanlayıcı</string>
     <string name="fallback_stopwatch">Kronometre</string>
+    <string name="fallback_new_notification">Yeni bildirim</string>
 
     <string name="whats_new_title">%s Sürümündeki Yenilikler</string>
     <string name="awesome">Harika!</string>

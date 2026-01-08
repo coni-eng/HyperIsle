@@ -53,6 +53,8 @@ import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.models.ShadeCancelMode
 import com.coni.hyperisle.util.NotificationChannels
 import com.coni.hyperisle.util.IslandStyleContract
+import com.coni.hyperisle.service.IslandDecisionEngine
+import com.coni.hyperisle.service.IslandKeyManager
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -194,6 +196,7 @@ class NotificationReaderService : NotificationListenerService() {
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+        IslandKeyManager.clearAll()
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -837,200 +840,52 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     /**
-     * v0.9.5: Attempts to cancel the original notification from system shade if:
-     * 1. Per-app shade cancel is enabled for this package
-     * 2. Notification is eligible (not ongoing, not call/alarm/timer/nav, not foreground service, etc.)
+     * v0.9.9: Decoupled shade cancel using IslandDecisionEngine.
      * 
-     * v0.9.7: Also handles calls-only-island for call notifications.
-     * v0.9.8: Added safety gate - never cancel if Island channel is disabled.
+     * Contract B (Shade cancel): If hide-system-notification is enabled for that app, 
+     * attempt to cancel the system notification ONLY when it is safe/eligible. 
+     * If not eligible, do NOT cancel system notification, but Island was already shown.
      * 
-     * This is safe-by-default: only cancels if user explicitly enabled for this app.
+     * Contract C (Safety gate): If HyperIsle notifications are disabled or the Island 
+     * channel importance is NONE, never cancel the system notification.
+     * 
+     * This method is called AFTER the Island has been shown (Contract A fulfilled).
      */
     private suspend fun attemptShadeCancel(sbn: StatusBarNotification, type: NotificationType, isOngoingCall: Boolean = false) {
         val pkg = sbn.packageName
         val keyHash = sbn.key.hashCode()
         
-        // SAFETY GATE: Never cancel system notification if Island channel is disabled
-        // This prevents notifications from disappearing entirely
-        if (!NotificationChannels.isSafeToCancel(applicationContext)) {
-            val reason = NotificationChannels.getUnsafeReason(applicationContext)
-            if (BuildConfig.DEBUG) {
-                Log.d(TAG, "event=shadeCancelBlocked pkg=$pkg keyHash=$keyHash reason=$reason")
-            }
-            return
+        // For call notifications, check calls-only-island setting
+        val shadeCancelEnabled = if (type == NotificationType.CALL) {
+            preferences.isCallsOnlyIslandEnabled()
+        } else {
+            preferences.isShadeCancel(pkg)
         }
         
-        // v0.9.7: Check calls-only-island for call notifications
-        if (type == NotificationType.CALL) {
-            val callsOnlyIslandEnabled = preferences.isCallsOnlyIslandEnabled()
-            if (callsOnlyIslandEnabled) {
-                val callEligibility = checkCallShadeCancelEligibility(sbn, isOngoingCall)
-                
-                if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "event=callShadeCancelAttempt pkg=$pkg keyHash=$keyHash eligible=${callEligibility.first} reason=${callEligibility.second} isOngoingCall=$isOngoingCall")
-                }
-                
-                if (callEligibility.first) {
-                    try {
-                        cancelNotification(sbn.key)
-                        if (BuildConfig.DEBUG) {
-                            Log.d(TAG, "event=callShadeCancelled pkg=$pkg keyHash=$keyHash")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to cancel call notification from shade: ${e.message}")
-                    }
-                }
-            }
-            return // Call notifications are handled separately, don't continue to per-app check
-        }
-        
-        // Check if shade cancel is enabled for this app
-        val shadeCancelEnabled = preferences.isShadeCancel(pkg)
-        if (!shadeCancelEnabled) {
-            return // Default OFF - no action
-        }
-        
-        // Get shade cancel mode for this app (SAFE or AGGRESSIVE)
         val shadeCancelMode = preferences.getShadeCancelMode(pkg)
         
-        // Eligibility check - must ALL be true to cancel
-        val eligibility = checkShadeCancelEligibility(sbn, type, shadeCancelMode)
+        // Use IslandDecisionEngine for decoupled decision
+        val decision = IslandDecisionEngine.computeDecision(
+            context = applicationContext,
+            sbn = sbn,
+            type = type,
+            isAppAllowedForIsland = true, // Already verified by caller
+            shadeCancelEnabled = shadeCancelEnabled,
+            shadeCancelMode = shadeCancelMode,
+            isOngoingCall = isOngoingCall
+        )
         
-        // Debug logging
-        if (BuildConfig.DEBUG) {
-            Log.d(TAG, "event=shadeCancelAttempt pkg=$pkg keyHash=$keyHash eligible=${eligibility.first} reason=${eligibility.second} mode=$shadeCancelMode")
-        }
-        
-        if (!eligibility.first) {
-            return // Not eligible - fail safe
-        }
-        
-        // Cancel the notification from system shade
-        try {
-            cancelNotification(sbn.key)
-            if (BuildConfig.DEBUG) {
-                Log.d(TAG, "event=shadeCancelled pkg=$pkg keyHash=$keyHash")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
-        }
-    }
-    
-    /**
-     * v0.9.7: Checks if a call notification is eligible for shade cancellation.
-     * Returns Pair(eligible, reason) where reason explains why not eligible (if false).
-     * 
-     * Eligibility rules for calls-only-island (must ALL be true):
-     * - isOngoingCall == true (not incoming)
-     * - isOngoing flag set (FLAG_ONGOING_EVENT)
-     * - No full-screen intent
-     * - Not a group summary
-     */
-    private fun checkCallShadeCancelEligibility(sbn: StatusBarNotification, isOngoingCall: Boolean): Pair<Boolean, String> {
-        val notification = sbn.notification
-        val flags = notification.flags
-        
-        // Must be an ongoing call (not incoming)
-        if (!isOngoingCall) {
-            return Pair(false, "NOT_ONGOING_CALL")
-        }
-        
-        // Must have ongoing flag set
-        if ((flags and Notification.FLAG_ONGOING_EVENT) == 0) {
-            return Pair(false, "NO_ONGOING_FLAG")
-        }
-        
-        // Check group summary flag
-        if ((flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
-            return Pair(false, "GROUP_SUMMARY")
-        }
-        
-        // Check full-screen intent - never hide incoming/full-screen calls
-        if (notification.fullScreenIntent != null) {
-            return Pair(false, "FULLSCREEN_INTENT")
-        }
-        
-        // All checks passed - eligible for cancellation
-        return Pair(true, "ELIGIBLE")
-    }
-
-    /**
-     * Checks if a notification is eligible for shade cancellation.
-     * Returns Pair(eligible, reason) where reason explains why not eligible (if false).
-     * 
-     * Eligibility rules depend on ShadeCancelMode:
-     * - SAFE (default): Do NOT cancel foreground service or ongoing notifications
-     * - AGGRESSIVE: Allow cancelling even FOREGROUND_SERVICE notifications
-     * 
-     * Common rules (both modes):
-     * - NOT call/alarm/timer/navigation category
-     * - No full-screen intent
-     * - Not a group summary
-     */
-    private fun checkShadeCancelEligibility(sbn: StatusBarNotification, type: NotificationType, mode: ShadeCancelMode = ShadeCancelMode.SAFE): Pair<Boolean, String> {
-        val notification = sbn.notification
-        val flags = notification.flags
-        val category = notification.category
-        
-        // Check group summary flag (always blocked)
-        if ((flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
-            return Pair(false, "GROUP_SUMMARY")
-        }
-        
-        // Check full-screen intent (always blocked)
-        if (notification.fullScreenIntent != null) {
-            return Pair(false, "FULLSCREEN_INTENT")
-        }
-        
-        // Check notification type (CALL, TIMER, NAVIGATION are never cancelled)
-        if (type == NotificationType.CALL) {
-            return Pair(false, "TYPE_CALL")
-        }
-        if (type == NotificationType.TIMER) {
-            return Pair(false, "TYPE_TIMER")
-        }
-        if (type == NotificationType.NAVIGATION) {
-            return Pair(false, "TYPE_NAVIGATION")
-        }
-        
-        // Check category for alarm-like notifications (always blocked)
-        if (category == Notification.CATEGORY_CALL) {
-            return Pair(false, "CATEGORY_CALL")
-        }
-        if (category == Notification.CATEGORY_ALARM) {
-            return Pair(false, "CATEGORY_ALARM")
-        }
-        if (category == Notification.CATEGORY_NAVIGATION) {
-            return Pair(false, "CATEGORY_NAVIGATION")
-        }
-        if (category == Notification.CATEGORY_STOPWATCH) {
-            return Pair(false, "CATEGORY_STOPWATCH")
-        }
-        
-        // Mode-dependent checks
-        when (mode) {
-            ShadeCancelMode.SAFE -> {
-                // SAFE mode: Block ongoing and foreground service notifications
-                if ((flags and Notification.FLAG_ONGOING_EVENT) != 0) {
-                    return Pair(false, "ONGOING_SAFE_MODE")
+        // Only cancel if all conditions are met
+        if (decision.cancelShade) {
+            try {
+                cancelNotification(sbn.key)
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_NOTIF", "event=shadeCancelled pkg=$pkg keyHash=$keyHash")
                 }
-                if ((flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
-                    return Pair(false, "FOREGROUND_SERVICE_SAFE_MODE")
-                }
-            }
-            ShadeCancelMode.AGGRESSIVE -> {
-                // AGGRESSIVE mode: Allow foreground service, but still block ongoing non-FGS
-                // Only block if it's ongoing AND not a foreground service
-                val isOngoing = (flags and Notification.FLAG_ONGOING_EVENT) != 0
-                val isForegroundService = (flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
-                if (isOngoing && !isForegroundService) {
-                    return Pair(false, "ONGOING_NON_FGS")
-                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
             }
         }
-        
-        // All checks passed - eligible for cancellation
-        return Pair(true, "ELIGIBLE")
     }
 
     private fun isInQuietHours(): Boolean {

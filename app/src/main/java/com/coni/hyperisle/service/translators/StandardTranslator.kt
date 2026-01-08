@@ -23,28 +23,43 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
 
     fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig, notificationId: Int = 0, styleResult: IslandStyleContract.StyleResult? = null): HyperIslandData {
         val extras = sbn.notification.extras
-        val title = extras.getString(Notification.EXTRA_TITLE) ?: sbn.packageName
-        val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
+        val rawTitle = extras.getString(Notification.EXTRA_TITLE)
+        val rawText = extras.getString(Notification.EXTRA_TEXT) ?: ""
         val template = extras.getString(Notification.EXTRA_TEMPLATE) ?: ""
         val subText = extras.getString(Notification.EXTRA_SUB_TEXT) ?: ""
 
         val isMedia = template.contains("MediaStyle")
         val isCall = sbn.notification.category == Notification.CATEGORY_CALL
 
+        // --- UI FALLBACK GUARANTEE (Contract A) ---
+        // If classification fails (no title/subtitle), render minimal pill: app icon + app name + "New notification"
+        // This ensures Island is ALWAYS shown for allowed apps, never "nothing shown"
+        val appName = try {
+            context.packageManager.getApplicationLabel(
+                context.packageManager.getApplicationInfo(sbn.packageName, 0)
+            ).toString()
+        } catch (e: Exception) {
+            sbn.packageName.substringAfterLast('.')
+        }
+        
+        val title = rawTitle ?: appName
+        val needsFallback = rawTitle.isNullOrEmpty() && rawText.isEmpty() && subText.isEmpty()
+        
         val displayTitle = title
         val displayContent = when {
+            needsFallback -> context.getString(R.string.fallback_new_notification)
             isMedia -> {
                 // For media, prefer actual metadata over static "Now Playing"
                 when {
-                    text.isNotEmpty() && subText.isNotEmpty() -> "$text • $subText"
-                    text.isNotEmpty() -> text
+                    rawText.isNotEmpty() && subText.isNotEmpty() -> "$rawText • $subText"
+                    rawText.isNotEmpty() -> rawText
                     subText.isNotEmpty() -> subText
                     else -> context.getString(R.string.status_now_playing)
                 }
             }
-            isCall && subText.isNotEmpty() -> "$text • $subText"
-            subText.isNotEmpty() -> if (text.isNotEmpty()) "$text • $subText" else subText
-            else -> text
+            isCall && subText.isNotEmpty() -> "$rawText • $subText"
+            subText.isNotEmpty() -> if (rawText.isNotEmpty()) "$rawText • $subText" else subText
+            else -> rawText
         }
 
         val builder = HyperIslandNotification.Builder(context, "bridge_${sbn.packageName}", displayTitle)
