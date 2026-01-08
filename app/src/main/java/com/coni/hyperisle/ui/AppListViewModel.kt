@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.models.NotificationType
+import com.coni.hyperisle.models.ShadeCancelMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -148,6 +149,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
 
     fun setShadeCancel(packageName: String, enabled: Boolean) {
         viewModelScope.launch { preferences.setShadeCancel(packageName, enabled) }
+    }
+
+    // --- PER-APP SHADE CANCEL MODE (v0.9.8) ---
+    fun getShadeCancelModeFlow(packageName: String) = preferences.getShadeCancelModeFlow(packageName)
+
+    fun setShadeCancelMode(packageName: String, mode: ShadeCancelMode) {
+        viewModelScope.launch { preferences.setShadeCancelMode(packageName, mode) }
     }
     // ----------------------------------------
 

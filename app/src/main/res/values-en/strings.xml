@@ -609,9 +609,12 @@
 
     <!-- Per-App Shade Cancel (v0.9.5) -->
     <string name="debug_file_save_failed">File save failed</string>
-    <string name="shade_cancel_title">Hide from System Shade</string>
-    <string name="shade_cancel_desc">Remove notification from system shade after creating island</string>
+    <string name="shade_cancel_title">Hide system notification (island priority)</string>
+    <string name="shade_cancel_desc">When enabled, notifications are shown on the island. Hiding from system shade only applies when safe. In some cases (e.g. foreground service/persistent notifications, group summaries) Android/MIUI prevents this; the notification will remain visible on the phone.</string>
     <string name="shade_cancel_warning">This removes the notification from the system shade. You can still access it from the island.</string>
+    <!-- Info tooltip for why not hidden -->
+    <string name="shade_cancel_info_title">Why is it sometimes not hidden?</string>
+    <string name="shade_cancel_info_body">Android prevents removal of certain notification types (persistent/foreground service/group). The island will still be shown; only the phone notification may remain.</string>
     <string name="debug_format_plain">Plain Text</string>
     <string name="debug_format_json">JSON</string>
     <string name="debug_file_saved">File Saved: %s</string>
@@ -642,11 +645,13 @@
     <string name="notification_management_apps_screen_title">Apps to Hide</string>
     <string name="notification_management_apps_empty">No active apps</string>
     <string name="notification_management_apps_empty_desc">Enable apps from the Library first</string>
-    <string name="notification_management_warning_title">Notifications Disabled</string>
-    <string name="notification_management_warning_message">HyperIsle notifications or Island channel is disabled at system level. Notifications may disappear because the island cannot be shown.</string>
+    <string name="notification_management_warning_title">Warning</string>
+    <string name="notification_management_warning_message">HyperIsle notifications are disabled. To prevent notifications from being lost, system notification hiding is disabled; notifications will remain visible on the phone.</string>
     <string name="notification_management_warning_button">Open Notification Settings</string>
     <string name="shade_cancel_mode_safe">Safe</string>
     <string name="shade_cancel_mode_aggressive">Aggressive</string>
-    <string name="shade_cancel_mode_desc_safe">Do not hide foreground service and critical notifications</string>
-    <string name="shade_cancel_mode_desc_aggressive">Hide all including foreground service notifications</string>
+    <string name="shade_cancel_mode_desc_safe">Does not attempt to remove persistent/foreground service notifications (recommended).</string>
+    <string name="shade_cancel_mode_desc_aggressive">Attempts to hide more notifications. May cause unexpected behavior in some apps.</string>
+    <!-- Call notification note -->
+    <string name="notification_management_calls_miui_note">Some system calls may not be hidden due to Android/MIUI restrictions.</string>
 </resources>

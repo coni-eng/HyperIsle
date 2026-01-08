@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Button
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.models.NotificationType
+import com.coni.hyperisle.models.ShadeCancelMode
 import com.coni.hyperisle.ui.AppInfo
 import com.coni.hyperisle.ui.AppListViewModel
 
@@ -176,14 +178,17 @@ fun AppConfigBottomSheet(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- CARD 4: SHADE CANCEL (v0.9.5) ---
+                // --- CARD 4: SHADE CANCEL (v0.9.5, enhanced v0.9.9) ---
                 // Only show for messaging/social style apps (STANDARD type enabled)
                 if (typeConfig.contains("STANDARD")) {
                     val shadeCancelEnabled by viewModel.isShadeCancelFlow(app.packageName).collectAsState(initial = false)
+                    val shadeCancelMode by viewModel.getShadeCancelModeFlow(app.packageName).collectAsState(initial = ShadeCancelMode.SAFE)
                     
                     ShadeCancelCard(
                         enabled = shadeCancelEnabled,
-                        onToggle = { viewModel.setShadeCancel(app.packageName, it) }
+                        onToggle = { viewModel.setShadeCancel(app.packageName, it) },
+                        selectedMode = shadeCancelMode,
+                        onModeChange = { viewModel.setShadeCancelMode(app.packageName, it) }
                     )
                 }
 
@@ -362,18 +367,25 @@ fun AppearanceSettingsContent(
  * v0.9.5: Shade Cancel Card
  * Per-app toggle to cancel notifications from system shade after creating island.
  * Only shown for messaging/social style apps (STANDARD type enabled).
+ * 
+ * v0.9.9: Enhanced with SAFE/AGGRESSIVE mode selector and info tooltip.
  */
 @Composable
 fun ShadeCancelCard(
     enabled: Boolean,
-    onToggle: (Boolean) -> Unit
+    onToggle: (Boolean) -> Unit,
+    selectedMode: ShadeCancelMode = ShadeCancelMode.SAFE,
+    onModeChange: (ShadeCancelMode) -> Unit = {}
 ) {
+    var showInfoDialog by remember { mutableStateOf(false) }
+    
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp)) {
+            // Main toggle row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -398,19 +410,108 @@ fun ShadeCancelCard(
                 )
             }
             
-            // Warning helper text
+            // Info tooltip link
+            Row(
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable { showInfoDialog = true },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.shade_cancel_info_title),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            // Expanded content when enabled: SAFE/AGGRESSIVE mode selector
             AnimatedVisibility(
                 visible = enabled,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
-                Text(
-                    text = stringResource(R.string.shade_cancel_warning),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    
+                    // SAFE mode option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onModeChange(ShadeCancelMode.SAFE) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = selectedMode == ShadeCancelMode.SAFE,
+                            onClick = { onModeChange(ShadeCancelMode.SAFE) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.shade_cancel_mode_safe),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = stringResource(R.string.shade_cancel_mode_desc_safe),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                    
+                    // AGGRESSIVE mode option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onModeChange(ShadeCancelMode.AGGRESSIVE) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = selectedMode == ShadeCancelMode.AGGRESSIVE,
+                            onClick = { onModeChange(ShadeCancelMode.AGGRESSIVE) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.shade_cancel_mode_aggressive),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = stringResource(R.string.shade_cancel_mode_desc_aggressive),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+    
+    // Info dialog
+    if (showInfoDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text(stringResource(R.string.shade_cancel_info_title)) },
+            text = { Text(stringResource(R.string.shade_cancel_info_body)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showInfoDialog = false }) {
+                    Text(stringResource(R.string.done))
+                }
+            }
+        )
     }
 }

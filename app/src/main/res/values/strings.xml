@@ -621,9 +621,12 @@
     <string name="debug_file_save_failed">Dosya kaydetme başarısız</string>
 
     <!-- Per-App Shade Cancel (v0.9.5) -->
-    <string name="shade_cancel_title">Sistem Panelinden Gizle</string>
-    <string name="shade_cancel_desc">Adaya dönüştürüldükten sonra bildirimi sistem panelinden kaldır</string>
+    <string name="shade_cancel_title">Sistem bildirimini gizle (ada öncelikli)</string>
+    <string name="shade_cancel_desc">Bu açıkken bildirim adada gösterilir. Sistem bildirim perdesinden gizleme yalnızca güvenliyse uygulanır. Bazı durumlarda (örn. ön planda servis/kalıcı bildirimler, grup özetleri) Android/MIUI buna izin vermez; bu durumda bildirim telefonda görünmeye devam eder.</string>
     <string name="shade_cancel_warning">Bu, bildirimi sistem panelinden kaldırır. Adadan hala erişebilirsiniz.</string>
+    <!-- Info tooltip for why not hidden -->
+    <string name="shade_cancel_info_title">Neden bazen gizlenmiyor?</string>
+    <string name="shade_cancel_info_body">Android, bazı bildirim türlerinin kaldırılmasını engeller (kalıcı/foreground service/grup). Ada yine gösterilir; sadece telefon bildirimi kalabilir.</string>
 
     <!-- Permission Guidance System (v0.9.6) -->
     <string name="perm_overlay_title">Diğer Uygulamaların Üzerinde Görüntüle</string>
@@ -658,11 +661,13 @@
     <string name="notification_management_apps_screen_title">Gizlenecek Uygulamalar</string>
     <string name="notification_management_apps_empty">Aktif uygulama yok</string>
     <string name="notification_management_apps_empty_desc">Önce Kütüphane\'den uygulamaları etkinleştirin</string>
-    <string name="notification_management_warning_title">Bildirimler Devre Dışı</string>
-    <string name="notification_management_warning_message">HyperIsle bildirimleri veya Ada kanalı sistem düzeyinde devre dışı. Bildirimler kaybolabilir çünkü ada gösterilemiyor.</string>
+    <string name="notification_management_warning_title">Uyarı</string>
+    <string name="notification_management_warning_message">HyperIsle bildirimleri kapalı. Bildirimler kaybolmasın diye sistem bildirimlerini gizleme devre dışı kalır; bildirimler telefonda görünür.</string>
     <string name="notification_management_warning_button">Bildirim Ayarlarını Aç</string>
     <string name="shade_cancel_mode_safe">Güvenli</string>
     <string name="shade_cancel_mode_aggressive">Agresif</string>
-    <string name="shade_cancel_mode_desc_safe">Ön plan servisi ve kritik bildirimleri gizleme</string>
-    <string name="shade_cancel_mode_desc_aggressive">Ön plan servisi bildirimleri dahil tümünü gizle</string>
+    <string name="shade_cancel_mode_desc_safe">Kalıcı/ön planda servis bildirimlerini kaldırmaya çalışmaz (önerilen).</string>
+    <string name="shade_cancel_mode_desc_aggressive">Daha fazla bildirimi gizlemeyi dener. Bazı uygulamalarda beklenmedik davranış olabilir.</string>
+    <!-- Call notification note -->
+    <string name="notification_management_calls_miui_note">Bazı sistem aramalarında Android/MIUI kısıtları nedeniyle telefon bildirimi gizlenemeyebilir.</string>
 </resources>
