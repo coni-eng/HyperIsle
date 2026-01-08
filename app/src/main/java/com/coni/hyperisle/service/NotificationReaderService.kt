@@ -353,6 +353,12 @@ class NotificationReaderService : NotificationListenerService() {
         }
 
         if (now - lastTime < UPDATE_INTERVAL_MS) return true
+
+        lastUpdateMap[key] = now
+        return false
+    }
+
+    private fun isJunkNotification(sbn: StatusBarNotification, ctx: ProcCtx? = null): Boolean {
         val notification = sbn.notification
         val extras = notification.extras
         val pkg = sbn.packageName
@@ -378,8 +384,7 @@ class NotificationReaderService : NotificationListenerService() {
             return true
         }
 
-        // *** NEW: GLOBAL BLOCKLIST CHECK ***
-        // If title or text contains any blocked word, ignore it.
+        // *** GLOBAL BLOCKLIST CHECK ***
         if (globalBlockedTerms.isNotEmpty()) {
             val content = "$title $text"
             val matchedTerm = globalBlockedTerms.firstOrNull { term -> content.contains(term, ignoreCase = true) }
@@ -430,10 +435,10 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    private suspend fun processAndPost(sbn: StatusBarNotification) {
+    private suspend fun processAndPost(sbn: StatusBarNotification, ctx: ProcCtx) {
         try {
-            // ...
             val extras = sbn.notification.extras
+            val rid = ctx.rid
 
             // Timeline: onNotificationPosted event (PII-safe)
             val isOngoingFlag = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
@@ -733,6 +738,13 @@ class NotificationReaderService : NotificationListenerService() {
             // Log style selection (deterministic, logged each time an island is shown)
             IslandStyleContract.logStyleSelected(sbn, styleResult)
 
+            // STEP: TRANSLATOR_PICK - Log which translator will be used
+            DebugLog.event("TRANSLATOR_PICK", rid, "TRANSLATE", reason = type.name, kv = mapOf(
+                "pkg" to sbn.packageName,
+                "isOngoingCall" to isOngoingCall,
+                "actionCount" to actionCount
+            ))
+
             val data: HyperIslandData = when (type) {
                 NotificationType.CALL -> {
                     // Calculate duration for ongoing calls
@@ -764,6 +776,16 @@ class NotificationReaderService : NotificationListenerService() {
                 NotificationType.PROGRESS -> progressTranslator.translate(sbn, title, picKey, finalConfig)
                 else -> standardTranslator.translate(sbn, picKey, finalConfig, bridgeId, styleResult)
             }
+
+            // STEP: TRANSLATOR_RESULT - Log translation output summary
+            DebugLog.event("TRANSLATOR_RESULT", rid, "TRANSLATE", kv = DebugLog.lazyKv {
+                mapOf(
+                    "islandType" to type.name,
+                    "jsonLength" to data.jsonParam.length,
+                    "jsonHash" to data.jsonParam.hashCode().toString(16).takeLast(8),
+                    "pkg" to sbn.packageName
+                )
+            })
 
             val newContentHash = data.jsonParam.hashCode()
             val previousIsland = activeIslands[groupKey]
@@ -867,6 +889,14 @@ class NotificationReaderService : NotificationListenerService() {
 
         NotificationManagerCompat.from(this).notify(bridgeId, notification)
         activeTranslations[groupKey] = bridgeId
+
+        // STEP: MIUI_POST_OK - Successfully posted island notification
+        DebugLog.event("MIUI_POST_OK", "N/A", "POST", kv = mapOf(
+            "pkg" to sbn.packageName,
+            "bridgeId" to bridgeId,
+            "type" to notificationType,
+            "jsonLength" to data.jsonParam.length
+        ))
 
         // Record shown for PriorityEngine burst tracking
         PriorityEngine.recordShown(sbn.packageName, notificationType)

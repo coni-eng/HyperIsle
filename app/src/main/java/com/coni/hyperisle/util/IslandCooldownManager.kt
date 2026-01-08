@@ -3,6 +3,7 @@ package com.coni.hyperisle.util
 import android.app.PendingIntent
 import android.content.Context
 import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.debug.DebugLog
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
@@ -38,6 +39,11 @@ object IslandCooldownManager {
     fun recordDismissal(packageName: String, notificationType: String) {
         val key = buildKey(packageName, notificationType)
         cooldownMap[key] = System.currentTimeMillis()
+        
+        DebugLog.event("COOLDOWN_START", "N/A", "COOLDOWN", kv = mapOf(
+            "pkg" to packageName,
+            "type" to notificationType
+        ))
     }
 
     /**
@@ -58,11 +64,21 @@ object IslandCooldownManager {
         val now = System.currentTimeMillis()
         
         if (now - dismissTime < cooldownMs) {
+            val remainingMs = cooldownMs - (now - dismissTime)
+            DebugLog.event("COOLDOWN_CHECK", "N/A", "COOLDOWN", reason = "IN_COOLDOWN", kv = mapOf(
+                "pkg" to packageName,
+                "type" to notificationType,
+                "remainingMs" to remainingMs
+            ))
             return true
         }
         
         // Cooldown expired, clean up
         cooldownMap.remove(key)
+        DebugLog.event("COOLDOWN_CHECK", "N/A", "COOLDOWN", reason = "EXPIRED", kv = mapOf(
+            "pkg" to packageName,
+            "type" to notificationType
+        ))
         return false
     }
 

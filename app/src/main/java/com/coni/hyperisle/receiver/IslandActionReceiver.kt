@@ -10,6 +10,7 @@ import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.MainActivity
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.debug.DebugLog
 import com.coni.hyperisle.util.ActionDiagnostics
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.FocusActionHelper
@@ -53,6 +54,15 @@ class IslandActionReceiver : BroadcastReceiver() {
         }
         
         Log.d(TAG, "Received focus action")
+
+        // STEP: ACTION_RECEIVED - Log action receipt
+        val actionType = when {
+            FocusActionHelper.isOptionsAction(action) -> "OPTIONS"
+            FocusActionHelper.isDismissAction(action) -> "DISMISS"
+            FocusActionHelper.isTapOpenAction(action) -> "TAP_OPEN"
+            else -> "UNKNOWN"
+        }
+        DebugLog.event("ACTION_RECEIVED", "N/A", "ACTION", reason = actionType)
 
         // Parse notification ID using centralized helper
         val notificationId = FocusActionHelper.parseNotificationId(action)
@@ -235,12 +245,21 @@ class IslandActionReceiver : BroadcastReceiver() {
         // Telemetry: ISLAND_ACTION_OK or ISLAND_ACTION_FAIL
         if (actionSuccess) {
             HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_OK", mapOf("action" to "DISMISS"))
+            DebugLog.event("ACTION_EXEC_OK", "N/A", "ACTION", reason = "DISMISS", kv = mapOf(
+                "pkg" to targetPackage,
+                "type" to targetType,
+                "bridgeId" to targetId
+            ))
         } else {
             HiLog.e(HiLog.TAG_INPUT, "ISLAND_ACTION_FAIL", mapOf(
                 "action" to "DISMISS",
                 "reason" to failReason,
                 "exception" to failException?.javaClass?.simpleName
             ), failException)
+            DebugLog.event("ACTION_EXEC_FAIL", "N/A", "ACTION", reason = "DISMISS", kv = mapOf(
+                "pkg" to targetPackage,
+                "failReason" to failReason
+            ))
         }
     }
 
@@ -354,12 +373,20 @@ class IslandActionReceiver : BroadcastReceiver() {
         // Telemetry: ISLAND_ACTION_OK or ISLAND_ACTION_FAIL
         if (actionSuccess) {
             HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_OK", mapOf("action" to "TAP_OPEN"))
+            DebugLog.event("ACTION_EXEC_OK", "N/A", "ACTION", reason = "TAP_OPEN", kv = mapOf(
+                "pkg" to targetPackage,
+                "bridgeId" to targetId
+            ))
         } else {
             HiLog.e(HiLog.TAG_INPUT, "ISLAND_ACTION_FAIL", mapOf(
                 "action" to "TAP_OPEN",
                 "reason" to failReason,
                 "exception" to failException?.javaClass?.simpleName
             ), failException)
+            DebugLog.event("ACTION_EXEC_FAIL", "N/A", "ACTION", reason = "TAP_OPEN", kv = mapOf(
+                "pkg" to targetPackage,
+                "failReason" to failReason
+            ))
         }
     }
 
