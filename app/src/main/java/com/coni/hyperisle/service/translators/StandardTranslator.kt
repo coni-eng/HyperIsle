@@ -11,6 +11,7 @@ import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.util.AccentColorResolver
 import com.coni.hyperisle.util.FocusActionHelper
+import com.coni.hyperisle.util.IslandStyleContract
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
@@ -20,7 +21,7 @@ import io.github.d4viddf.hyperisland_kit.models.TextInfo
 
 class StandardTranslator(context: Context) : BaseTranslator(context) {
 
-    fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig, notificationId: Int = 0): HyperIslandData {
+    fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig, notificationId: Int = 0, styleResult: IslandStyleContract.StyleResult? = null): HyperIslandData {
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE) ?: sbn.packageName
         val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
@@ -64,7 +65,16 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
         builder.addPicture(resolveIcon(sbn, picKey))
         builder.addPicture(getTransparentPicture(hiddenKey))
 
-        val actions = extractBridgeActions(sbn)
+        val rawActions = extractBridgeActions(sbn)
+        
+        // --- ISLAND STYLE CONTRACT ENFORCEMENT ---
+        // When legacy style is blocked, limit actions to prevent expanded action-row layout
+        val actions = if (styleResult?.wasBlocked == true) {
+            // Limit to 2 actions max to ensure MODERN_PILL style renders correctly
+            rawActions.take(2)
+        } else {
+            rawActions
+        }
         val bridgeActionKeys = actions.map { it.action.key }
 
         // Wire options and dismiss actions to expanded island controls

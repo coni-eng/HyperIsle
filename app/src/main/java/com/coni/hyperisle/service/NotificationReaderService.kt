@@ -52,6 +52,7 @@ import android.content.Intent
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.models.ShadeCancelMode
 import com.coni.hyperisle.util.NotificationChannels
+import com.coni.hyperisle.util.IslandStyleContract
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -661,6 +662,14 @@ class NotificationReaderService : NotificationListenerService() {
                 isChronometerShown && !hasAnswerAction
             } else false
 
+            // --- ISLAND STYLE CONTRACT ---
+            // Resolve style and block legacy action-row layouts
+            val actionCount = sbn.notification.actions?.size ?: 0
+            val styleResult = IslandStyleContract.resolveStyle(sbn, type, actionCount)
+            
+            // Log style selection (deterministic, logged each time an island is shown)
+            IslandStyleContract.logStyleSelected(sbn, styleResult)
+
             val data: HyperIslandData = when (type) {
                 NotificationType.CALL -> {
                     // Calculate duration for ongoing calls
@@ -690,7 +699,7 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 NotificationType.TIMER -> timerTranslator.translate(sbn, picKey, finalConfig)
                 NotificationType.PROGRESS -> progressTranslator.translate(sbn, title, picKey, finalConfig)
-                else -> standardTranslator.translate(sbn, picKey, finalConfig, bridgeId)
+                else -> standardTranslator.translate(sbn, picKey, finalConfig, bridgeId, styleResult)
             }
 
             val newContentHash = data.jsonParam.hashCode()
