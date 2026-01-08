@@ -144,6 +144,16 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
 
         builder.setSmallIsland(picKey)
 
+        if (BuildConfig.DEBUG) {
+            val keyHash = sbn.key.hashCode()
+            val actionKeyList = actionKeys.joinToString("|")
+            val showShade = config.isShowShade ?: true
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=MIUI_UI_BUILD type=CALL state=$callState titleLen=${title.length} contentLen=${rightText.length} actions=${actionKeys.size} actionKeys=$actionKeyList picKey=$picKey hiddenKey=$hiddenKey float=$shouldFloat timeout=$finalTimeout showShade=$showShade firstFloat=${!isOngoing}"
+            )
+        }
+
         return HyperIslandData(builder.buildResourceBundle(), builder.buildJsonParam())
     }
 

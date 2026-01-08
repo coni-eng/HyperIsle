@@ -1,6 +1,7 @@
 package com.coni.hyperisle.ui.components
 
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,17 +27,55 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.coni.hyperisle.BuildConfig
+import kotlin.math.roundToInt
+
+private data class LayoutSnapshot(
+    val x: Int,
+    val y: Int,
+    val width: Int,
+    val height: Int
+)
+
+@Composable
+private fun debugLayoutModifier(rid: Int?, element: String): Modifier {
+    if (!BuildConfig.DEBUG || rid == null) return Modifier
+    var lastSnapshot by remember { mutableStateOf<LayoutSnapshot?>(null) }
+    return Modifier.onGloballyPositioned { coords ->
+        val pos = coords.positionInRoot()
+        val snapshot = LayoutSnapshot(
+            x = pos.x.roundToInt(),
+            y = pos.y.roundToInt(),
+            width = coords.size.width,
+            height = coords.size.height
+        )
+        if (snapshot != lastSnapshot) {
+            lastSnapshot = snapshot
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=UI_LAYOUT element=$element x=${snapshot.x} y=${snapshot.y} w=${snapshot.width} h=${snapshot.height}"
+            )
+        }
+    }
+}
 
 /**
  * iOS-style pill container with rounded corners and semi-transparent black background.
@@ -45,13 +84,16 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun PillContainer(
     modifier: Modifier = Modifier,
+    debugRid: Int? = null,
+    debugName: String = "pill",
     content: @Composable () -> Unit
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .height(72.dp)
-            .shadow(elevation = 8.dp, shape = RoundedCornerShape(50.dp)),
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(50.dp))
+            .then(debugLayoutModifier(debugRid, "${debugName}_root")),
         shape = RoundedCornerShape(50.dp),
         color = Color(0xCC000000)
     ) {
@@ -79,11 +121,23 @@ fun IncomingCallPill(
     name: String,
     avatarBitmap: Bitmap? = null,
     onDecline: () -> Unit,
-    onAccept: () -> Unit
+    onAccept: () -> Unit,
+    debugRid: Int? = null
 ) {
-    PillContainer {
+    if (BuildConfig.DEBUG && debugRid != null) {
+        val hasAvatar = avatarBitmap != null
+        LaunchedEffect(title, name, hasAvatar) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$debugRid EVT=UI_CONTENT type=CALL titleLen=${title.length} nameLen=${name.length} hasAvatar=$hasAvatar"
+            )
+        }
+    }
+    PillContainer(debugRid = debugRid, debugName = "call") {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(debugLayoutModifier(debugRid, "call_row")),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -92,7 +146,8 @@ fun IncomingCallPill(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF3A3A3C)),
+                    .background(Color(0xFF3A3A3C))
+                    .then(debugLayoutModifier(debugRid, "call_avatar")),
                 contentAlignment = Alignment.Center
             ) {
                 if (avatarBitmap != null) {
@@ -115,7 +170,9 @@ fun IncomingCallPill(
 
             // Center: Title and Name
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(debugLayoutModifier(debugRid, "call_text_column")),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
@@ -123,7 +180,8 @@ fun IncomingCallPill(
                     color = Color(0xFF8E8E93),
                     fontSize = 12.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = debugLayoutModifier(debugRid, "call_title")
                 )
                 Text(
                     text = name,
@@ -131,7 +189,8 @@ fun IncomingCallPill(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = debugLayoutModifier(debugRid, "call_name")
                 )
             }
 
@@ -148,6 +207,7 @@ fun IncomingCallPill(
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(Color(0xFFE53935))
+                        .then(debugLayoutModifier(debugRid, "call_decline_btn"))
                         .clickable { onDecline() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -165,6 +225,7 @@ fun IncomingCallPill(
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF43A047))
+                        .then(debugLayoutModifier(debugRid, "call_accept_btn"))
                         .clickable { onAccept() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -197,25 +258,44 @@ fun NotificationPill(
     message: String,
     avatarBitmap: Bitmap? = null,
     onClick: (() -> Unit)? = null,
-    onDismiss: (() -> Unit)? = null
+    onDismiss: (() -> Unit)? = null,
+    debugRid: Int? = null
 ) {
+    if (BuildConfig.DEBUG && debugRid != null) {
+        val hasAvatar = avatarBitmap != null
+        val hasDismiss = onDismiss != null
+        val hasClick = onClick != null
+        LaunchedEffect(sender, timeLabel, message, hasAvatar, hasDismiss, hasClick) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION senderLen=${sender.length} timeLen=${timeLabel.length} messageLen=${message.length} hasAvatar=$hasAvatar hasDismiss=$hasDismiss hasClick=$hasClick"
+            )
+        }
+    }
     PillContainer(
-        modifier = if (onClick != null) Modifier.clickable { onClick() } else Modifier
+        modifier = if (onClick != null) Modifier.clickable { onClick() } else Modifier,
+        debugRid = debugRid,
+        debugName = "notif"
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(debugLayoutModifier(debugRid, "notif_row")),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: Avatar with indicator dot
             Box(
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier
+                    .size(44.dp)
+                    .then(debugLayoutModifier(debugRid, "notif_avatar_stack"))
             ) {
                 // Avatar circle
                 Box(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF3A3A3C)),
+                        .background(Color(0xFF3A3A3C))
+                        .then(debugLayoutModifier(debugRid, "notif_avatar")),
                     contentAlignment = Alignment.Center
                 ) {
                     if (avatarBitmap != null) {
@@ -242,12 +322,14 @@ fun NotificationPill(
                         .clip(CircleShape)
                         .background(Color(0xFF1B1B1B)) // Border color (near black)
                         .padding(2.dp)
+                        .then(debugLayoutModifier(debugRid, "notif_indicator_border"))
                 ) {
                     Box(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF34C759)) // iOS green
+                            .then(debugLayoutModifier(debugRid, "notif_indicator_dot"))
                     )
                 }
             }
@@ -256,12 +338,16 @@ fun NotificationPill(
 
             // Center: Sender, time, and message
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(debugLayoutModifier(debugRid, "notif_text_column")),
                 verticalArrangement = Arrangement.Center
             ) {
                 // Top row: Sender + Time
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(debugLayoutModifier(debugRid, "notif_header_row")),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -272,14 +358,17 @@ fun NotificationPill(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .then(debugLayoutModifier(debugRid, "notif_sender"))
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = timeLabel,
                         color = Color(0xFF8E8E93),
                         fontSize = 12.sp,
-                        maxLines = 1
+                        maxLines = 1,
+                        modifier = debugLayoutModifier(debugRid, "notif_time")
                     )
                 }
 
@@ -289,7 +378,8 @@ fun NotificationPill(
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 13.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = debugLayoutModifier(debugRid, "notif_message")
                 )
             }
 
@@ -299,6 +389,7 @@ fun NotificationPill(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
+                        .then(debugLayoutModifier(debugRid, "notif_dismiss_btn"))
                         .clickable { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {

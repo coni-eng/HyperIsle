@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
+import android.util.Log
+import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
@@ -141,6 +143,16 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
             builder.addPicture(dismissIcon)
             builder.addAction(optionsAction)
             builder.addAction(dismissAction)
+        }
+
+        if (BuildConfig.DEBUG) {
+            val keyHash = sbn.key.hashCode()
+            val actionKeyList = actionKeys.joinToString("|")
+            val showShade = config.isShowShade ?: true
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=MIUI_UI_BUILD type=STANDARD titleLen=${displayTitle.length} contentLen=${displayContent.length} actions=${actionKeys.size} actionKeys=$actionKeyList picKey=$picKey hiddenKey=$hiddenKey float=$shouldFloat timeout=$finalTimeout showShade=$showShade dismissible=true media=$isMedia"
+            )
         }
 
         return HyperIslandData(builder.buildResourceBundle(), builder.buildJsonParam())

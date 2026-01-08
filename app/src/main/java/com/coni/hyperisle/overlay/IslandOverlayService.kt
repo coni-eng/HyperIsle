@@ -239,13 +239,22 @@ class IslandOverlayService : Service() {
                     name = model.callerName,
                     avatarBitmap = model.avatarBitmap,
                     onDecline = {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_CLICK pkg=${model.packageName}"
+                        )
                         handleCallAction(model.declineIntent, "decline")
                         dismissAllOverlays("CALL_DECLINE")
                     },
                     onAccept = {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_CLICK pkg=${model.packageName}"
+                        )
                         handleCallAction(model.acceptIntent, "accept")
                         dismissAllOverlays("CALL_ACCEPT")
-                    }
+                    },
+                    debugRid = model.notificationKey.hashCode()
                 )
             }
         }
@@ -291,6 +300,10 @@ class IslandOverlayService : Service() {
                 stateLabel = "compact",
                 onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
                 onTap = {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
+                    )
                     Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
                     handleNotificationTap(model.contentIntent)
                     Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
@@ -308,7 +321,8 @@ class IslandOverlayService : Service() {
                     onDismiss = {
                         Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                         dismissFromUser("BTN_RED_X")
-                    }
+                    },
+                    debugRid = rid
                 )
 
                 // Auto-dismiss after 4 seconds

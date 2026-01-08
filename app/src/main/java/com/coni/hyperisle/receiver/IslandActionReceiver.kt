@@ -287,6 +287,9 @@ class IslandActionReceiver : BroadcastReceiver() {
         val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
         val targetPackage = meta?.first ?: IslandCooldownManager.getLastActivePackage()
         val islandStyle = meta?.second ?: "UNKNOWN"
+        val rid = targetId ?: 0
+
+        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_TAP_OPEN_CLICK pkg=${targetPackage ?: "unknown"}")
         
         // Telemetry: ISLAND_CLICK_RECEIVED
         HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
