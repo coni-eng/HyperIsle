@@ -49,6 +49,8 @@ import com.coni.hyperisle.util.DebugTimeline
 import android.app.PendingIntent
 import android.content.Intent
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.models.ShadeCancelMode
+import com.coni.hyperisle.util.NotificationChannels
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -819,12 +821,23 @@ class NotificationReaderService : NotificationListenerService() {
      * 2. Notification is eligible (not ongoing, not call/alarm/timer/nav, not foreground service, etc.)
      * 
      * v0.9.7: Also handles calls-only-island for call notifications.
+     * v0.9.8: Added safety gate - never cancel if Island channel is disabled.
      * 
      * This is safe-by-default: only cancels if user explicitly enabled for this app.
      */
     private suspend fun attemptShadeCancel(sbn: StatusBarNotification, type: NotificationType, isOngoingCall: Boolean = false) {
         val pkg = sbn.packageName
         val keyHash = sbn.key.hashCode()
+        
+        // SAFETY GATE: Never cancel system notification if Island channel is disabled
+        // This prevents notifications from disappearing entirely
+        if (!NotificationChannels.isSafeToCancel(applicationContext)) {
+            val reason = NotificationChannels.getUnsafeReason(applicationContext)
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "event=shadeCancelBlocked pkg=$pkg keyHash=$keyHash reason=$reason")
+            }
+            return
+        }
         
         // v0.9.7: Check calls-only-island for call notifications
         if (type == NotificationType.CALL) {
@@ -856,12 +869,15 @@ class NotificationReaderService : NotificationListenerService() {
             return // Default OFF - no action
         }
         
+        // Get shade cancel mode for this app (SAFE or AGGRESSIVE)
+        val shadeCancelMode = preferences.getShadeCancelMode(pkg)
+        
         // Eligibility check - must ALL be true to cancel
-        val eligibility = checkShadeCancelEligibility(sbn, type)
+        val eligibility = checkShadeCancelEligibility(sbn, type, shadeCancelMode)
         
         // Debug logging
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "event=shadeCancelAttempt pkg=$pkg keyHash=$keyHash eligible=${eligibility.first} reason=${eligibility.second}")
+            Log.d(TAG, "event=shadeCancelAttempt pkg=$pkg keyHash=$keyHash eligible=${eligibility.first} reason=${eligibility.second} mode=$shadeCancelMode")
         }
         
         if (!eligibility.first) {
@@ -921,34 +937,26 @@ class NotificationReaderService : NotificationListenerService() {
      * Checks if a notification is eligible for shade cancellation.
      * Returns Pair(eligible, reason) where reason explains why not eligible (if false).
      * 
-     * Eligibility rules (must ALL be true):
-     * - NOT ongoing (FLAG_ONGOING_EVENT)
+     * Eligibility rules depend on ShadeCancelMode:
+     * - SAFE (default): Do NOT cancel foreground service or ongoing notifications
+     * - AGGRESSIVE: Allow cancelling even FOREGROUND_SERVICE notifications
+     * 
+     * Common rules (both modes):
      * - NOT call/alarm/timer/navigation category
-     * - NOT foreground service (FLAG_FOREGROUND_SERVICE)
      * - No full-screen intent
      * - Not a group summary
      */
-    private fun checkShadeCancelEligibility(sbn: StatusBarNotification, type: NotificationType): Pair<Boolean, String> {
+    private fun checkShadeCancelEligibility(sbn: StatusBarNotification, type: NotificationType, mode: ShadeCancelMode = ShadeCancelMode.SAFE): Pair<Boolean, String> {
         val notification = sbn.notification
         val flags = notification.flags
         val category = notification.category
         
-        // Check ongoing flag
-        if ((flags and Notification.FLAG_ONGOING_EVENT) != 0) {
-            return Pair(false, "ONGOING")
-        }
-        
-        // Check foreground service flag
-        if ((flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
-            return Pair(false, "FOREGROUND_SERVICE")
-        }
-        
-        // Check group summary flag
+        // Check group summary flag (always blocked)
         if ((flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
             return Pair(false, "GROUP_SUMMARY")
         }
         
-        // Check full-screen intent
+        // Check full-screen intent (always blocked)
         if (notification.fullScreenIntent != null) {
             return Pair(false, "FULLSCREEN_INTENT")
         }
@@ -964,7 +972,7 @@ class NotificationReaderService : NotificationListenerService() {
             return Pair(false, "TYPE_NAVIGATION")
         }
         
-        // Check category for alarm-like notifications
+        // Check category for alarm-like notifications (always blocked)
         if (category == Notification.CATEGORY_CALL) {
             return Pair(false, "CATEGORY_CALL")
         }
@@ -976,6 +984,28 @@ class NotificationReaderService : NotificationListenerService() {
         }
         if (category == Notification.CATEGORY_STOPWATCH) {
             return Pair(false, "CATEGORY_STOPWATCH")
+        }
+        
+        // Mode-dependent checks
+        when (mode) {
+            ShadeCancelMode.SAFE -> {
+                // SAFE mode: Block ongoing and foreground service notifications
+                if ((flags and Notification.FLAG_ONGOING_EVENT) != 0) {
+                    return Pair(false, "ONGOING_SAFE_MODE")
+                }
+                if ((flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
+                    return Pair(false, "FOREGROUND_SERVICE_SAFE_MODE")
+                }
+            }
+            ShadeCancelMode.AGGRESSIVE -> {
+                // AGGRESSIVE mode: Allow foreground service, but still block ongoing non-FGS
+                // Only block if it's ongoing AND not a foreground service
+                val isOngoing = (flags and Notification.FLAG_ONGOING_EVENT) != 0
+                val isForegroundService = (flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
+                if (isOngoing && !isForegroundService) {
+                    return Pair(false, "ONGOING_NON_FGS")
+                }
+            }
         }
         
         // All checks passed - eligible for cancellation

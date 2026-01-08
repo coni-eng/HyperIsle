@@ -653,4 +653,11 @@
     <string name="notification_management_apps_screen_title">Gizlenecek Uygulamalar</string>
     <string name="notification_management_apps_empty">Aktif uygulama yok</string>
     <string name="notification_management_apps_empty_desc">Önce Kütüphane\'den uygulamaları etkinleştirin</string>
+    <string name="notification_management_warning_title">Bildirimler Devre Dışı</string>
+    <string name="notification_management_warning_message">HyperIsle bildirimleri veya Ada kanalı sistem düzeyinde devre dışı. Bildirimler kaybolabilir çünkü ada gösterilemiyor.</string>
+    <string name="notification_management_warning_button">Bildirim Ayarlarını Aç</string>
+    <string name="shade_cancel_mode_safe">Güvenli</string>
+    <string name="shade_cancel_mode_aggressive">Agresif</string>
+    <string name="shade_cancel_mode_desc_safe">Ön plan servisi ve kritik bildirimleri gizleme</string>
+    <string name="shade_cancel_mode_desc_aggressive">Ön plan servisi bildirimleri dahil tümünü gizle</string>
 </resources>

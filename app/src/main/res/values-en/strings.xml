@@ -641,4 +641,11 @@
     <string name="notification_management_apps_screen_title">Apps to Hide</string>
     <string name="notification_management_apps_empty">No active apps</string>
     <string name="notification_management_apps_empty_desc">Enable apps from the Library first</string>
+    <string name="notification_management_warning_title">Notifications Disabled</string>
+    <string name="notification_management_warning_message">HyperIsle notifications or Island channel is disabled at system level. Notifications may disappear because the island cannot be shown.</string>
+    <string name="notification_management_warning_button">Open Notification Settings</string>
+    <string name="shade_cancel_mode_safe">Safe</string>
+    <string name="shade_cancel_mode_aggressive">Aggressive</string>
+    <string name="shade_cancel_mode_desc_safe">Do not hide foreground service and critical notifications</string>
+    <string name="shade_cancel_mode_desc_aggressive">Hide all including foreground service notifications</string>
 </resources>

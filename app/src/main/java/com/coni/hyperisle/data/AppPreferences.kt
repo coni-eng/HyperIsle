@@ -718,6 +718,97 @@ class AppPreferences(context: Context) {
      */
     suspend fun getShadeCancelEnabledCount(): Int {
         val entries = dao.getByPrefix("shade_cancel_")
-        return entries.count { it.value.toBoolean(false) }
+        return entries.count { !it.key.contains("_mode_") && it.value.toBoolean(false) }
+    }
+
+    // --- PER-APP SHADE CANCEL MODE (v0.9.8) ---
+    // Dynamic keys: shade_cancel_mode_<packageName> -> SAFE/AGGRESSIVE
+    // Default: SAFE (do NOT cancel foreground service / critical notifications)
+
+    /**
+     * Gets the shade cancel mode for a specific app.
+     * Returns SAFE by default.
+     */
+    suspend fun getShadeCancelMode(packageName: String): com.coni.hyperisle.models.ShadeCancelMode {
+        val key = "shade_cancel_mode_$packageName"
+        val value = dao.getSetting(key)
+        return try {
+            if (value != null) com.coni.hyperisle.models.ShadeCancelMode.valueOf(value)
+            else com.coni.hyperisle.models.ShadeCancelMode.SAFE
+        } catch (e: Exception) {
+            com.coni.hyperisle.models.ShadeCancelMode.SAFE
+        }
+    }
+
+    /**
+     * Gets shade cancel mode as a Flow for reactive UI.
+     */
+    fun getShadeCancelModeFlow(packageName: String): Flow<com.coni.hyperisle.models.ShadeCancelMode> {
+        val key = "shade_cancel_mode_$packageName"
+        return dao.getSettingFlow(key).map { value ->
+            try {
+                if (value != null) com.coni.hyperisle.models.ShadeCancelMode.valueOf(value)
+                else com.coni.hyperisle.models.ShadeCancelMode.SAFE
+            } catch (e: Exception) {
+                com.coni.hyperisle.models.ShadeCancelMode.SAFE
+            }
+        }
+    }
+
+    /**
+     * Sets the shade cancel mode for a specific app.
+     * Setting to SAFE removes the key (default behavior).
+     */
+    suspend fun setShadeCancelMode(packageName: String, mode: com.coni.hyperisle.models.ShadeCancelMode) {
+        val key = "shade_cancel_mode_$packageName"
+        if (mode == com.coni.hyperisle.models.ShadeCancelMode.SAFE) {
+            remove(key)
+        } else {
+            save(key, mode.name)
+        }
+    }
+
+    /**
+     * Clears all settings related to a specific app.
+     * Used when user disables an app in HyperIsle.
+     */
+    suspend fun clearAppSettings(packageName: String) {
+        // Remove from allowed packages
+        val currentAllowed = dao.getSetting(SettingsKeys.ALLOWED_PACKAGES).deserializeSet()
+        if (currentAllowed.contains(packageName)) {
+            save(SettingsKeys.ALLOWED_PACKAGES, (currentAllowed - packageName).serialize())
+        }
+        
+        // Remove per-app muted
+        val currentMuted = dao.getSetting(SettingsKeys.PER_APP_MUTED).deserializeSet()
+        if (currentMuted.contains(packageName)) {
+            save(SettingsKeys.PER_APP_MUTED, (currentMuted - packageName).serialize())
+        }
+        
+        // Remove per-app blocked
+        val currentBlocked = dao.getSetting(SettingsKeys.PER_APP_BLOCKED).deserializeSet()
+        if (currentBlocked.contains(packageName)) {
+            save(SettingsKeys.PER_APP_BLOCKED, (currentBlocked - packageName).serialize())
+        }
+        
+        // Remove dynamic keys for this app
+        dao.deleteByPrefix("config_${packageName}_")
+        dao.deleteByPrefix("shade_cancel_$packageName")
+        dao.deleteByPrefix("shade_cancel_mode_$packageName")
+        dao.deleteByPrefix("sp_profile_$packageName")
+        dao.deleteByPrefix("learning_fast_dismiss_${packageName}_")
+        dao.deleteByPrefix("learning_tap_open_${packageName}_")
+        dao.deleteByPrefix("learning_mute_block_${packageName}_")
+        dao.deleteByPrefix("priority_dismiss_${packageName}_")
+        dao.deleteByPrefix("priority_throttle_until_${packageName}_")
+    }
+
+    /**
+     * Checks if any app has "Only on Island" (shade cancel) enabled.
+     * Used for warning banner display logic.
+     */
+    suspend fun hasAnyAppWithShadeCancel(): Boolean {
+        val entries = dao.getByPrefix("shade_cancel_")
+        return entries.any { !it.key.contains("_mode_") && it.value.toBoolean(false) }
     }
 }

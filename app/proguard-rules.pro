@@ -19,3 +19,40 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# ============================================
+# HyperIsle Release Build Optimizations
+# ============================================
+
+# Strip debug and verbose log calls in release builds
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+}
+
+# Keep Room database entities and DAOs
+-keep class com.coni.hyperisle.data.db.** { *; }
+-keep class * extends androidx.room.RoomDatabase { *; }
+
+# Keep notification service
+-keep class com.coni.hyperisle.service.NotificationReaderService { *; }
+
+# Keep broadcast receivers
+-keep class com.coni.hyperisle.receiver.** { *; }
+
+# Keep models for serialization
+-keep class com.coni.hyperisle.models.** { *; }
+
+# Keep Gson serialization
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.** { *; }
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+
+# Keep Compose stability
+-keep class androidx.compose.** { *; }
+
+# Keep WorkManager workers
+-keep class com.coni.hyperisle.worker.** { *; }

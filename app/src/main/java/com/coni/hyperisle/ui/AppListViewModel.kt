@@ -100,7 +100,15 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     // --- PREFERENCE ACTIONS ---
 
     fun toggleApp(packageName: String, isEnabled: Boolean) {
-        viewModelScope.launch { preferences.toggleApp(packageName, isEnabled) }
+        viewModelScope.launch { 
+            if (isEnabled) {
+                preferences.toggleApp(packageName, true)
+            } else {
+                // When disabling an app, clear all related settings and active islands
+                // clearAppSettings already removes from allowed packages
+                preferences.clearAppSettings(packageName)
+            }
+        }
     }
 
     fun getAppConfig(packageName: String) = preferences.getAppConfig(packageName)

@@ -23,8 +23,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import android.provider.Settings
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.util.NotificationChannels
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,9 +46,16 @@ fun NotificationManagementScreen(
 
     // Status counts
     var shadeCancelCount by remember { mutableIntStateOf(0) }
+    var hasAnyShadeCancel by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         shadeCancelCount = preferences.getShadeCancelEnabledCount()
+        hasAnyShadeCancel = preferences.hasAnyAppWithShadeCancel()
     }
+
+    // Check if Island channel is enabled (for warning banner)
+    val notificationsEnabled = remember { NotificationChannels.areNotificationsEnabled(context) }
+    val islandChannelEnabled = remember { NotificationChannels.isIslandChannelEnabled(context) }
+    val showWarningBanner = (hasAnyShadeCancel || callsOnlyIslandEnabled) && (!notificationsEnabled || !islandChannelEnabled)
 
     // Confirmation dialog state
     var showCallsConfirmDialog by remember { mutableStateOf(false) }
@@ -127,6 +137,61 @@ fun NotificationManagementScreen(
                             fontWeight = FontWeight.Bold,
                             color = if (callsOnlyIslandEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+            }
+
+            // --- WARNING BANNER: Island channel disabled ---
+            AnimatedVisibility(
+                visible = showWarningBanner,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                stringResource(R.string.notification_management_warning_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.notification_management_warning_message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Button(
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                }
+                                context.startActivity(intent)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text(stringResource(R.string.notification_management_warning_button))
+                        }
                     }
                 }
             }
