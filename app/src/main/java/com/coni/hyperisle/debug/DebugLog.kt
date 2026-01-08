@@ -212,6 +212,9 @@ object DebugLog {
  * @param id StatusBarNotification.id
  * @param tag StatusBarNotification.tag (nullable)
  * @param whenMs Notification timestamp (notification.when)
+ * @param category Notification category (nullable)
+ * @param isOngoing Whether FLAG_ONGOING_EVENT is set
+ * @param groupKey Notification group key (nullable)
  */
 data class ProcCtx(
     val rid: String,
@@ -219,7 +222,10 @@ data class ProcCtx(
     val key: String?,
     val id: Int,
     val tag: String?,
-    val whenMs: Long
+    val whenMs: Long,
+    val category: String? = null,
+    val isOngoing: Boolean = false,
+    val groupKey: String? = null
 ) {
     /**
      * Hash of the key for PII-safe logging.
@@ -233,13 +239,32 @@ data class ProcCtx(
          */
         @JvmStatic
         fun from(sbn: android.service.notification.StatusBarNotification): ProcCtx {
+            val notification = sbn.notification
             return ProcCtx(
                 rid = DebugLog.rid(),
                 pkg = sbn.packageName,
                 key = sbn.key,
                 id = sbn.id,
                 tag = sbn.tag,
-                whenMs = sbn.notification.`when`
+                whenMs = notification.`when`,
+                category = notification.category,
+                isOngoing = (notification.flags and android.app.Notification.FLAG_ONGOING_EVENT) != 0,
+                groupKey = notification.group
+            )
+        }
+        
+        /**
+         * Create a synthetic ProcCtx for events without an SBN.
+         */
+        @JvmStatic
+        fun synthetic(pkg: String, reason: String = "synthetic"): ProcCtx {
+            return ProcCtx(
+                rid = DebugLog.rid(),
+                pkg = pkg,
+                key = null,
+                id = 0,
+                tag = reason,
+                whenMs = System.currentTimeMillis()
             )
         }
     }

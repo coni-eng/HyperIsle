@@ -60,6 +60,8 @@ import com.coni.hyperisle.overlay.IosNotificationOverlayModel
 import com.coni.hyperisle.overlay.OverlayEventBus
 import com.coni.hyperisle.util.OverlayPermissionHelper
 import com.coni.hyperisle.debug.DebugLog
+import com.coni.hyperisle.debug.IslandRuntimeDump
+import com.coni.hyperisle.debug.IslandUiState
 import com.coni.hyperisle.debug.ProcCtx
 
 class NotificationReaderService : NotificationListenerService() {
@@ -197,10 +199,29 @@ class NotificationReaderService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         Log.i(TAG, "HyperIsle Connected")
+        // INSTRUMENTATION: Service lifecycle
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "RID=SVC_CONN STAGE=LIFECYCLE ACTION=CONNECTED")
+            IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "NL_CONNECTED", reason = "onListenerConnected")
+        }
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        // INSTRUMENTATION: Service lifecycle
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "RID=SVC_DISC STAGE=LIFECYCLE ACTION=DISCONNECTED")
+            IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "NL_DISCONNECTED", reason = "onListenerDisconnected")
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        // INSTRUMENTATION: Service lifecycle
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "RID=SVC_DEST STAGE=LIFECYCLE ACTION=DESTROYED")
+            IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "SERVICE_DESTROYED", reason = "onDestroy")
+        }
         serviceScope.cancel()
         IslandKeyManager.clearAll()
     }
@@ -286,6 +307,27 @@ class NotificationReaderService : NotificationListenerService() {
                         else -> mapRemovalReason(reason)
                     }
                     Log.d(TAG, "event=autoDismiss reason=$dismissReason pkg=${it.packageName} keyHash=${key.hashCode()}")
+                }
+                
+                // INSTRUMENTATION: Island remove with state transition
+                if (BuildConfig.DEBUG) {
+                    val islandType = groupKey.substringAfterLast(":")
+                    Log.d("HyperIsleIsland", "RID=${key.hashCode()} STAGE=REMOVE ACTION=ISLAND_DISMISS reason=$reasonName pkg=${it.packageName} type=$islandType")
+                    IslandRuntimeDump.recordRemove(
+                        ctx = ProcCtx.synthetic(it.packageName, "onRemoved"),
+                        reason = reasonName,
+                        groupKey = groupKey,
+                        islandType = islandType,
+                        flags = mapOf("bridgeId" to hyperId, "removalReason" to reason)
+                    )
+                    // Record state transition to IDLE
+                    IslandRuntimeDump.recordState(
+                        ctx = null,
+                        prevState = IslandUiState.SHOWING_COMPACT,
+                        nextState = IslandUiState.IDLE,
+                        groupKey = groupKey,
+                        flags = mapOf("trigger" to "onNotificationRemoved")
+                    )
                 }
                 
                 try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
@@ -897,6 +939,28 @@ class NotificationReaderService : NotificationListenerService() {
             "type" to notificationType,
             "jsonLength" to data.jsonParam.length
         ))
+        
+        // INSTRUMENTATION: Island add with state transition
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "RID=${sbn.key.hashCode()} STAGE=ADD ACTION=ISLAND_SHOWN pkg=${sbn.packageName} type=$notificationType bridgeId=$bridgeId")
+            IslandRuntimeDump.recordAdd(
+                ctx = ProcCtx.synthetic(sbn.packageName, "postNotification"),
+                reason = "MIUI_POST_OK",
+                groupKey = groupKey,
+                islandType = notificationType,
+                flags = mapOf("bridgeId" to bridgeId, "jsonLength" to data.jsonParam.length)
+            )
+            // Record state transition IDLE -> SHOWING
+            val isOngoing = notificationType in listOf("CALL", "TIMER", "NAVIGATION")
+            val nextState = if (isOngoing) IslandUiState.PINNED_ONGOING else IslandUiState.SHOWING_COMPACT
+            IslandRuntimeDump.recordState(
+                ctx = null,
+                prevState = IslandUiState.IDLE,
+                nextState = nextState,
+                groupKey = groupKey,
+                flags = mapOf("trigger" to "postNotification", "isOngoing" to isOngoing)
+            )
+        }
 
         // Record shown for PriorityEngine burst tracking
         PriorityEngine.recordShown(sbn.packageName, notificationType)
@@ -969,15 +1033,49 @@ class NotificationReaderService : NotificationListenerService() {
             isOngoingCall = isOngoingCall
         )
         
+        // INSTRUMENTATION: Shade cancel decision
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=DECISION cancelShade=${decision.cancelShade} allowed=${decision.cancelShadeAllowed} eligible=${decision.cancelShadeEligible} safe=${decision.cancelShadeSafe} reason=${decision.ineligibilityReason ?: "OK"} pkg=$pkg")
+            IslandRuntimeDump.recordEvent(
+                ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
+                stage = "HIDE_SYS_NOTIF",
+                action = "DECISION",
+                reason = if (decision.cancelShade) "WILL_CANCEL" else (decision.ineligibilityReason ?: "NOT_ALLOWED"),
+                flags = mapOf(
+                    "cancelShade" to decision.cancelShade,
+                    "allowed" to decision.cancelShadeAllowed,
+                    "eligible" to decision.cancelShadeEligible,
+                    "safe" to decision.cancelShadeSafe
+                )
+            )
+        }
+        
         // Only cancel if all conditions are met
         if (decision.cancelShade) {
             try {
                 cancelNotification(sbn.key)
                 if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_OK pkg=$pkg")
                     Log.d("HI_NOTIF", "event=shadeCancelled pkg=$pkg keyHash=$keyHash")
+                    IslandRuntimeDump.recordEvent(
+                        ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
+                        stage = "HIDE_SYS_NOTIF",
+                        action = "CANCEL_OK",
+                        reason = "SUCCESS"
+                    )
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
+                if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_FAIL reason=${e.message} pkg=$pkg")
+                    IslandRuntimeDump.recordEvent(
+                        ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
+                        stage = "HIDE_SYS_NOTIF",
+                        action = "CANCEL_FAIL",
+                        reason = e.message ?: "EXCEPTION",
+                        flags = mapOf("exceptionType" to e.javaClass.simpleName)
+                    )
+                }
             }
         }
     }

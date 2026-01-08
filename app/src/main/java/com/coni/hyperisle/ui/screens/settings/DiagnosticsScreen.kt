@@ -60,7 +60,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.util.DiagnosticsManager
 import kotlinx.coroutines.delay
 import org.json.JSONObject
@@ -305,6 +309,73 @@ fun DiagnosticsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Island Style Preview")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Island Runtime Dump Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Island Runtime Dump",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "MIUI-style state machine history (Add/Remove: ${IslandRuntimeDump.getAddRemoveCount()}, State: ${IslandRuntimeDump.getStateCount()}, Overlay: ${IslandRuntimeDump.getOverlayCount()})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilledTonalButton(
+                            onClick = {
+                                val dump = IslandRuntimeDump.dumpToString()
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("Island Runtime Dump", dump))
+                                Toast.makeText(context, "Plain dump copied to clipboard", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Copy Plain", fontSize = 12.sp)
+                        }
+                        
+                        FilledTonalButton(
+                            onClick = {
+                                val dump = IslandRuntimeDump.dumpToJson()
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("Island Runtime Dump JSON", dump))
+                                Toast.makeText(context, "JSON dump copied to clipboard", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Copy JSON", fontSize = 12.sp)
+                        }
+                        
+                        OutlinedButton(
+                            onClick = {
+                                IslandRuntimeDump.clear()
+                                Toast.makeText(context, "Runtime dump cleared", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Clear", fontSize = 12.sp)
+                        }
+                    }
                 }
             }
 
