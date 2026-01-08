@@ -17,6 +17,7 @@ import com.coni.hyperisle.models.BridgeAction
 import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.util.DebugTimeline
+import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.util.PendingIntentHelper
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
@@ -64,6 +65,18 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         }
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "event=callState $callState pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()}")
+            // UI Snapshot: CALL_STATE
+            val snapshotCtx = IslandUiSnapshotLogger.ctxFromSbn(
+                rid = IslandUiSnapshotLogger.rid(),
+                sbn = sbn,
+                type = "CALL"
+            )
+            IslandUiSnapshotLogger.logEvent(
+                ctx = snapshotCtx,
+                evt = "CALL_STATE",
+                route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
+                extra = mapOf("state" to callState)
+            )
         }
         
         // Timeline: call state transition event

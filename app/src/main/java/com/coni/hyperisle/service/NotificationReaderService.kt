@@ -61,6 +61,7 @@ import com.coni.hyperisle.overlay.OverlayEventBus
 import com.coni.hyperisle.util.OverlayPermissionHelper
 import com.coni.hyperisle.debug.DebugLog
 import com.coni.hyperisle.debug.IslandRuntimeDump
+import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.debug.IslandUiState
 import com.coni.hyperisle.debug.ProcCtx
 
@@ -249,6 +250,21 @@ class NotificationReaderService : NotificationListenerService() {
                 )
             })
             
+            // UI Snapshot: NOTIF_POSTED - Initial intake
+            if (BuildConfig.DEBUG) {
+                val snapshotCtx = IslandUiSnapshotLogger.ctxFromSbn(ctx.rid, it, "UNKNOWN")
+                IslandUiSnapshotLogger.logEvent(
+                    ctx = snapshotCtx,
+                    evt = "NOTIF_POSTED",
+                    route = IslandUiSnapshotLogger.Route.IGNORED,
+                    extra = mapOf(
+                        "category" to it.notification.category,
+                        "importance" to null,
+                        "isOngoing" to ctx.isOngoing
+                    )
+                )
+            }
+            
             if (shouldIgnore(it.packageName)) {
                 DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "BLOCKED_SYSTEM_PKG", kv = mapOf("pkg" to it.packageName))
                 return
@@ -296,6 +312,28 @@ class NotificationReaderService : NotificationListenerService() {
                 mapOf("reason" to reasonName)
             )
             
+            // UI Snapshot: NOTIF_REMOVED
+            if (BuildConfig.DEBUG) {
+                val lastRoute = if (groupKey != null && activeTranslations.containsKey(groupKey)) {
+                    IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE
+                } else {
+                    IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION
+                }
+                val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                    rid = IslandUiSnapshotLogger.rid(),
+                    pkg = it.packageName,
+                    type = groupKey?.substringAfterLast(":") ?: "UNKNOWN",
+                    keyHash = key.hashCode().toString(),
+                    groupKey = groupKey
+                )
+                IslandUiSnapshotLogger.logEvent(
+                    ctx = snapshotCtx,
+                    evt = "NOTIF_REMOVED",
+                    route = lastRoute,
+                    reason = reasonName
+                )
+            }
+            
             if (groupKey != null && activeTranslations.containsKey(groupKey)) {
                 val hyperId = activeTranslations[groupKey] ?: return
                 
@@ -327,6 +365,21 @@ class NotificationReaderService : NotificationListenerService() {
                         nextState = IslandUiState.IDLE,
                         groupKey = groupKey,
                         flags = mapOf("trigger" to "onNotificationRemoved")
+                    )
+                    
+                    // UI Snapshot: ISLAND_HIDE
+                    val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                        rid = IslandUiSnapshotLogger.rid(),
+                        pkg = it.packageName,
+                        type = islandType,
+                        keyHash = key.hashCode().toString(),
+                        groupKey = groupKey
+                    )
+                    IslandUiSnapshotLogger.logEvent(
+                        ctx = snapshotCtx,
+                        evt = "ISLAND_HIDE",
+                        route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
+                        reason = reasonName
                     )
                 }
                 
@@ -703,6 +756,18 @@ class NotificationReaderService : NotificationListenerService() {
             sbnKeyToGroupKey[sbn.key] = groupKey
 
             val isUpdate = activeIslands.containsKey(groupKey)
+            
+            // UI Snapshot: NOTIF_DECISION - Decision to show in island
+            if (BuildConfig.DEBUG) {
+                val snapshotCtx = IslandUiSnapshotLogger.ctxFromSbn(rid, sbn, type.name).copy(groupKey = groupKey)
+                IslandUiSnapshotLogger.logEvent(
+                    ctx = snapshotCtx,
+                    evt = "NOTIF_DECISION",
+                    route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
+                    reason = if (isUpdate) "UPDATE" else "NEW",
+                    extra = mapOf("bridgeId" to bridgeId, "isUpdate" to isUpdate)
+                )
+            }
 
             // --- SMART SILENCE (anti-spam) for non-media ---
             val contentHash = "$title$text$subText${type.name}".hashCode()
@@ -829,6 +894,59 @@ class NotificationReaderService : NotificationListenerService() {
                 )
             })
 
+            // UI Snapshot: ISLAND_RENDER - Island payload created, about to render
+            if (BuildConfig.DEBUG) {
+                val slots = when (type) {
+                    NotificationType.CALL -> IslandUiSnapshotLogger.slotsCall(
+                        hasAvatar = true,
+                        hasCallerName = title.isNotEmpty(),
+                        hasTimer = isOngoingCall,
+                        actionLabels = (sbn.notification.actions ?: emptyArray()).take(2).mapNotNull { it.title?.toString()?.take(10) },
+                        isIncoming = !isOngoingCall,
+                        isOngoing = isOngoingCall
+                    )
+                    NotificationType.PROGRESS -> IslandUiSnapshotLogger.slotsProgress(
+                        hasAppIcon = true,
+                        hasTitle = title.isNotEmpty(),
+                        hasProgressBar = true,
+                        progressPercent = extras.getInt(Notification.EXTRA_PROGRESS, 0).takeIf { extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0) > 0 }?.let { p -> 
+                            (p * 100) / extras.getInt(Notification.EXTRA_PROGRESS_MAX, 100) 
+                        },
+                        style = styleResult.style.name
+                    )
+                    NotificationType.TIMER -> IslandUiSnapshotLogger.slotsTimer(
+                        hasTimerIcon = true,
+                        hasTitle = title.isNotEmpty(),
+                        hasChronometer = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER),
+                        style = "timer"
+                    )
+                    NotificationType.NAVIGATION -> IslandUiSnapshotLogger.slotsNavigation(
+                        hasNavIcon = true,
+                        hasDirection = true,
+                        hasDistance = text.isNotEmpty(),
+                        hasEta = subText.isNotEmpty(),
+                        style = "navigation"
+                    )
+                    else -> IslandUiSnapshotLogger.slotsStandard(
+                        hasAppIcon = true,
+                        hasTitle = title.isNotEmpty(),
+                        hasSubtitle = text.isNotEmpty(),
+                        hasBadge = false,
+                        hasTime = true,
+                        actionLabels = (sbn.notification.actions ?: emptyArray()).take(3).mapNotNull { it.title?.toString()?.take(10) },
+                        style = styleResult.style.name
+                    )
+                }
+                val snapshotCtx = IslandUiSnapshotLogger.ctxFromSbn(rid, sbn, type.name).copy(groupKey = groupKey)
+                IslandUiSnapshotLogger.logEvent(
+                    ctx = snapshotCtx,
+                    evt = "ISLAND_RENDER",
+                    route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
+                    slots = slots,
+                    extra = mapOf("bridgeId" to bridgeId, "jsonLen" to data.jsonParam.length)
+                )
+            }
+
             val newContentHash = data.jsonParam.hashCode()
             val previousIsland = activeIslands[groupKey]
 
@@ -939,6 +1057,23 @@ class NotificationReaderService : NotificationListenerService() {
             "type" to notificationType,
             "jsonLength" to data.jsonParam.length
         ))
+        
+        // UI Snapshot: BRIDGE_POST_OK - Successfully posted bridge notification
+        if (BuildConfig.DEBUG) {
+            val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                rid = IslandUiSnapshotLogger.rid(),
+                pkg = sbn.packageName,
+                type = notificationType,
+                keyHash = sbn.key.hashCode().toString(),
+                groupKey = groupKey
+            )
+            IslandUiSnapshotLogger.logEvent(
+                ctx = snapshotCtx,
+                evt = "BRIDGE_POST_OK",
+                route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
+                extra = mapOf("bridgeId" to bridgeId, "channelId" to ISLAND_CHANNEL_ID)
+            )
+        }
         
         // INSTRUMENTATION: Island add with state transition
         if (BuildConfig.DEBUG) {
@@ -1052,6 +1187,21 @@ class NotificationReaderService : NotificationListenerService() {
         
         // Only cancel if all conditions are met
         if (decision.cancelShade) {
+            // UI Snapshot: SYS_NOTIF_CANCEL_TRY
+            if (BuildConfig.DEBUG) {
+                val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                    rid = IslandUiSnapshotLogger.rid(),
+                    pkg = pkg,
+                    type = type.name,
+                    keyHash = keyHash.toString()
+                )
+                IslandUiSnapshotLogger.logEvent(
+                    ctx = snapshotCtx,
+                    evt = "SYS_NOTIF_CANCEL_TRY",
+                    route = IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION
+                )
+            }
+            
             try {
                 cancelNotification(sbn.key)
                 if (BuildConfig.DEBUG) {
@@ -1062,6 +1212,18 @@ class NotificationReaderService : NotificationListenerService() {
                         stage = "HIDE_SYS_NOTIF",
                         action = "CANCEL_OK",
                         reason = "SUCCESS"
+                    )
+                    // UI Snapshot: SYS_NOTIF_CANCEL_OK
+                    val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                        rid = IslandUiSnapshotLogger.rid(),
+                        pkg = pkg,
+                        type = type.name,
+                        keyHash = keyHash.toString()
+                    )
+                    IslandUiSnapshotLogger.logEvent(
+                        ctx = snapshotCtx,
+                        evt = "SYS_NOTIF_CANCEL_OK",
+                        route = IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION
                     )
                 }
             } catch (e: Exception) {
@@ -1074,6 +1236,19 @@ class NotificationReaderService : NotificationListenerService() {
                         action = "CANCEL_FAIL",
                         reason = e.message ?: "EXCEPTION",
                         flags = mapOf("exceptionType" to e.javaClass.simpleName)
+                    )
+                    // UI Snapshot: SYS_NOTIF_CANCEL_FAIL
+                    val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                        rid = IslandUiSnapshotLogger.rid(),
+                        pkg = pkg,
+                        type = type.name,
+                        keyHash = keyHash.toString()
+                    )
+                    IslandUiSnapshotLogger.logEvent(
+                        ctx = snapshotCtx,
+                        evt = "SYS_NOTIF_CANCEL_FAIL",
+                        route = IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION,
+                        reason = e.javaClass.simpleName
                     )
                 }
             }

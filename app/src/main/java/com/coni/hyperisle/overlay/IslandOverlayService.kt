@@ -22,6 +22,7 @@ import androidx.core.app.NotificationCompat
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.debug.IslandRuntimeDump
+import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.ui.components.IncomingCallPill
 import com.coni.hyperisle.ui.components.NotificationPill
 import kotlinx.coroutines.CoroutineScope
@@ -148,6 +149,18 @@ class IslandOverlayService : Service() {
             if (BuildConfig.DEBUG) {
                 Log.d("HyperIsleIsland", "RID=OVL_PERM STAGE=OVERLAY ACTION=PERM_DENIED reason=canDrawOverlays_false")
                 IslandRuntimeDump.recordOverlay(null, "PERM_DENIED", reason = "canDrawOverlays_false")
+                // UI Snapshot: OVERLAY_PERMISSION denied
+                val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                    rid = IslandUiSnapshotLogger.rid(),
+                    pkg = null,
+                    type = "OVERLAY"
+                )
+                IslandUiSnapshotLogger.logEvent(
+                    ctx = snapshotCtx,
+                    evt = "OVERLAY_PERMISSION",
+                    route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
+                    reason = "DENIED"
+                )
             }
             return
         }
@@ -166,6 +179,27 @@ class IslandOverlayService : Service() {
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=${model.notificationKey?.hashCode() ?: 0} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=CALL pkg=${model.packageName}")
             IslandRuntimeDump.recordOverlay(null, "OVERLAY_SHOW", reason = "CALL", pkg = model.packageName, overlayType = "CALL")
+            // UI Snapshot: OVERLAY_SHOW for call
+            val slots = IslandUiSnapshotLogger.slotsCall(
+                hasAvatar = model.avatarBitmap != null,
+                hasCallerName = model.callerName.isNotEmpty(),
+                hasTimer = false,
+                actionLabels = listOf("decline", "accept"),
+                isIncoming = true,
+                isOngoing = false
+            )
+            val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                rid = IslandUiSnapshotLogger.rid(),
+                pkg = model.packageName,
+                type = "CALL",
+                keyHash = model.notificationKey?.hashCode()?.toString()
+            )
+            IslandUiSnapshotLogger.logEvent(
+                ctx = snapshotCtx,
+                evt = "OVERLAY_SHOW",
+                route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
+                slots = slots
+            )
         }
 
         // Cancel any auto-dismiss job (calls don't auto-dismiss)
@@ -203,6 +237,26 @@ class IslandOverlayService : Service() {
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=${model.notificationKey?.hashCode() ?: 0} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NOTIFICATION pkg=${model.packageName}")
             IslandRuntimeDump.recordOverlay(null, "OVERLAY_SHOW", reason = "NOTIFICATION", pkg = model.packageName, overlayType = "NOTIFICATION")
+            // UI Snapshot: OVERLAY_SHOW for notification
+            val slots = IslandUiSnapshotLogger.slotsOverlay(
+                hasAvatar = model.avatarBitmap != null,
+                hasSender = model.sender.isNotEmpty(),
+                hasMessage = model.message.isNotEmpty(),
+                hasTime = model.timeLabel.isNotEmpty(),
+                overlayType = "notification"
+            )
+            val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                rid = IslandUiSnapshotLogger.rid(),
+                pkg = model.packageName,
+                type = "NOTIFICATION",
+                keyHash = model.notificationKey?.hashCode()?.toString()
+            )
+            IslandUiSnapshotLogger.logEvent(
+                ctx = snapshotCtx,
+                evt = "OVERLAY_SHOW",
+                route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
+                slots = slots
+            )
         }
 
         // Cancel previous auto-dismiss job
@@ -309,6 +363,18 @@ class IslandOverlayService : Service() {
             val pkg = currentCallModel?.packageName ?: currentNotificationModel?.packageName
             Log.d("HyperIsleIsland", "RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=$overlayType pkg=$pkg")
             IslandRuntimeDump.recordOverlay(null, "OVERLAY_DISMISS", reason = "dismissAllOverlays", pkg = pkg, overlayType = overlayType)
+            // UI Snapshot: OVERLAY_DISMISS
+            val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                rid = IslandUiSnapshotLogger.rid(),
+                pkg = pkg,
+                type = overlayType
+            )
+            IslandUiSnapshotLogger.logEvent(
+                ctx = snapshotCtx,
+                evt = "OVERLAY_DISMISS",
+                route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
+                reason = "AUTO_TIMEOUT"
+            )
         }
         autoDismissJob?.cancel()
         currentCallModel = null
