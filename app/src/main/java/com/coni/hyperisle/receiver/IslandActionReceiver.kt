@@ -14,6 +14,7 @@ import com.coni.hyperisle.util.ActionDiagnostics
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.FocusActionHelper
 import com.coni.hyperisle.util.Haptics
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.IslandCooldownManager
 import com.coni.hyperisle.util.PriorityEngine
 import kotlinx.coroutines.CoroutineScope
@@ -64,6 +65,18 @@ class IslandActionReceiver : BroadcastReceiver() {
             }
             // Fall through to allow fallback behavior using last active notification
         }
+        
+        // Guard: Check if island is interactive (has valid meta)
+        val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
+        val meta = if (targetId != null) IslandCooldownManager.getIslandMeta(targetId) else null
+        if (meta == null && targetId == null) {
+            // No island meta found and no fallback - island may not be interactive
+            HiLog.w(HiLog.TAG_INPUT, "ISLAND_NOT_INTERACTIVE", mapOf(
+                "touchable" to false,
+                "reason" to "no_island_meta"
+            ))
+            return
+        }
 
         when {
             FocusActionHelper.isOptionsAction(action) -> handleOptions(context, notificationId)
@@ -84,6 +97,19 @@ class IslandActionReceiver : BroadcastReceiver() {
         } else null ?: IslandCooldownManager.getLastActivePackage()
         
         val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
+        val meta = if (targetId != null) IslandCooldownManager.getIslandMeta(targetId) else null
+        val islandStyle = meta?.second ?: "UNKNOWN"
+        
+        // Telemetry: ISLAND_CLICK_RECEIVED
+        HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
+            "action" to "OPTIONS",
+            "pkg" to targetPackage,
+            "notifKeyHash" to HiLog.hashKey(targetId?.toString()),
+            "islandStyle" to islandStyle
+        ))
+        
+        // Telemetry: ISLAND_ACTION_START
+        HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_START", mapOf("action" to "OPTIONS"))
         
         // Timeline: optionsPressed event
         DebugTimeline.log(
@@ -93,13 +119,25 @@ class IslandActionReceiver : BroadcastReceiver() {
             mapOf("action" to "openQuickActions")
         )
         
-        val launchIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("openQuickActions", true)
-            targetPackage?.let { putExtra("quickActionsPackage", it) }
+        try {
+            val launchIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("openQuickActions", true)
+                targetPackage?.let { putExtra("quickActionsPackage", it) }
+            }
+            
+            context.startActivity(launchIntent)
+            
+            // Telemetry: ISLAND_ACTION_OK
+            HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_OK", mapOf("action" to "OPTIONS"))
+        } catch (e: Exception) {
+            // Telemetry: ISLAND_ACTION_FAIL
+            HiLog.e(HiLog.TAG_INPUT, "ISLAND_ACTION_FAIL", mapOf(
+                "action" to "OPTIONS",
+                "reason" to "startActivity failed",
+                "exception" to e.javaClass.simpleName
+            ), e)
         }
-        
-        context.startActivity(launchIntent)
     }
 
     private fun handleDismiss(context: Context, notificationId: Int?) {
@@ -116,6 +154,18 @@ class IslandActionReceiver : BroadcastReceiver() {
         val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
         val targetPackage = meta?.first ?: IslandCooldownManager.getLastActivePackage()
         val targetType = meta?.second ?: IslandCooldownManager.getLastActiveType()
+        val islandStyle = targetType ?: "UNKNOWN"
+        
+        // Telemetry: ISLAND_CLICK_RECEIVED
+        HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
+            "action" to "DISMISS",
+            "pkg" to targetPackage,
+            "notifKeyHash" to HiLog.hashKey(targetId?.toString()),
+            "islandStyle" to islandStyle
+        ))
+        
+        // Telemetry: ISLAND_ACTION_START
+        HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_START", mapOf("action" to "DISMISS"))
         
         // Debug log (PII-safe): record close button press event
         if (ActionDiagnostics.isEnabled()) {
@@ -132,6 +182,10 @@ class IslandActionReceiver : BroadcastReceiver() {
         )
         
         // Cancel the specific notification
+        var actionSuccess = true
+        var failReason: String? = null
+        var failException: Exception? = null
+        
         if (targetId != null) {
             try {
                 NotificationManagerCompat.from(context).cancel(targetId)
@@ -146,6 +200,9 @@ class IslandActionReceiver : BroadcastReceiver() {
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to cancel notification: ${e.message}")
+                actionSuccess = false
+                failReason = "cancel notification failed"
+                failException = e
             }
         }
         
@@ -174,6 +231,17 @@ class IslandActionReceiver : BroadcastReceiver() {
         
         // Trigger success haptic
         Haptics.hapticOnIslandSuccess(context)
+        
+        // Telemetry: ISLAND_ACTION_OK or ISLAND_ACTION_FAIL
+        if (actionSuccess) {
+            HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_OK", mapOf("action" to "DISMISS"))
+        } else {
+            HiLog.e(HiLog.TAG_INPUT, "ISLAND_ACTION_FAIL", mapOf(
+                "action" to "DISMISS",
+                "reason" to failReason,
+                "exception" to failException?.javaClass?.simpleName
+            ), failException)
+        }
     }
 
     /**
@@ -189,6 +257,18 @@ class IslandActionReceiver : BroadcastReceiver() {
         
         val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
         val targetPackage = meta?.first ?: IslandCooldownManager.getLastActivePackage()
+        val islandStyle = meta?.second ?: "UNKNOWN"
+        
+        // Telemetry: ISLAND_CLICK_RECEIVED
+        HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
+            "action" to "TAP_OPEN",
+            "pkg" to targetPackage,
+            "notifKeyHash" to HiLog.hashKey(targetId?.toString()),
+            "islandStyle" to islandStyle
+        ))
+        
+        // Telemetry: ISLAND_ACTION_START
+        HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_START", mapOf("action" to "TAP_OPEN"))
         
         // Debug log: tapOpen event
         if (BuildConfig.DEBUG) {
@@ -207,6 +287,11 @@ class IslandActionReceiver : BroadcastReceiver() {
         val originalIntent = if (targetId != null) {
             IslandCooldownManager.getContentIntent(targetId)
         } else null
+        
+        // Track action success/failure
+        var actionSuccess = true
+        var failReason: String? = null
+        var failException: Exception? = null
         
         // Cancel the island notification (dismiss UI only, not the source notification)
         if (targetId != null) {
@@ -237,9 +322,14 @@ class IslandActionReceiver : BroadcastReceiver() {
                 Log.d(TAG, "Fired original content intent for $targetPackage")
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to fire original content intent: ${e.message}")
+                actionSuccess = false
+                failReason = "send intent failed"
+                failException = e
             }
         } else {
             Log.w(TAG, "No original content intent found for notificationId: $notificationId")
+            actionSuccess = false
+            failReason = "no content intent"
         }
         
         // Record tap-open for PriorityEngine (positive signal)
@@ -259,6 +349,17 @@ class IslandActionReceiver : BroadcastReceiver() {
         if (notificationId != null) {
             IslandCooldownManager.clearIslandMeta(notificationId)
             IslandCooldownManager.clearContentIntent(notificationId)
+        }
+        
+        // Telemetry: ISLAND_ACTION_OK or ISLAND_ACTION_FAIL
+        if (actionSuccess) {
+            HiLog.d(HiLog.TAG_INPUT, "ISLAND_ACTION_OK", mapOf("action" to "TAP_OPEN"))
+        } else {
+            HiLog.e(HiLog.TAG_INPUT, "ISLAND_ACTION_FAIL", mapOf(
+                "action" to "TAP_OPEN",
+                "reason" to failReason,
+                "exception" to failException?.javaClass?.simpleName
+            ), failException)
         }
     }
 

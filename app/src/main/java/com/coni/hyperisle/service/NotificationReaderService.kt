@@ -46,6 +46,7 @@ import com.coni.hyperisle.util.IslandCooldownManager
 import com.coni.hyperisle.util.PriorityEngine
 import com.coni.hyperisle.util.ActionDiagnostics
 import com.coni.hyperisle.util.DebugTimeline
+import com.coni.hyperisle.util.HiLog
 import android.app.PendingIntent
 import android.content.Intent
 import com.coni.hyperisle.BuildConfig
@@ -804,6 +805,17 @@ class NotificationReaderService : NotificationListenerService() {
             sbn.key.hashCode(),
             mapOf("type" to notificationType, "bridgeId" to bridgeId)
         )
+        
+        // Telemetry: ISLAND_SHOWN with window flags, style, dimensions
+        // Note: Island is rendered by HyperOS system, so we log what we control
+        HiLog.d(HiLog.TAG_INPUT, "ISLAND_SHOWN", mapOf(
+            "pkg" to sbn.packageName,
+            "notifKeyHash" to HiLog.hashKey(sbn.key),
+            "islandStyle" to notificationType,
+            "touchable" to true, // Islands are always touchable when shown
+            "focusable" to false, // Islands don't take focus by default
+            "bridgeId" to bridgeId
+        ))
 
         // Store island meta for per-island action handling
         IslandCooldownManager.setIslandMeta(bridgeId, sbn.packageName, notificationType)
