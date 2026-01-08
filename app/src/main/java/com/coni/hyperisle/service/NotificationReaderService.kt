@@ -123,6 +123,10 @@ class NotificationReaderService : NotificationListenerService() {
     // Map original sbn.key to groupKey for cleanup
     private val sbnKeyToGroupKey = ConcurrentHashMap<String, String>()
     private val bridgePostConfirmations = ConcurrentHashMap<String, Long>()
+    private val selfCancelKeys = ConcurrentHashMap<String, Long>()
+    private val minVisibleUntil = ConcurrentHashMap<String, Long>()
+    private val minVisibleJobs = ConcurrentHashMap<String, Job>()
+    private val pendingDismissJobs = ConcurrentHashMap<String, Job>()
 
     // Call timer tracking: groupKey -> (startTime, timerJob)
     private val activeCallTimers = ConcurrentHashMap<String, Pair<Long, Job>>()
@@ -133,6 +137,9 @@ class NotificationReaderService : NotificationListenerService() {
     private val MAX_ISLANDS = 9
     private val BRIDGE_CONFIRM_TIMEOUT_MS = 250L
     private val BRIDGE_CONFIRM_POLL_MS = 50L
+    private val MIN_VISIBLE_MS = 2000L
+    private val SELF_CANCEL_WINDOW_MS = 2000L
+    private val SYS_CANCEL_POST_DELAY_MS = 200L
 
     private lateinit var preferences: AppPreferences
     private lateinit var callTranslator: CallTranslator
@@ -299,13 +306,12 @@ class NotificationReaderService : NotificationListenerService() {
     ) {
         sbn?.let {
             val key = it.key
+            val keyHash = key.hashCode()
             val groupKey = sbnKeyToGroupKey[key]
-            val rid = key.hashCode()
             val reasonName = mapRemovalReason(reason)
-
-            if (OverlayEventBus.emitDismiss(key)) {
-                Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
-            }
+            val now = System.currentTimeMillis()
+            val isActiveIsland = groupKey != null && activeTranslations.containsKey(groupKey)
+            val selfCancel = reason == REASON_LISTENER_CANCEL && isSelfCancel(key, now)
             
             // Debug-only logging (PII-free)
             if (BuildConfig.DEBUG) {
@@ -322,7 +328,7 @@ class NotificationReaderService : NotificationListenerService() {
             
             // UI Snapshot: NOTIF_REMOVED
             if (BuildConfig.DEBUG) {
-                val lastRoute = if (groupKey != null && activeTranslations.containsKey(groupKey)) {
+                val lastRoute = if (isActiveIsland) {
                     IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE
                 } else {
                     IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION
@@ -342,75 +348,66 @@ class NotificationReaderService : NotificationListenerService() {
                 )
             }
             
-            if (groupKey != null && activeTranslations.containsKey(groupKey)) {
-                val hyperId = activeTranslations[groupKey] ?: return
-                
-                // Debug-only: Log auto-dismiss for call islands
-                if (BuildConfig.DEBUG && groupKey.endsWith(":CALL")) {
-                    val dismissReason = when (reason) {
-                        REASON_APP_CANCEL, REASON_CANCEL -> "CALL_ENDED"
-                        REASON_CLICK -> "DIALER_OPENED"
-                        else -> mapRemovalReason(reason)
-                    }
-                    Log.d(TAG, "event=autoDismiss reason=$dismissReason pkg=${it.packageName} keyHash=${key.hashCode()}")
-                }
-                
-                // INSTRUMENTATION: Island remove with state transition
-                if (BuildConfig.DEBUG) {
-                    val islandType = groupKey.substringAfterLast(":")
-                    Log.d("HyperIsleIsland", "RID=${key.hashCode()} STAGE=REMOVE ACTION=ISLAND_DISMISS reason=$reasonName pkg=${it.packageName} type=$islandType")
-                    IslandRuntimeDump.recordRemove(
-                        ctx = ProcCtx.synthetic(it.packageName, "onRemoved"),
-                        reason = reasonName,
-                        groupKey = groupKey,
-                        islandType = islandType,
-                        flags = mapOf("bridgeId" to hyperId, "removalReason" to reason)
-                    )
-                    // Record state transition to IDLE
-                    IslandRuntimeDump.recordState(
-                        ctx = null,
-                        prevState = IslandUiState.SHOWING_COMPACT,
-                        nextState = IslandUiState.IDLE,
-                        groupKey = groupKey,
-                        flags = mapOf("trigger" to "onNotificationRemoved")
-                    )
-                    
-                    // UI Snapshot: ISLAND_HIDE
-                    val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
-                        rid = IslandUiSnapshotLogger.rid(),
-                        pkg = it.packageName,
-                        type = islandType,
-                        keyHash = key.hashCode().toString(),
-                        groupKey = groupKey
-                    )
-                    IslandUiSnapshotLogger.logEvent(
-                        ctx = snapshotCtx,
-                        evt = "ISLAND_HIDE",
-                        route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
-                        reason = reasonName
-                    )
-                }
-                
-                try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
+            if (isActiveIsland) {
+                val safeGroupKey = groupKey ?: return
+                val islandType = activeIslands[safeGroupKey]?.type
+                val isOngoing = islandType == NotificationType.CALL ||
+                        islandType == NotificationType.TIMER ||
+                        islandType == NotificationType.NAVIGATION
+                val remainingVisibleMs = remainingMinVisibleMs(safeGroupKey, now)
 
-                activeIslands.remove(groupKey)
-                activeTranslations.remove(groupKey)
-                lastUpdateMap.remove(groupKey)
-                lastShownMap.remove(groupKey)
-                
-                // Stop call timer if exists
-                activeCallTimers[groupKey]?.second?.cancel()
-                activeCallTimers.remove(groupKey)
+                val action = when {
+                    selfCancel && isOngoing -> "SKIP_HIDE"
+                    remainingVisibleMs > 0L -> "DELAY_HIDE"
+                    else -> "HIDE_NOW"
+                }
+
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$keyHash EVT=ON_REMOVED reason=$reasonName selfCancel=$selfCancel action=$action"
+                )
+
+                when (action) {
+                    "SKIP_HIDE" -> {
+                        // Keep island visible; another removal or user action will dismiss.
+                    }
+                    "DELAY_HIDE" -> {
+                        scheduleDeferredDismiss(
+                            pkg = it.packageName,
+                            key = key,
+                            keyHash = keyHash,
+                            groupKey = safeGroupKey,
+                            reasonName = reasonName,
+                            reason = reason,
+                            delayMs = remainingVisibleMs
+                        )
+                    }
+                    else -> {
+                        dismissIslandNow(
+                            pkg = it.packageName,
+                            key = key,
+                            keyHash = keyHash,
+                            groupKey = safeGroupKey,
+                            reasonName = reasonName,
+                            reason = reason
+                        )
+                    }
+                }
+            } else {
+                if (OverlayEventBus.emitDismiss(key)) {
+                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
+                }
             }
             sbnKeyToGroupKey.remove(key)
             bridgePostConfirmations.remove(key)
+            selfCancelKeys.remove(key)
 
-            if (activeIslands.isEmpty()) {
+            if (!isActiveIsland && activeIslands.isEmpty()) {
                 IslandCooldownManager.clearLastActiveIsland()
                 if (OverlayEventBus.emitDismissAll()) {
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
                 }
-                Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+                Log.d("HyperIsleIsland", "RID=$keyHash EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
             }
         }
     }
@@ -440,6 +437,152 @@ class NotificationReaderService : NotificationListenerService() {
             REASON_CLEAR_DATA -> "CLEAR_DATA"
             REASON_ASSISTANT_CANCEL -> "ASSISTANT_CANCEL"
             else -> "UNKNOWN($reason)"
+        }
+    }
+
+    private fun markSelfCancel(key: String, keyHash: Int) {
+        val now = System.currentTimeMillis()
+        selfCancelKeys[key] = now
+        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SELF_CANCEL_MARK key=$keyHash rid=$keyHash ts=$now")
+        serviceScope.launch {
+            delay(SELF_CANCEL_WINDOW_MS)
+            if (selfCancelKeys[key] == now) {
+                selfCancelKeys.remove(key)
+            }
+        }
+    }
+
+    private fun isSelfCancel(key: String, now: Long): Boolean {
+        val markTime = selfCancelKeys[key] ?: return false
+        val isSelfCancel = now - markTime <= SELF_CANCEL_WINDOW_MS
+        if (!isSelfCancel) {
+            selfCancelKeys.remove(key)
+        }
+        return isSelfCancel
+    }
+
+    private fun remainingMinVisibleMs(groupKey: String, now: Long): Long {
+        val until = minVisibleUntil[groupKey] ?: return 0L
+        val remaining = until - now
+        return if (remaining > 0L) remaining else 0L
+    }
+
+    private fun startMinVisibleTimer(groupKey: String, keyHash: Int) {
+        val now = System.currentTimeMillis()
+        minVisibleUntil[groupKey] = now + MIN_VISIBLE_MS
+        minVisibleJobs[groupKey]?.cancel()
+        Log.d("HyperIsleIsland", "RID=$keyHash EVT=MIN_VISIBLE_TIMER_START gk=$groupKey ms=$MIN_VISIBLE_MS")
+        minVisibleJobs[groupKey] = serviceScope.launch {
+            delay(MIN_VISIBLE_MS)
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=MIN_VISIBLE_TIMER_END gk=$groupKey")
+            minVisibleJobs.remove(groupKey)
+        }
+    }
+
+    private fun scheduleDeferredDismiss(
+        pkg: String,
+        key: String,
+        keyHash: Int,
+        groupKey: String,
+        reasonName: String,
+        reason: Int,
+        delayMs: Long
+    ) {
+        pendingDismissJobs[groupKey]?.cancel()
+        pendingDismissJobs[groupKey] = serviceScope.launch {
+            delay(delayMs)
+            pendingDismissJobs.remove(groupKey)
+            dismissIslandNow(
+                pkg = pkg,
+                key = key,
+                keyHash = keyHash,
+                groupKey = groupKey,
+                reasonName = reasonName,
+                reason = reason
+            )
+        }
+    }
+
+    private fun dismissIslandNow(
+        pkg: String,
+        key: String,
+        keyHash: Int,
+        groupKey: String,
+        reasonName: String,
+        reason: Int
+    ) {
+        val hyperId = activeTranslations[groupKey] ?: return
+
+        if (OverlayEventBus.emitDismiss(key)) {
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
+        }
+
+        // Debug-only: Log auto-dismiss for call islands
+        if (BuildConfig.DEBUG && groupKey.endsWith(":CALL")) {
+            val dismissReason = when (reason) {
+                REASON_APP_CANCEL, REASON_CANCEL -> "CALL_ENDED"
+                REASON_CLICK -> "DIALER_OPENED"
+                else -> mapRemovalReason(reason)
+            }
+            Log.d(TAG, "event=autoDismiss reason=$dismissReason pkg=$pkg keyHash=$keyHash")
+        }
+
+        // INSTRUMENTATION: Island remove with state transition
+        if (BuildConfig.DEBUG) {
+            val islandType = groupKey.substringAfterLast(":")
+            Log.d("HyperIsleIsland", "RID=$keyHash STAGE=REMOVE ACTION=ISLAND_DISMISS reason=$reasonName pkg=$pkg type=$islandType")
+            IslandRuntimeDump.recordRemove(
+                ctx = ProcCtx.synthetic(pkg, "onRemoved"),
+                reason = reasonName,
+                groupKey = groupKey,
+                islandType = islandType,
+                flags = mapOf("bridgeId" to hyperId, "removalReason" to reason)
+            )
+            // Record state transition to IDLE
+            IslandRuntimeDump.recordState(
+                ctx = null,
+                prevState = IslandUiState.SHOWING_COMPACT,
+                nextState = IslandUiState.IDLE,
+                groupKey = groupKey,
+                flags = mapOf("trigger" to "onNotificationRemoved")
+            )
+
+            // UI Snapshot: ISLAND_HIDE
+            val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                rid = IslandUiSnapshotLogger.rid(),
+                pkg = pkg,
+                type = islandType,
+                keyHash = keyHash.toString(),
+                groupKey = groupKey
+            )
+            IslandUiSnapshotLogger.logEvent(
+                ctx = snapshotCtx,
+                evt = "ISLAND_HIDE",
+                route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
+                reason = reasonName
+            )
+        }
+
+        try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
+
+        activeIslands.remove(groupKey)
+        activeTranslations.remove(groupKey)
+        lastUpdateMap.remove(groupKey)
+        lastShownMap.remove(groupKey)
+        minVisibleUntil.remove(groupKey)
+        minVisibleJobs.remove(groupKey)?.cancel()
+        pendingDismissJobs.remove(groupKey)?.cancel()
+
+        // Stop call timer if exists
+        activeCallTimers[groupKey]?.second?.cancel()
+        activeCallTimers.remove(groupKey)
+
+        if (activeIslands.isEmpty()) {
+            IslandCooldownManager.clearLastActiveIsland()
+            if (OverlayEventBus.emitDismissAll()) {
+                Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+            }
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
         }
     }
 
@@ -771,6 +914,7 @@ class NotificationReaderService : NotificationListenerService() {
             val groupKey = "${sbn.packageName}:${type.name}"
             val bridgeId = groupKey.hashCode()
             sbnKeyToGroupKey[sbn.key] = groupKey
+            pendingDismissJobs.remove(groupKey)?.cancel()
 
             val isUpdate = activeIslands.containsKey(groupKey)
             
@@ -1086,6 +1230,7 @@ class NotificationReaderService : NotificationListenerService() {
         bridgePostConfirmations[sbn.key] = System.currentTimeMillis()
         Log.d("HyperIsleIsland", "RID=$keyHash EVT=BRIDGE_POST_OK pkg=${sbn.packageName} bridgeId=$bridgeId")
         activeTranslations[groupKey] = bridgeId
+        startMinVisibleTimer(groupKey, keyHash)
 
         // STEP: MIUI_POST_OK - Successfully posted island notification
         DebugLog.event("MIUI_POST_OK", rid, "POST", kv = mapOf(
@@ -1268,6 +1413,8 @@ class NotificationReaderService : NotificationListenerService() {
             }
             
             try {
+                delay(SYS_CANCEL_POST_DELAY_MS)
+                markSelfCancel(sbn.key, keyHash)
                 cancelNotification(sbn.key)
                 if (BuildConfig.DEBUG) {
                     Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_OK pkg=$pkg")
@@ -1292,6 +1439,7 @@ class NotificationReaderService : NotificationListenerService() {
                     )
                 }
             } catch (e: Exception) {
+                selfCancelKeys.remove(sbn.key)
                 Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
                 if (BuildConfig.DEBUG) {
                     Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_FAIL reason=${e.message} pkg=$pkg")

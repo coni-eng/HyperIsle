@@ -437,10 +437,12 @@ class IslandOverlayService : Service() {
                         MotionEvent.ACTION_CANCEL -> "CANCEL"
                         else -> event.actionMasked.toString()
                     }
-                    Log.d(
-                        "HyperIsleIsland",
-                        "RID=$rid EVT=RAW_TOUCH action=$actionName x=${event.x} y=${event.y} consumed=$isSwiping"
-                    )
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=$rid EVT=RAW_TOUCH action=$actionName x=${event.x} y=${event.y} consumed=$isSwiping"
+                        )
+                    }
                     false
                 }
                 .pointerInput(rid) {

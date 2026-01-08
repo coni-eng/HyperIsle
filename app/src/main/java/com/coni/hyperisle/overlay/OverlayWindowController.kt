@@ -93,9 +93,10 @@ class OverlayWindowController(private val context: Context) {
             }
             if (!hasLoggedWindowFlags) {
                 val touchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) == 0
+                val focusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
                 Log.d(
                     "HyperIsleIsland",
-                    "RID=OVL_FLAGS EVT=WINDOW_FLAGS flags=${params.flags} type=${params.type} touchable=$touchable"
+                    "RID=OVL_FLAGS EVT=WINDOW_FLAGS flags=${params.flags} type=${params.type} touchable=$touchable focusable=$focusable"
                 )
                 hasLoggedWindowFlags = true
             }
