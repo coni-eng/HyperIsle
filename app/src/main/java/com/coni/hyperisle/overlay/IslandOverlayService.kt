@@ -253,6 +253,7 @@ class IslandOverlayService : Service() {
 
     private fun showNotificationOverlay(model: IosNotificationOverlayModel) {
         Log.d(TAG, "Showing notification overlay from: ${model.sender}")
+        val rid = model.notificationKey.hashCode()
         // INSTRUMENTATION: Overlay show notification
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=${model.notificationKey?.hashCode() ?: 0} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NOTIFICATION pkg=${model.packageName}")
@@ -286,9 +287,15 @@ class IslandOverlayService : Service() {
 
         overlayController.showOverlay(OverlayEvent.NotificationEvent(model)) {
             SwipeDismissContainer(
-                rid = model.notificationKey.hashCode(),
+                rid = rid,
                 stateLabel = "compact",
                 onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
+                onTap = {
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                    handleNotificationTap(model.contentIntent)
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                    dismissAllOverlays("TAP_OPEN")
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -298,12 +305,8 @@ class IslandOverlayService : Service() {
                     timeLabel = model.timeLabel,
                     message = model.message,
                     avatarBitmap = model.avatarBitmap,
-                    onClick = {
-                        handleNotificationTap(model.contentIntent)
-                        dismissAllOverlays("TAP_OPEN")
-                    },
                     onDismiss = {
-                        Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                         dismissFromUser("BTN_RED_X")
                     }
                 )
@@ -423,6 +426,7 @@ class IslandOverlayService : Service() {
         stateLabel: String,
         modifier: Modifier = Modifier,
         onDismiss: () -> Unit,
+        onTap: (() -> Unit)? = null,
         content: @Composable () -> Unit
     ) {
         val scope = rememberCoroutineScope()
@@ -453,14 +457,18 @@ class IslandOverlayService : Service() {
                     }
                     false
                 }
-                .pointerInput(rid) {
+                .pointerInput(rid, onTap) {
                     awaitPointerEventScope {
                         while (true) {
-                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val down = awaitFirstDown(requireUnconsumed = true)
                             val pointerId = down.id
                             var dragTotal = 0f
                             var hasStarted = false
                             var lastPosition = down.position
+                            var totalDx = 0f
+                            var totalDy = 0f
+                            var endedByUp = false
+                            var endedByCancel = false
                             val touchSlop = viewConfiguration.touchSlop
 
                             while (true) {
@@ -468,10 +476,10 @@ class IslandOverlayService : Service() {
                                 val change = event.changes.firstOrNull { it.id == pointerId } ?: break
                                 val deltaX = change.position.x - lastPosition.x
                                 val deltaY = change.position.y - lastPosition.y
+                                totalDx = abs(change.position.x - down.position.x)
+                                totalDy = abs(change.position.y - down.position.y)
 
                                 if (!hasStarted) {
-                                    val totalDx = abs(change.position.x - down.position.x)
-                                    val totalDy = abs(change.position.y - down.position.y)
                                     if (totalDx > touchSlop && totalDx > totalDy) {
                                         hasStarted = true
                                         isSwiping = true
@@ -492,6 +500,8 @@ class IslandOverlayService : Service() {
                                 val isUp = change.previousPressed && !change.pressed
                                 val isCancel = !change.pressed && !change.previousPressed
                                 if (isUp || isCancel) {
+                                    endedByUp = isUp
+                                    endedByCancel = isCancel
                                     break
                                 }
                                 lastPosition = change.position
@@ -499,6 +509,9 @@ class IslandOverlayService : Service() {
 
                             if (!hasStarted) {
                                 isSwiping = false
+                                if (endedByUp && !endedByCancel && totalDx <= touchSlop && totalDy <= touchSlop) {
+                                    onTap?.invoke()
+                                }
                                 continue
                             }
 
