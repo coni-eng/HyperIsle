@@ -262,7 +262,7 @@ fun IslandStylePreviewScreen(onBack: () -> Unit) {
             ) {
                 ModernCallIsland(
                     callerDisplay = "Aga Orlova",
-                    callTypeLabel = "iPhone",
+                    callDurationText = "01:23",
                     isExpanded = callExpanded,
                     onAccept = { },
                     onReject = { },
@@ -287,7 +287,7 @@ fun IslandStylePreviewScreen(onBack: () -> Unit) {
             ) {
                 ModernCallIsland(
                     callerDisplay = "John Doe",
-                    callTypeLabel = "Mobile",
+                    callDurationText = "Ringing",
                     isExpanded = false,
                     onAccept = { },
                     onReject = { },

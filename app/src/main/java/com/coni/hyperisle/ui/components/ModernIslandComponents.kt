@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -264,7 +265,7 @@ fun ModernPillIsland(
  * - Does NOT log/store contact names (privacy-safe)
  * 
  * @param callerDisplay Display name or number (not stored)
- * @param callTypeLabel Label like "iPhone" or "Mobile"
+ * @param callDurationText Duration text (e.g., "01:23") or state text (e.g., "Ringing", "Connecting")
  * @param callerIcon Optional bitmap for caller avatar
  * @param isExpanded Whether the island is in expanded state
  * @param onAccept Callback when accept button is pressed
@@ -275,7 +276,7 @@ fun ModernPillIsland(
 @Composable
 fun ModernCallIsland(
     callerDisplay: String,
-    callTypeLabel: String = "",
+    callDurationText: String = "",
     callerIcon: Bitmap? = null,
     isExpanded: Boolean = true,
     onAccept: () -> Unit,
@@ -283,6 +284,10 @@ fun ModernCallIsland(
     onExpandToggle: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    // Guard: if callerDisplay is blank, show "Unknown" and initial "?"
+    val displayName = callerDisplay.ifBlank { "Unknown" }
+    val initial = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+
     val cornerRadius by animateDpAsState(
         targetValue = if (isExpanded) 32.dp else 24.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
@@ -297,6 +302,7 @@ fun ModernCallIsland(
 
     Surface(
         modifier = modifier
+            .testTag("island_call_root")
             .shadow(
                 elevation = elevation,
                 shape = RoundedCornerShape(cornerRadius),
@@ -316,7 +322,7 @@ fun ModernCallIsland(
                 )
             )
             .semantics {
-                contentDescription = "Incoming call from $callerDisplay"
+                contentDescription = "Incoming call from $displayName"
             },
         color = ModernIslandColors.pillBackground,
         shape = RoundedCornerShape(cornerRadius)
@@ -329,42 +335,65 @@ fun ModernCallIsland(
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Caller Avatar
-            IslandAppIcon(
-                bitmap = callerIcon,
-                placeholder = Icons.Default.Call,
-                size = if (isExpanded) 48.dp else 36.dp,
-                contentDescription = "Caller avatar"
+            // Left: Avatar circle with caller initial
+            Box(
+                modifier = Modifier
+                    .testTag("island_call_avatar")
+                    .size(if (isExpanded) 48.dp else 36.dp)
+                    .clip(CircleShape)
+                    .background(ModernIslandColors.actionGray),
+                contentAlignment = Alignment.Center
+            ) {
+                if (callerIcon != null) {
+                    Image(
+                        bitmap = callerIcon.asImageBitmap(),
+                        contentDescription = "Caller avatar",
+                        modifier = Modifier
+                            .size(if (isExpanded) 48.dp else 36.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = initial,
+                        color = ModernIslandColors.textPrimary,
+                        fontSize = if (isExpanded) 20.sp else 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.testTag("island_call_initial")
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Center: Caller name (takes remaining space)
+            Text(
+                text = displayName,
+                color = ModernIslandColors.textPrimary,
+                fontSize = if (isExpanded) 18.sp else 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("island_call_name")
             )
             
             Spacer(modifier = Modifier.width(12.dp))
             
-            // Center: Caller Info
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                if (callTypeLabel.isNotEmpty()) {
-                    Text(
-                        text = callTypeLabel,
-                        color = ModernIslandColors.textSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                }
+            // Right: Duration/state text
+            if (callDurationText.isNotEmpty()) {
                 Text(
-                    text = callerDisplay,
-                    color = ModernIslandColors.textPrimary,
-                    fontSize = if (isExpanded) 18.sp else 15.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = callDurationText,
+                    color = ModernIslandColors.textSecondary,
+                    fontSize = if (isExpanded) 16.sp else 14.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    modifier = Modifier.testTag("island_call_duration")
                 )
+                
+                Spacer(modifier = Modifier.width(12.dp))
             }
-            
-            Spacer(modifier = Modifier.width(12.dp))
             
             // Right: Accept/Reject Buttons
             Row(
@@ -378,7 +407,8 @@ fun ModernCallIsland(
                     backgroundColor = ModernIslandColors.rejectRed,
                     iconTint = Color.White,
                     size = if (isExpanded) 44.dp else 36.dp,
-                    onClick = onReject
+                    onClick = onReject,
+                    modifier = Modifier.testTag("island_call_reject")
                 )
                 
                 // Accept Button (Green)
@@ -388,7 +418,8 @@ fun ModernCallIsland(
                     backgroundColor = ModernIslandColors.acceptGreen,
                     iconTint = Color.White,
                     size = if (isExpanded) 44.dp else 36.dp,
-                    onClick = onAccept
+                    onClick = onAccept,
+                    modifier = Modifier.testTag("island_call_accept")
                 )
             }
         }
