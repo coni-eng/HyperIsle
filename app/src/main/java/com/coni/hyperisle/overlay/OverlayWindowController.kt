@@ -35,6 +35,7 @@ class OverlayWindowController(private val context: Context) {
 
     private var overlayView: ComposeView? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
+    private var hasLoggedWindowFlags = false
 
     // Current overlay state
     var currentEvent: OverlayEvent? by mutableStateOf(null)
@@ -89,6 +90,14 @@ class OverlayWindowController(private val context: Context) {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
                 // Add top margin for status bar
                 y = getStatusBarHeight()
+            }
+            if (!hasLoggedWindowFlags) {
+                val touchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) == 0
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=OVL_FLAGS EVT=WINDOW_FLAGS flags=${params.flags} type=${params.type} touchable=$touchable"
+                )
+                hasLoggedWindowFlags = true
             }
 
             windowManager.addView(overlayView, params)

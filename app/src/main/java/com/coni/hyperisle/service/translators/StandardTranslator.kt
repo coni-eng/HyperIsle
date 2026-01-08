@@ -9,6 +9,7 @@ import android.service.notification.StatusBarNotification
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
+import com.coni.hyperisle.receiver.IslandActionReceiver
 import com.coni.hyperisle.util.AccentColorResolver
 import com.coni.hyperisle.util.FocusActionHelper
 import com.coni.hyperisle.util.IslandStyleContract
@@ -152,7 +153,10 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
      */
     private fun createOptionsAction(notificationId: Int, packageName: String): Pair<HyperAction, io.github.d4viddf.hyperisland_kit.HyperPicture> {
         val actionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_OPTIONS, notificationId)
-        val intent = Intent(actionString)
+        val intent = Intent(actionString).apply {
+            setPackage(context.packageName)
+            setClass(context, IslandActionReceiver::class.java)
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             "options_$notificationId".hashCode(),
@@ -182,7 +186,10 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
      */
     private fun createDismissAction(notificationId: Int): Pair<HyperAction, io.github.d4viddf.hyperisland_kit.HyperPicture> {
         val actionString = FocusActionHelper.buildActionString(FocusActionHelper.TYPE_DISMISS, notificationId)
-        val intent = Intent(actionString)
+        val intent = Intent(actionString).apply {
+            setPackage(context.packageName)
+            setClass(context, IslandActionReceiver::class.java)
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             "dismiss_$notificationId".hashCode(),

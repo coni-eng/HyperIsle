@@ -122,6 +122,7 @@ class NotificationReaderService : NotificationListenerService() {
     private val lastShownMap = ConcurrentHashMap<String, Pair<Long, Int>>()
     // Map original sbn.key to groupKey for cleanup
     private val sbnKeyToGroupKey = ConcurrentHashMap<String, String>()
+    private val bridgePostConfirmations = ConcurrentHashMap<String, Long>()
 
     // Call timer tracking: groupKey -> (startTime, timerJob)
     private val activeCallTimers = ConcurrentHashMap<String, Pair<Long, Job>>()
@@ -130,6 +131,8 @@ class NotificationReaderService : NotificationListenerService() {
 
     private val UPDATE_INTERVAL_MS = 200L
     private val MAX_ISLANDS = 9
+    private val BRIDGE_CONFIRM_TIMEOUT_MS = 250L
+    private val BRIDGE_CONFIRM_POLL_MS = 50L
 
     private lateinit var preferences: AppPreferences
     private lateinit var callTranslator: CallTranslator
@@ -297,9 +300,14 @@ class NotificationReaderService : NotificationListenerService() {
         sbn?.let {
             val key = it.key
             val groupKey = sbnKeyToGroupKey[key]
+            val rid = key.hashCode()
+            val reasonName = mapRemovalReason(reason)
+
+            if (OverlayEventBus.emitDismiss(key)) {
+                Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
+            }
             
             // Debug-only logging (PII-free)
-            val reasonName = mapRemovalReason(reason)
             if (BuildConfig.DEBUG) {
                 Log.d(TAG, "event=onRemoved pkg=${it.packageName} keyHash=${key.hashCode()} reason=$reasonName")
             }
@@ -395,6 +403,15 @@ class NotificationReaderService : NotificationListenerService() {
                 activeCallTimers.remove(groupKey)
             }
             sbnKeyToGroupKey.remove(key)
+            bridgePostConfirmations.remove(key)
+
+            if (activeIslands.isEmpty()) {
+                IslandCooldownManager.clearLastActiveIsland()
+                if (OverlayEventBus.emitDismissAll()) {
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+                }
+                Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+            }
         }
     }
     
@@ -965,7 +982,7 @@ class NotificationReaderService : NotificationListenerService() {
 
             when (activityResult) {
                 is IslandActivityStateMachine.ActivityResult.Completed -> {
-                    postNotification(sbn, bridgeId, groupKey, type.name, data)
+                    postNotification(sbn, bridgeId, groupKey, type.name, data, ctx.rid)
                     attemptShadeCancel(sbn, type, isOngoingCall) // v0.9.5/v0.9.7: Cancel from shade if enabled
                     Haptics.hapticOnIslandSuccess(applicationContext)
                     serviceScope.launch {
@@ -981,7 +998,7 @@ class NotificationReaderService : NotificationListenerService() {
                     }
                 }
                 else -> {
-                    postNotification(sbn, bridgeId, groupKey, type.name, data)
+                    postNotification(sbn, bridgeId, groupKey, type.name, data, ctx.rid)
                     attemptShadeCancel(sbn, type, isOngoingCall) // v0.9.5/v0.9.7: Cancel from shade if enabled
                 }
             }
@@ -1007,7 +1024,17 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-    private fun postNotification(sbn: StatusBarNotification, bridgeId: Int, groupKey: String, notificationType: String, data: HyperIslandData) {
+    private fun postNotification(
+        sbn: StatusBarNotification,
+        bridgeId: Int,
+        groupKey: String,
+        notificationType: String,
+        data: HyperIslandData,
+        rid: String
+    ) {
+        val keyHash = sbn.key.hashCode()
+        Log.d("HyperIsleIsland", "RID=$keyHash EVT=BRIDGE_POST_TRY pkg=${sbn.packageName} bridgeId=$bridgeId type=$notificationType")
+
         val notificationBuilder = NotificationCompat.Builder(this, ISLAND_CHANNEL_ID)
             .setSmallIcon(R.drawable.`ic_launcher_foreground`)
             .setContentTitle(getString(R.string.app_name))
@@ -1047,11 +1074,21 @@ class NotificationReaderService : NotificationListenerService() {
         val notification = notificationBuilder.build()
         notification.extras.putString("miui.focus.param", data.jsonParam)
 
-        NotificationManagerCompat.from(this).notify(bridgeId, notification)
+        try {
+            NotificationManagerCompat.from(this).notify(bridgeId, notification)
+        } catch (e: Exception) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=BRIDGE_POST_FAIL pkg=${sbn.packageName} bridgeId=$bridgeId reason=${e.javaClass.simpleName}"
+            )
+            throw e
+        }
+        bridgePostConfirmations[sbn.key] = System.currentTimeMillis()
+        Log.d("HyperIsleIsland", "RID=$keyHash EVT=BRIDGE_POST_OK pkg=${sbn.packageName} bridgeId=$bridgeId")
         activeTranslations[groupKey] = bridgeId
 
         // STEP: MIUI_POST_OK - Successfully posted island notification
-        DebugLog.event("MIUI_POST_OK", "N/A", "POST", kv = mapOf(
+        DebugLog.event("MIUI_POST_OK", rid, "POST", kv = mapOf(
             "pkg" to sbn.packageName,
             "bridgeId" to bridgeId,
             "type" to notificationType,
@@ -1132,6 +1169,18 @@ class NotificationReaderService : NotificationListenerService() {
         Haptics.hapticOnIslandShown(applicationContext)
     }
 
+    private suspend fun awaitBridgeConfirmation(sbn: StatusBarNotification): Boolean {
+        val key = sbn.key
+        val deadline = System.currentTimeMillis() + BRIDGE_CONFIRM_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            if (bridgePostConfirmations.containsKey(key)) {
+                return true
+            }
+            delay(BRIDGE_CONFIRM_POLL_MS)
+        }
+        return bridgePostConfirmations.containsKey(key)
+    }
+
     /**
      * v0.9.9: Decoupled shade cancel using IslandDecisionEngine.
      * 
@@ -1147,6 +1196,7 @@ class NotificationReaderService : NotificationListenerService() {
     private suspend fun attemptShadeCancel(sbn: StatusBarNotification, type: NotificationType, isOngoingCall: Boolean = false) {
         val pkg = sbn.packageName
         val keyHash = sbn.key.hashCode()
+        val clearable = sbn.isClearable
         
         // For call notifications, check calls-only-island setting
         val shadeCancelEnabled = if (type == NotificationType.CALL) {
@@ -1167,6 +1217,11 @@ class NotificationReaderService : NotificationListenerService() {
             shadeCancelMode = shadeCancelMode,
             isOngoingCall = isOngoingCall
         )
+        val bridgeConfirmed = if (decision.cancelShade) {
+            awaitBridgeConfirmation(sbn)
+        } else {
+            bridgePostConfirmations.containsKey(sbn.key)
+        }
         
         // INSTRUMENTATION: Shade cancel decision
         if (BuildConfig.DEBUG) {
@@ -1183,6 +1238,16 @@ class NotificationReaderService : NotificationListenerService() {
                     "safe" to decision.cancelShadeSafe
                 )
             )
+        }
+
+        Log.d(
+            "HyperIsleIsland",
+            "RID=$keyHash EVT=CANCEL_GUARD decision={clearable=$clearable,eligible=${decision.cancelShadeEligible},safe=${decision.cancelShadeSafe},bridgeConfirmed=$bridgeConfirmed} result=${if (decision.cancelShade && bridgeConfirmed) "TRY" else "SKIP"} pkg=$pkg"
+        )
+
+        if (decision.cancelShade && !bridgeConfirmed) {
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=CANCEL_SKIPPED_BRIDGE_NOT_CONFIRMED pkg=$pkg")
+            return
         }
         
         // Only cancel if all conditions are met

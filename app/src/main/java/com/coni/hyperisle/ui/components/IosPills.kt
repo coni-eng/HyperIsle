@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -187,6 +188,7 @@ fun IncomingCallPill(
  * @param message Single-line message preview with reduced opacity
  * @param avatarBitmap Optional avatar/app icon bitmap
  * @param onClick Optional callback when pill is tapped
+ * @param onDismiss Optional callback when close button is tapped
  */
 @Composable
 fun NotificationPill(
@@ -194,7 +196,8 @@ fun NotificationPill(
     timeLabel: String,
     message: String,
     avatarBitmap: Bitmap? = null,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null
 ) {
     PillContainer(
         modifier = if (onClick != null) Modifier.clickable { onClick() } else Modifier
@@ -289,6 +292,24 @@ fun NotificationPill(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+
+            if (onDismiss != null) {
+                Spacer(modifier = Modifier.width(10.dp))
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss notification",
+                        tint = Color(0xFF8E8E93),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -328,7 +349,8 @@ private fun PreviewNotificationPill() {
             timeLabel = "now",
             message = "Hey! Are you coming to the party tonight?",
             avatarBitmap = null,
-            onClick = {}
+            onClick = {},
+            onDismiss = {}
         )
     }
 }

@@ -11,6 +11,7 @@ import com.coni.hyperisle.MainActivity
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.debug.DebugLog
+import com.coni.hyperisle.overlay.OverlayEventBus
 import com.coni.hyperisle.util.ActionDiagnostics
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.FocusActionHelper
@@ -96,7 +97,7 @@ class IslandActionReceiver : BroadcastReceiver() {
     }
 
     private fun handleOptions(context: Context, notificationId: Int?) {
-        Log.d(TAG, "Opening Quick Actions screen for notificationId: $notificationId")
+        Log.d(TAG, "Opening Notification Management screen for notificationId: $notificationId")
         
         // Show debug route toast if enabled
         showDebugRouteToast(context, "Broadcast")
@@ -109,6 +110,9 @@ class IslandActionReceiver : BroadcastReceiver() {
         val targetId = notificationId ?: IslandCooldownManager.getLastActiveNotificationId()
         val meta = if (targetId != null) IslandCooldownManager.getIslandMeta(targetId) else null
         val islandStyle = meta?.second ?: "UNKNOWN"
+        val rid = targetId ?: 0
+
+        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_SETTINGS_CLICK pkg=${targetPackage ?: "unknown"}")
         
         // Telemetry: ISLAND_CLICK_RECEIVED
         HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
@@ -126,14 +130,13 @@ class IslandActionReceiver : BroadcastReceiver() {
             "optionsPressed",
             targetPackage,
             targetId,
-            mapOf("action" to "openQuickActions")
+            mapOf("action" to "openNotificationManagement")
         )
-        
+
         try {
             val launchIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("openQuickActions", true)
-                targetPackage?.let { putExtra("quickActionsPackage", it) }
+                putExtra("openNotificationManagement", true)
             }
             
             context.startActivity(launchIntent)
@@ -165,6 +168,9 @@ class IslandActionReceiver : BroadcastReceiver() {
         val targetPackage = meta?.first ?: IslandCooldownManager.getLastActivePackage()
         val targetType = meta?.second ?: IslandCooldownManager.getLastActiveType()
         val islandStyle = targetType ?: "UNKNOWN"
+        val rid = targetId ?: 0
+
+        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK pkg=${targetPackage ?: "unknown"}")
         
         // Telemetry: ISLAND_CLICK_RECEIVED
         HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
@@ -241,6 +247,10 @@ class IslandActionReceiver : BroadcastReceiver() {
         
         // Trigger success haptic
         Haptics.hapticOnIslandSuccess(context)
+
+        if (OverlayEventBus.emitDismissAll()) {
+            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=BTN_RED_X")
+        }
         
         // Telemetry: ISLAND_ACTION_OK or ISLAND_ACTION_FAIL
         if (actionSuccess) {

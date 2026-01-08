@@ -70,13 +70,15 @@ class MainActivity : AppCompatActivity() {
         // Check for quick actions intent
         val openQuickActions = intent?.getBooleanExtra("openQuickActions", false) ?: false
         val quickActionsPackage = intent?.getStringExtra("quickActionsPackage")
+        val openNotificationManagement = intent?.getBooleanExtra("openNotificationManagement", false) ?: false
         
         setContent {
             HyperIsleTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     MainRootNavigation(
                         initialOpenQuickActions = openQuickActions,
-                        initialQuickActionsPackage = quickActionsPackage
+                        initialQuickActionsPackage = quickActionsPackage,
+                        initialOpenNotificationManagement = openNotificationManagement
                     )
                 }
             }
@@ -100,7 +102,8 @@ enum class Screen(val depth: Int) {
 @Composable
 fun MainRootNavigation(
     initialOpenQuickActions: Boolean = false,
-    initialQuickActionsPackage: String? = null
+    initialQuickActionsPackage: String? = null,
+    initialOpenNotificationManagement: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -129,6 +132,7 @@ fun MainRootNavigation(
     var navConfigPackage by remember { mutableStateOf<String?>(null) }
     var quickActionsPackage by remember { mutableStateOf(initialQuickActionsPackage) }
     var pendingQuickActions by remember { mutableStateOf(initialOpenQuickActions) }
+    var pendingNotificationManagement by remember { mutableStateOf(initialOpenNotificationManagement) }
 
     // State to hold the parsed backup file before restoring
     var pendingImportBackup by remember { mutableStateOf<HyperIsleBackup?>(null) }
@@ -142,7 +146,10 @@ fun MainRootNavigation(
         if (isSetupComplete != null) {
             if (currentScreen == null) {
                 // Check if we should open Quick Actions directly
-                if (pendingQuickActions && isSetupComplete == true && quickActionsPackage != null) {
+                if (pendingNotificationManagement && isSetupComplete == true) {
+                    currentScreen = Screen.NOTIFICATION_MANAGEMENT
+                    pendingNotificationManagement = false
+                } else if (pendingQuickActions && isSetupComplete == true && quickActionsPackage != null) {
                     currentScreen = Screen.ISLAND_QUICK_ACTIONS
                     pendingQuickActions = false
                 } else {
@@ -150,7 +157,7 @@ fun MainRootNavigation(
                 }
             }
 
-            if (isSetupComplete == true && !pendingQuickActions) {
+            if (isSetupComplete == true && !pendingQuickActions && !pendingNotificationManagement) {
                 // UX: Automatic update popup disabled - users can view changelog via Settings → Version history
                 // if (currentVersionCode > lastSeenVersion) {
                 //     showChangelog = true

@@ -135,6 +135,18 @@ object IslandDecisionEngine {
             return checkCallShadeCancelEligibility(sbn, isOngoingCall)
         }
 
+        if (!sbn.isClearable) {
+            return Pair(false, "NOT_CLEARABLE")
+        }
+
+        if ((flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
+            return Pair(false, "FOREGROUND_SERVICE")
+        }
+
+        if (category == Notification.CATEGORY_SERVICE) {
+            return Pair(false, "CATEGORY_SERVICE")
+        }
+
         // Check group summary flag (always blocked)
         if ((flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
             return Pair(false, "GROUP_SUMMARY")
@@ -208,6 +220,14 @@ object IslandDecisionEngine {
     ): Pair<Boolean, String> {
         val notification = sbn.notification
         val flags = notification.flags
+
+        if (!sbn.isClearable) {
+            return Pair(false, "NOT_CLEARABLE")
+        }
+
+        if ((flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
+            return Pair(false, "FOREGROUND_SERVICE")
+        }
 
         // Must be an ongoing call (not incoming)
         if (!isOngoingCall) {

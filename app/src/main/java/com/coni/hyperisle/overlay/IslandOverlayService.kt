@@ -1,5 +1,6 @@
 package com.coni.hyperisle.overlay
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,15 +9,30 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
+import android.view.MotionEvent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import com.coni.hyperisle.BuildConfig
@@ -32,6 +48,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Foreground service that manages iOS-style pill overlays.
@@ -168,8 +186,8 @@ class IslandOverlayService : Service() {
         when (event) {
             is OverlayEvent.CallEvent -> showCallOverlay(event.model)
             is OverlayEvent.NotificationEvent -> showNotificationOverlay(event.model)
-            is OverlayEvent.DismissEvent -> dismissOverlay(event.notificationKey)
-            is OverlayEvent.DismissAllEvent -> dismissAllOverlays()
+            is OverlayEvent.DismissEvent -> dismissOverlay(event.notificationKey, "NOTIF_REMOVED")
+            is OverlayEvent.DismissAllEvent -> dismissAllOverlays("DISMISS_ALL_EVENT")
         }
     }
 
@@ -208,11 +226,12 @@ class IslandOverlayService : Service() {
         currentCallModel = model
 
         overlayController.showOverlay(OverlayEvent.CallEvent(model)) {
-            Box(
+            SwipeDismissContainer(
+                rid = model.notificationKey.hashCode(),
+                onDismiss = { dismissAllOverlays("SWIPE_DISMISSED") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                contentAlignment = Alignment.TopCenter
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 IncomingCallPill(
                     title = model.title,
@@ -220,11 +239,11 @@ class IslandOverlayService : Service() {
                     avatarBitmap = model.avatarBitmap,
                     onDecline = {
                         handleCallAction(model.declineIntent, "decline")
-                        dismissAllOverlays()
+                        dismissAllOverlays("CALL_DECLINE")
                     },
                     onAccept = {
                         handleCallAction(model.acceptIntent, "accept")
-                        dismissAllOverlays()
+                        dismissAllOverlays("CALL_ACCEPT")
                     }
                 )
             }
@@ -265,11 +284,12 @@ class IslandOverlayService : Service() {
         currentNotificationModel = model
 
         overlayController.showOverlay(OverlayEvent.NotificationEvent(model)) {
-            Box(
+            SwipeDismissContainer(
+                rid = model.notificationKey.hashCode(),
+                onDismiss = { dismissAllOverlays("SWIPE_DISMISSED") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                contentAlignment = Alignment.TopCenter
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 NotificationPill(
                     sender = model.sender,
@@ -278,7 +298,11 @@ class IslandOverlayService : Service() {
                     avatarBitmap = model.avatarBitmap,
                     onClick = {
                         handleNotificationTap(model.contentIntent)
-                        dismissAllOverlays()
+                        dismissAllOverlays("TAP_OPEN")
+                    },
+                    onDismiss = {
+                        Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                        dismissAllOverlays("BTN_RED_X")
                     }
                 )
 
@@ -286,7 +310,7 @@ class IslandOverlayService : Service() {
                 LaunchedEffect(model.notificationKey) {
                     delay(NOTIFICATION_AUTO_DISMISS_MS)
                     if (currentNotificationModel?.notificationKey == model.notificationKey) {
-                        dismissAllOverlays()
+                        dismissAllOverlays("AUTO_TIMEOUT")
                     }
                 }
             }
@@ -296,7 +320,7 @@ class IslandOverlayService : Service() {
         autoDismissJob = serviceScope.launch {
             delay(NOTIFICATION_AUTO_DISMISS_MS)
             if (currentNotificationModel?.notificationKey == model.notificationKey) {
-                dismissAllOverlays()
+                dismissAllOverlays("AUTO_TIMEOUT")
             }
         }
     }
@@ -333,9 +357,9 @@ class IslandOverlayService : Service() {
         }
     }
 
-    private fun dismissOverlay(notificationKey: String?) {
+    private fun dismissOverlay(notificationKey: String?, reason: String) {
         if (notificationKey == null) {
-            dismissAllOverlays()
+            dismissAllOverlays(reason)
             return
         }
 
@@ -347,12 +371,14 @@ class IslandOverlayService : Service() {
         }
 
         if (shouldDismiss) {
-            dismissAllOverlays()
+            dismissAllOverlays(reason)
         }
     }
 
-    private fun dismissAllOverlays() {
+    private fun dismissAllOverlays(reason: String) {
         Log.d(TAG, "Dismissing all overlays")
+        val rid = (currentCallModel?.notificationKey ?: currentNotificationModel?.notificationKey)?.hashCode() ?: 0
+        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=$reason")
         // INSTRUMENTATION: Overlay dismiss
         if (BuildConfig.DEBUG) {
             val overlayType = when {
@@ -373,12 +399,138 @@ class IslandOverlayService : Service() {
                 ctx = snapshotCtx,
                 evt = "OVERLAY_DISMISS",
                 route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
-                reason = "AUTO_TIMEOUT"
+                reason = reason
             )
         }
         autoDismissJob?.cancel()
         currentCallModel = null
         currentNotificationModel = null
         overlayController.removeOverlay()
+        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
+        Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    @Composable
+    private fun SwipeDismissContainer(
+        rid: Int,
+        modifier: Modifier = Modifier,
+        onDismiss: () -> Unit,
+        content: @Composable () -> Unit
+    ) {
+        val scope = rememberCoroutineScope()
+        var offsetX by remember { mutableStateOf(0f) }
+        var containerWidth by remember { mutableStateOf(0) }
+        var isSwiping by remember { mutableStateOf(false) }
+        val density = LocalDensity.current
+        val dismissThresholdPx = with(density) { 72.dp.toPx() }
+
+        Box(
+            modifier = modifier
+                .onSizeChanged { containerWidth = it.width }
+                .offset { IntOffset(offsetX.roundToInt(), 0) }
+                .pointerInteropFilter { event ->
+                    val actionName = when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> "DOWN"
+                        MotionEvent.ACTION_MOVE -> "MOVE"
+                        MotionEvent.ACTION_UP -> "UP"
+                        MotionEvent.ACTION_CANCEL -> "CANCEL"
+                        else -> event.actionMasked.toString()
+                    }
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$rid EVT=RAW_TOUCH action=$actionName x=${event.x} y=${event.y} consumed=$isSwiping"
+                    )
+                    false
+                }
+                .pointerInput(rid) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val pointerId = down.id
+                            var dragTotal = 0f
+                            var hasStarted = false
+                            var lastPosition = down.position
+                            val touchSlop = viewConfiguration.touchSlop
+
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                val deltaX = change.position.x - lastPosition.x
+                                val deltaY = change.position.y - lastPosition.y
+
+                                if (!hasStarted) {
+                                    val totalDx = abs(change.position.x - down.position.x)
+                                    val totalDy = abs(change.position.y - down.position.y)
+                                    if (totalDx > touchSlop && totalDx > totalDy) {
+                                        hasStarted = true
+                                        isSwiping = true
+                                        Log.d(
+                                            "HyperIsleIsland",
+                                            "RID=$rid EVT=SWIPE_START x=${down.position.x} y=${down.position.y}"
+                                        )
+                                    }
+                                }
+
+                                if (hasStarted && deltaX != 0f) {
+                                    dragTotal += deltaX
+                                    offsetX += deltaX
+                                    change.consume()
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=SWIPE_MOVE dx=$dragTotal")
+                                }
+
+                                val isUp = change.previousPressed && !change.pressed
+                                val isCancel = !change.pressed && !change.previousPressed
+                                if (isUp || isCancel) {
+                                    break
+                                }
+                                lastPosition = change.position
+                            }
+
+                            if (!hasStarted) {
+                                isSwiping = false
+                                continue
+                            }
+
+                            val shouldDismiss = abs(offsetX) >= dismissThresholdPx
+                            if (shouldDismiss) {
+                                val targetDistance = if (containerWidth > 0) {
+                                    containerWidth.toFloat()
+                                } else {
+                                    dismissThresholdPx * 4
+                                }
+                                val target = if (offsetX < 0f) -targetDistance else targetDistance
+                                scope.launch {
+                                    animate(
+                                        initialValue = offsetX,
+                                        targetValue = target,
+                                        animationSpec = tween(180)
+                                    ) { value, _ ->
+                                        offsetX = value
+                                    }
+                                    onDismiss()
+                                    offsetX = 0f
+                                }
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=SWIPE_END result=DISMISSED")
+                            } else {
+                                scope.launch {
+                                    animate(
+                                        initialValue = offsetX,
+                                        targetValue = 0f,
+                                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                    ) { value, _ ->
+                                        offsetX = value
+                                    }
+                                }
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=SWIPE_END result=CANCELLED")
+                            }
+                            isSwiping = false
+                        }
+                    }
+                },
+            contentAlignment = Alignment.TopCenter
+        ) {
+            content()
+        }
     }
 }
