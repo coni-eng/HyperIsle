@@ -55,6 +55,12 @@ import com.coni.hyperisle.util.NotificationChannels
 import com.coni.hyperisle.util.IslandStyleContract
 import com.coni.hyperisle.service.IslandDecisionEngine
 import com.coni.hyperisle.service.IslandKeyManager
+import com.coni.hyperisle.overlay.IosCallOverlayModel
+import com.coni.hyperisle.overlay.IosNotificationOverlayModel
+import com.coni.hyperisle.overlay.OverlayEventBus
+import com.coni.hyperisle.util.OverlayPermissionHelper
+import com.coni.hyperisle.debug.DebugLog
+import com.coni.hyperisle.debug.ProcCtx
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -202,15 +208,47 @@ class NotificationReaderService : NotificationListenerService() {
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn?.let {
-            if (shouldIgnore(it.packageName)) return
+            // Generate correlation ID for this notification flow
+            val ctx = ProcCtx.from(it)
+            
+            // STEP: NL_POSTED - Raw notification received
+            DebugLog.event("NL_POSTED", ctx.rid, "RAW", kv = DebugLog.lazyKv {
+                val extras = it.notification.extras
+                mapOf(
+                    "pkg" to it.packageName,
+                    "sbnId" to it.id,
+                    "tag" to it.tag,
+                    "keyHash" to ctx.keyHash,
+                    "isOngoing" to ((it.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0),
+                    "isClearable" to it.isClearable,
+                    "category" to it.notification.category,
+                    "hasActions" to ((it.notification.actions?.size ?: 0) > 0),
+                    "actionCount" to (it.notification.actions?.size ?: 0),
+                    "hasFullScreenIntent" to (it.notification.fullScreenIntent != null)
+                )
+            })
+            
+            if (shouldIgnore(it.packageName)) {
+                DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "BLOCKED_SYSTEM_PKG", kv = mapOf("pkg" to it.packageName))
+                return
+            }
 
             // Check Global Junk + Blocked Terms
-            if (isJunkNotification(it)) return
+            if (isJunkNotification(it, ctx)) return
 
-            if (isAppAllowed(it.packageName)) {
-                if (shouldSkipUpdate(it)) return
-                serviceScope.launch { processAndPost(it) }
+            if (!isAppAllowed(it.packageName)) {
+                DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "BLOCKED_NOT_SELECTED", kv = mapOf("pkg" to it.packageName, "allowedCount" to allowedPackageSet.size))
+                return
             }
+            
+            DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "ALLOWED", kv = mapOf("pkg" to it.packageName))
+            
+            if (shouldSkipUpdate(it)) {
+                DebugLog.event("DEDUP_CHECK", ctx.rid, "DEDUP", reason = "DROP_RATE_LIMIT", kv = mapOf("pkg" to it.packageName))
+                return
+            }
+            
+            serviceScope.launch { processAndPost(it, ctx) }
         }
     }
 
@@ -315,47 +353,68 @@ class NotificationReaderService : NotificationListenerService() {
         }
 
         if (now - lastTime < UPDATE_INTERVAL_MS) return true
-
-        lastUpdateMap[key] = now
-        return false
-    }
-
-    private fun isJunkNotification(sbn: StatusBarNotification): Boolean {
         val notification = sbn.notification
         val extras = notification.extras
         val pkg = sbn.packageName
+        val rid = ctx?.rid ?: "N/A"
 
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim() ?: ""
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim() ?: ""
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.trim() ?: ""
 
         // --- 1. CONTENT CHECKS ---
-        if (title.isEmpty() && text.isEmpty() && subText.isEmpty()) return true
+        if (title.isEmpty() && text.isEmpty() && subText.isEmpty()) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "EMPTY_CONTENT", kv = mapOf("pkg" to pkg))
+            return true
+        }
 
         // Package Name Leaks
-        if (title.equals(pkg, ignoreCase = true) || text.equals(pkg, ignoreCase = true) || subText.equals(pkg, ignoreCase = true)) return true
-        if (title.contains("com.google.android", ignoreCase = true)) return true
+        if (title.equals(pkg, ignoreCase = true) || text.equals(pkg, ignoreCase = true) || subText.equals(pkg, ignoreCase = true)) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "PKG_NAME_LEAK", kv = mapOf("pkg" to pkg))
+            return true
+        }
+        if (title.contains("com.google.android", ignoreCase = true)) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "GOOGLE_PKG_LEAK", kv = mapOf("pkg" to pkg))
+            return true
+        }
 
         // *** NEW: GLOBAL BLOCKLIST CHECK ***
         // If title or text contains any blocked word, ignore it.
         if (globalBlockedTerms.isNotEmpty()) {
             val content = "$title $text"
-            if (globalBlockedTerms.any { term -> content.contains(term, ignoreCase = true) }) {
+            val matchedTerm = globalBlockedTerms.firstOrNull { term -> content.contains(term, ignoreCase = true) }
+            if (matchedTerm != null) {
+                DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "GLOBAL_BLOCKLIST", kv = mapOf("pkg" to pkg, "matchedTerm" to matchedTerm))
                 return true
             }
         }
 
         // Placeholder Titles
         val appName = try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { "" }
-        if (title == appName && text.isEmpty() && subText.isEmpty()) return true
+        if (title == appName && text.isEmpty() && subText.isEmpty()) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "PLACEHOLDER_TITLE", kv = mapOf("pkg" to pkg))
+            return true
+        }
 
         // System Noise
-        if (title.contains("running in background", true)) return true
-        if (text.contains("tap for more info", true)) return true
-        if (text.contains("displaying over other apps", true)) return true
+        if (title.contains("running in background", true)) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "SYSTEM_NOISE_BACKGROUND", kv = mapOf("pkg" to pkg))
+            return true
+        }
+        if (text.contains("tap for more info", true)) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "SYSTEM_NOISE_TAP_INFO", kv = mapOf("pkg" to pkg))
+            return true
+        }
+        if (text.contains("displaying over other apps", true)) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "SYSTEM_NOISE_OVERLAY", kv = mapOf("pkg" to pkg))
+            return true
+        }
 
         // --- 2. GROUP SUMMARIES ---
-        if ((notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return true
+        if ((notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+            DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "GROUP_SUMMARY", kv = mapOf("pkg" to pkg))
+            return true
+        }
 
         // --- 3. PRIORITY PASS ---
         val hasProgress = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0) > 0 ||
@@ -373,6 +432,7 @@ class NotificationReaderService : NotificationListenerService() {
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     private suspend fun processAndPost(sbn: StatusBarNotification) {
         try {
+            // ...
             val extras = sbn.notification.extras
 
             // Timeline: onNotificationPosted event (PII-safe)
@@ -755,6 +815,10 @@ class NotificationReaderService : NotificationListenerService() {
                 lastContentHash = newContentHash
             )
 
+            // --- iOS PILL OVERLAY ---
+            // Emit overlay event in addition to MIUI island (both run together)
+            emitOverlayEvent(sbn, type, title, text, isOngoingCall)
+
         } catch (e: Exception) {
             Log.e(TAG, "Error", e)
         }
@@ -1116,6 +1180,120 @@ class NotificationReaderService : NotificationListenerService() {
 
     private fun isAppAllowed(packageName: String): Boolean {
         return allowedPackageSet.contains(packageName)
+    }
+
+    /**
+     * Emit overlay event for iOS-style pill overlay.
+     * This runs in addition to MIUI island (both systems work together).
+     * Only emits if overlay permission is granted.
+     */
+    private fun emitOverlayEvent(
+        sbn: StatusBarNotification,
+        type: NotificationType,
+        title: String,
+        text: String,
+        isOngoingCall: Boolean
+    ) {
+        // Skip if overlay permission not granted
+        if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) {
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Overlay permission not granted, skipping pill overlay")
+            }
+            return
+        }
+
+        try {
+            when (type) {
+                NotificationType.CALL -> {
+                    // Only show pill for incoming calls, not ongoing
+                    if (!isOngoingCall) {
+                        val callModel = buildCallOverlayModel(sbn, title)
+                        if (callModel != null) {
+                            OverlayEventBus.emitCall(callModel)
+                            if (BuildConfig.DEBUG) {
+                                Log.d(TAG, "Emitted call overlay event for ${sbn.packageName}")
+                            }
+                        }
+                    }
+                }
+                NotificationType.STANDARD -> {
+                    val notifModel = buildNotificationOverlayModel(sbn, title, text)
+                    OverlayEventBus.emitNotification(notifModel)
+                    if (BuildConfig.DEBUG) {
+                        Log.d(TAG, "Emitted notification overlay event for ${sbn.packageName}")
+                    }
+                }
+                else -> {
+                    // Skip other types for now (NAVIGATION, TIMER, PROGRESS, MEDIA)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to emit overlay event: ${e.message}")
+        }
+    }
+
+    /**
+     * Build IosCallOverlayModel from StatusBarNotification.
+     * Extracts caller name and accept/decline PendingIntents from notification actions.
+     */
+    private fun buildCallOverlayModel(sbn: StatusBarNotification, title: String): IosCallOverlayModel? {
+        val extras = sbn.notification.extras
+        val callerName = extras.getString(Notification.EXTRA_TITLE) ?: title
+
+        val actions = sbn.notification.actions ?: return null
+        
+        // Find accept and decline actions
+        val answerKeywords = resources.getStringArray(R.array.call_keywords_answer).toList()
+        val hangUpKeywords = resources.getStringArray(R.array.call_keywords_hangup).toList()
+
+        var acceptIntent: PendingIntent? = null
+        var declineIntent: PendingIntent? = null
+
+        for (action in actions) {
+            val actionTitle = action.title?.toString()?.lowercase(java.util.Locale.getDefault()) ?: continue
+            when {
+                answerKeywords.any { actionTitle.contains(it) } -> acceptIntent = action.actionIntent
+                hangUpKeywords.any { actionTitle.contains(it) } -> declineIntent = action.actionIntent
+            }
+        }
+
+        return IosCallOverlayModel(
+            title = getString(R.string.call_incoming),
+            callerName = callerName,
+            avatarBitmap = null, // Could extract from notification largeIcon if needed
+            acceptIntent = acceptIntent,
+            declineIntent = declineIntent,
+            packageName = sbn.packageName,
+            notificationKey = sbn.key
+        )
+    }
+
+    /**
+     * Build IosNotificationOverlayModel from StatusBarNotification.
+     */
+    private fun buildNotificationOverlayModel(
+        sbn: StatusBarNotification,
+        title: String,
+        text: String
+    ): IosNotificationOverlayModel {
+        // Get app name as sender
+        val appName = try {
+            packageManager.getApplicationLabel(
+                packageManager.getApplicationInfo(sbn.packageName, 0)
+            ).toString()
+        } catch (e: Exception) {
+            sbn.packageName.substringAfterLast('.')
+        }
+
+        return IosNotificationOverlayModel(
+            sender = title.ifEmpty { appName },
+            timeLabel = "now",
+            message = text,
+            avatarBitmap = null, // Could extract from notification largeIcon if needed
+            contentIntent = sbn.notification.contentIntent,
+            packageName = sbn.packageName,
+            notificationKey = sbn.key
+        )
     }
 
     /**

@@ -670,4 +670,13 @@
     <string name="shade_cancel_mode_desc_aggressive">Daha fazla bildirimi gizlemeyi dener. Bazı uygulamalarda beklenmedik davranış olabilir.</string>
     <!-- Call notification note -->
     <string name="notification_management_calls_miui_note">Bazı sistem aramalarında Android/MIUI kısıtları nedeniyle telefon bildirimi gizlenemeyebilir.</string>
+
+    <!-- iOS Pill Overlay (v0.9.5) -->
+    <string name="channel_ios_overlay">iOS Stil Overlay</string>
+    <string name="overlay_service_active">Overlay servisi aktif</string>
+    <string name="ios_pill_overlay_title">iOS Stil Pill Overlay</string>
+    <string name="ios_pill_overlay_desc">MIUI ada\'ya ek olarak iOS tarzı pill bildirimleri göster</string>
+    <string name="overlay_permission_required">Overlay izni gerekli</string>
+    <string name="overlay_permission_desc">iOS tarzı pill\'leri göstermek için diğer uygulamaların üzerinde görüntüleme izni gerekli</string>
+    <string name="grant_overlay_permission">İzin Ver</string>
 </resources>
