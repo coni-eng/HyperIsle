@@ -1064,6 +1064,26 @@ fun SmartFeaturesScreen(
                         ) {
                             Text(stringResource(R.string.debug_reset_learning_button))
                         }
+
+                        Spacer(Modifier.height(16.dp))
+                        CardDivider()
+                        Spacer(Modifier.height(12.dp))
+
+                        val markIssueDoneMessage = stringResource(R.string.debug_mark_issue_done)
+                        FilledTonalButton(
+                            onClick = {
+                                DebugTimeline.log(
+                                    eventName = "USER_MARK_ISSUE",
+                                    fields = mapOf("screen" to "smart_features_diagnostics")
+                                )
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(markIssueDoneMessage)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("⚠ " + stringResource(R.string.debug_mark_issue_button))
+                        }
                     }
                 }
             }

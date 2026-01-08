@@ -580,6 +580,10 @@
     <string name="debug_reset_learning_button">Akıllı Öncelik Öğrenmesini Sıfırla</string>
     <string name="debug_reset_learning_done">Sıfırlama tamamlandı</string>
 
+    <!-- Mark Issue (debug/qa builds only) -->
+    <string name="debug_mark_issue_button">Sorunu İşaretle</string>
+    <string name="debug_mark_issue_done">Sorun işaretlendi</string>
+
     <!-- Smart Priority Profile (v0.9.4) -->
     <string name="smart_priority_profile_title">Akıllı Öncelik Profili</string>
     <string name="smart_priority_profile_desc">Bu uygulama için bildirim filtreleme agresifliğini ayarla</string>
