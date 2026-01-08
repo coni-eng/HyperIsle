@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.BugReport
+import com.coni.hyperisle.BuildConfig
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -97,7 +99,8 @@ fun InfoScreen(
     onBackupClick: () -> Unit,
     onMusicIslandClick: () -> Unit,
     onSmartFeaturesClick: () -> Unit = {},
-    onNotificationManagementClick: () -> Unit = {}
+    onNotificationManagementClick: () -> Unit = {},
+    onDiagnosticsClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -239,6 +242,10 @@ fun InfoScreen(
                         SettingsItem(Icons.Default.Code, stringResource(R.string.source_code), stringResource(R.string.source_code_subtitle)) { uriHandler.openUri("https://github.com/coni-eng/HyperIsle") }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
                         SettingsItem(Icons.Default.Description, stringResource(R.string.licenses), stringResource(R.string.licenses_subtitle), onLicensesClick)
+                        if (BuildConfig.DEBUG) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+                            SettingsItem(Icons.Default.BugReport, "Diagnostics", "Debug logging & export", onDiagnosticsClick)
+                        }
                     }
                     Spacer(modifier = Modifier.height(48.dp))
 

@@ -56,6 +56,7 @@ import com.coni.hyperisle.ui.screens.settings.SmartFeaturesScreen
 import com.coni.hyperisle.ui.screens.settings.NotificationSummaryScreenV2
 import com.coni.hyperisle.ui.screens.settings.NotificationManagementScreen
 import com.coni.hyperisle.ui.screens.settings.NotificationManagementAppsScreen
+import com.coni.hyperisle.ui.screens.settings.DiagnosticsScreen
 import com.coni.hyperisle.ui.theme.HyperIsleTheme
 import com.coni.hyperisle.util.BackupManager
 import com.coni.hyperisle.worker.NotificationSummaryWorker
@@ -90,7 +91,8 @@ enum class Screen(val depth: Int) {
     SMART_FEATURES(3), // Smart Silence, Focus, Summary settings
     NOTIFICATION_SUMMARY(4), // Summary list screen
     ISLAND_QUICK_ACTIONS(3), // Quick actions for island (mute/block app)
-    NOTIFICATION_MANAGEMENT(3), NOTIFICATION_MANAGEMENT_APPS(4) // Notification Management (v0.9.7)
+    NOTIFICATION_MANAGEMENT(3), NOTIFICATION_MANAGEMENT_APPS(4), // Notification Management (v0.9.7)
+    DIAGNOSTICS(3) // Debug-only diagnostics screen
 }
 
 @Composable
@@ -228,7 +230,8 @@ fun MainRootNavigation(
                     onBackupClick = { currentScreen = Screen.BACKUP },
                     onMusicIslandClick = { currentScreen = Screen.MUSIC_ISLAND },
                     onSmartFeaturesClick = { currentScreen = Screen.SMART_FEATURES },
-                    onNotificationManagementClick = { currentScreen = Screen.NOTIFICATION_MANAGEMENT }
+                    onNotificationManagementClick = { currentScreen = Screen.NOTIFICATION_MANAGEMENT },
+                    onDiagnosticsClick = { currentScreen = Screen.DIAGNOSTICS }
                 )
                 Screen.GLOBAL_SETTINGS -> GlobalSettingsScreen(onBack = { currentScreen = Screen.INFO }, onNavSettingsClick = { navConfigPackage = null; currentScreen = Screen.NAV_CUSTOMIZATION })
                 Screen.NAV_CUSTOMIZATION -> NavCustomizationScreen(onBack = { currentScreen = if (navConfigPackage != null) Screen.HOME else Screen.GLOBAL_SETTINGS }, packageName = navConfigPackage)
@@ -305,6 +308,11 @@ fun MainRootNavigation(
                 )
                 Screen.NOTIFICATION_MANAGEMENT_APPS -> NotificationManagementAppsScreen(
                     onBack = { currentScreen = Screen.NOTIFICATION_MANAGEMENT }
+                )
+
+                // --- DIAGNOSTICS (Debug only) ---
+                Screen.DIAGNOSTICS -> DiagnosticsScreen(
+                    onBack = { currentScreen = Screen.INFO }
                 )
             }
         }
