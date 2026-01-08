@@ -107,4 +107,7 @@ object SettingsKeys {
     // Global boolean: hide ongoing call notifications from system shade
     const val CALLS_ONLY_ISLAND_ENABLED = "calls_only_island_enabled"
     const val CALLS_ONLY_ISLAND_CONFIRMED = "calls_only_island_confirmed"
+
+    // Island Style Preview (dev toggle)
+    const val DEV_ISLAND_STYLE_PREVIEW = "dev_island_style_preview"
 }

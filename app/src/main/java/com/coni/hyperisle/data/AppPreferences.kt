@@ -811,4 +811,14 @@ class AppPreferences(context: Context) {
         val entries = dao.getByPrefix("shade_cancel_")
         return entries.any { !it.key.contains("_mode_") && it.value.toBoolean(false) }
     }
+
+    // --- DEV ISLAND STYLE PREVIEW (debug builds only) ---
+    val devIslandStylePreviewFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.DEV_ISLAND_STYLE_PREVIEW).map { it.toBoolean(false) }
+
+    suspend fun setDevIslandStylePreview(enabled: Boolean) = save(SettingsKeys.DEV_ISLAND_STYLE_PREVIEW, enabled.toString())
+
+    suspend fun isDevIslandStylePreviewEnabled(): Boolean {
+        if (!com.coni.hyperisle.BuildConfig.DEBUG) return false
+        return dao.getSetting(SettingsKeys.DEV_ISLAND_STYLE_PREVIEW).toBoolean(false)
+    }
 }

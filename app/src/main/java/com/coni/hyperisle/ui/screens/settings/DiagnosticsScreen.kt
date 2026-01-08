@@ -67,7 +67,10 @@ import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiagnosticsScreen(onBack: () -> Unit) {
+fun DiagnosticsScreen(
+    onBack: () -> Unit,
+    onIslandStylePreviewClick: (() -> Unit)? = null
+) {
     if (!BuildConfig.DEBUG) {
         LaunchedEffect(Unit) { onBack() }
         return
@@ -291,6 +294,17 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
                     Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Clear Logs")
+                }
+            }
+
+            // Island Style Preview Button
+            if (onIslandStylePreviewClick != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onIslandStylePreviewClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Island Style Preview")
                 }
             }
 

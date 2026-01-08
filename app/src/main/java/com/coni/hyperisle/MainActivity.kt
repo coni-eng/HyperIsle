@@ -57,6 +57,7 @@ import com.coni.hyperisle.ui.screens.settings.NotificationSummaryScreenV2
 import com.coni.hyperisle.ui.screens.settings.NotificationManagementScreen
 import com.coni.hyperisle.ui.screens.settings.NotificationManagementAppsScreen
 import com.coni.hyperisle.ui.screens.settings.DiagnosticsScreen
+import com.coni.hyperisle.ui.screens.settings.IslandStylePreviewScreen
 import com.coni.hyperisle.ui.theme.HyperIsleTheme
 import com.coni.hyperisle.util.BackupManager
 import com.coni.hyperisle.worker.NotificationSummaryWorker
@@ -92,7 +93,8 @@ enum class Screen(val depth: Int) {
     NOTIFICATION_SUMMARY(4), // Summary list screen
     ISLAND_QUICK_ACTIONS(3), // Quick actions for island (mute/block app)
     NOTIFICATION_MANAGEMENT(3), NOTIFICATION_MANAGEMENT_APPS(4), // Notification Management (v0.9.7)
-    DIAGNOSTICS(3) // Debug-only diagnostics screen
+    DIAGNOSTICS(3), // Debug-only diagnostics screen
+    ISLAND_STYLE_PREVIEW(4) // Debug-only island style preview
 }
 
 @Composable
@@ -184,6 +186,7 @@ fun MainRootNavigation(
             Screen.NOTIFICATION_SUMMARY -> Screen.SMART_FEATURES
             Screen.NOTIFICATION_MANAGEMENT_APPS -> Screen.NOTIFICATION_MANAGEMENT
             Screen.INFO -> Screen.HOME
+            Screen.ISLAND_STYLE_PREVIEW -> Screen.DIAGNOSTICS
             else -> Screen.HOME
         }
     }
@@ -312,7 +315,13 @@ fun MainRootNavigation(
 
                 // --- DIAGNOSTICS (Debug only) ---
                 Screen.DIAGNOSTICS -> DiagnosticsScreen(
-                    onBack = { currentScreen = Screen.INFO }
+                    onBack = { currentScreen = Screen.INFO },
+                    onIslandStylePreviewClick = { currentScreen = Screen.ISLAND_STYLE_PREVIEW }
+                )
+
+                // --- ISLAND STYLE PREVIEW (Debug only) ---
+                Screen.ISLAND_STYLE_PREVIEW -> IslandStylePreviewScreen(
+                    onBack = { currentScreen = Screen.DIAGNOSTICS }
                 )
             }
         }
