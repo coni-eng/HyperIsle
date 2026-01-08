@@ -654,4 +654,7 @@
     <string name="shade_cancel_mode_desc_aggressive">Attempts to hide more notifications. May cause unexpected behavior in some apps.</string>
     <!-- Call notification note -->
     <string name="notification_management_calls_miui_note">Some system calls may not be hidden due to Android/MIUI restrictions.</string>
+    <string name="notification_management_section_island">Island Integration</string>
+    <string name="miui_bridge_island_title">MIUI Island Integration (Experimental)</string>
+    <string name="miui_bridge_island_desc">Uses the MIUI system island. Gestures like swipe may be limited.</string>
 </resources>

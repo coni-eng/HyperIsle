@@ -670,6 +670,9 @@
     <string name="shade_cancel_mode_desc_aggressive">Daha fazla bildirimi gizlemeyi dener. Bazı uygulamalarda beklenmedik davranış olabilir.</string>
     <!-- Call notification note -->
     <string name="notification_management_calls_miui_note">Bazı sistem aramalarında Android/MIUI kısıtları nedeniyle telefon bildirimi gizlenemeyebilir.</string>
+    <string name="notification_management_section_island">Ada Entegrasyonu</string>
+    <string name="miui_bridge_island_title">MIUI Ada Entegrasyonu (Deneysel)</string>
+    <string name="miui_bridge_island_desc">MIUI’nin sistem adasını kullanır. Kaydırma gibi jestler sınırlı olabilir.</string>
 
     <!-- iOS Pill Overlay (v0.9.5) -->
     <string name="channel_ios_overlay">iOS Stil Overlay</string>

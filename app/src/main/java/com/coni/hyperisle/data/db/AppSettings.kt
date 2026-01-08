@@ -108,6 +108,9 @@ object SettingsKeys {
     const val CALLS_ONLY_ISLAND_ENABLED = "calls_only_island_enabled"
     const val CALLS_ONLY_ISLAND_CONFIRMED = "calls_only_island_confirmed"
 
+    // MIUI bridge island (experimental)
+    const val PREF_USE_MIUI_BRIDGE_ISLAND = "pref_use_miui_bridge_island"
+
     // Island Style Preview (dev toggle)
     const val DEV_ISLAND_STYLE_PREVIEW = "dev_island_style_preview"
 }

@@ -103,6 +103,7 @@ class OverlayWindowController(private val context: Context) {
 
             windowManager.addView(overlayView, params)
             Log.d(TAG, "Overlay shown successfully")
+            Log.d("HyperIsleIsland", "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show overlay: ${e.message}", e)
@@ -139,6 +140,15 @@ class OverlayWindowController(private val context: Context) {
      */
     fun isShowing(): Boolean {
         return overlayView != null && overlayView?.isAttachedToWindow == true
+    }
+
+    private fun overlayRid(event: OverlayEvent): Int {
+        return when (event) {
+            is OverlayEvent.CallEvent -> event.model.notificationKey.hashCode()
+            is OverlayEvent.NotificationEvent -> event.model.notificationKey.hashCode()
+            is OverlayEvent.DismissEvent,
+            OverlayEvent.DismissAllEvent -> 0
+        }
     }
 
     /**

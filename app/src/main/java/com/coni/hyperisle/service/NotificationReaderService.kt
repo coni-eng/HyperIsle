@@ -72,6 +72,11 @@ class NotificationReaderService : NotificationListenerService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
+    private enum class IslandRoute {
+        MIUI_BRIDGE,
+        APP_OVERLAY
+    }
+
     // --- STATE ---
     private var allowedPackageSet: Set<String> = emptySet()
     private var currentMode = IslandLimitMode.MOST_RECENT
@@ -112,11 +117,13 @@ class NotificationReaderService : NotificationListenerService() {
 
     // Context Presets cache (v0.9.0)
     private var contextPreset = com.coni.hyperisle.models.ContextPreset.OFF
+    private var useMiuiBridgeIsland = false
 
     // --- CACHES ---
     // Replace Policy: groupKey -> ActiveIsland (instead of sbn.key)
     private val activeIslands = ConcurrentHashMap<String, ActiveIsland>()
     private val activeTranslations = ConcurrentHashMap<String, Int>()
+    private val activeRoutes = ConcurrentHashMap<String, IslandRoute>()
     private val lastUpdateMap = ConcurrentHashMap<String, Long>()
     // Smart Silence: groupKey -> (timestamp, contentHash)
     private val lastShownMap = ConcurrentHashMap<String, Pair<Long, Int>>()
@@ -199,6 +206,7 @@ class NotificationReaderService : NotificationListenerService() {
 
         // Context Presets observer (v0.9.0)
         serviceScope.launch { preferences.contextPresetFlow.collectLatest { contextPreset = it } }
+        serviceScope.launch { preferences.useMiuiBridgeIslandFlow.collectLatest { useMiuiBridgeIsland = it } }
 
         // Initialize ContextStateManager
         ContextStateManager.initialize(applicationContext)
@@ -310,7 +318,8 @@ class NotificationReaderService : NotificationListenerService() {
             val groupKey = sbnKeyToGroupKey[key]
             val reasonName = mapRemovalReason(reason)
             val now = System.currentTimeMillis()
-            val isActiveIsland = groupKey != null && activeTranslations.containsKey(groupKey)
+            val route = groupKey?.let { keyValue -> activeRoutes[keyValue] }
+            val isActiveIsland = route != null
             val selfCancel = reason == REASON_LISTENER_CANCEL && isSelfCancel(key, now)
             
             // Debug-only logging (PII-free)
@@ -328,10 +337,10 @@ class NotificationReaderService : NotificationListenerService() {
             
             // UI Snapshot: NOTIF_REMOVED
             if (BuildConfig.DEBUG) {
-                val lastRoute = if (isActiveIsland) {
-                    IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE
-                } else {
-                    IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION
+                val lastRoute = when (route) {
+                    IslandRoute.MIUI_BRIDGE -> IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE
+                    IslandRoute.APP_OVERLAY -> IslandUiSnapshotLogger.Route.APP_OVERLAY
+                    else -> IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION
                 }
                 val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
                     rid = IslandUiSnapshotLogger.rid(),
@@ -347,9 +356,10 @@ class NotificationReaderService : NotificationListenerService() {
                     reason = reasonName
                 )
             }
-            
+
             if (isActiveIsland) {
                 val safeGroupKey = groupKey ?: return
+                val activeRoute = route ?: return
                 val remainingVisibleMs = remainingMinVisibleMs(safeGroupKey, now)
                 val delayMs = when {
                     selfCancel -> if (remainingVisibleMs > 0L) remainingVisibleMs else MIN_VISIBLE_MS
@@ -372,7 +382,8 @@ class NotificationReaderService : NotificationListenerService() {
                             groupKey = safeGroupKey,
                             reasonName = reasonName,
                             reason = reason,
-                            delayMs = delayMs
+                            delayMs = delayMs,
+                            route = activeRoute
                         )
                     }
                     else -> {
@@ -382,7 +393,8 @@ class NotificationReaderService : NotificationListenerService() {
                             keyHash = keyHash,
                             groupKey = safeGroupKey,
                             reasonName = reasonName,
-                            reason = reason
+                            reason = reason,
+                            route = activeRoute
                         )
                     }
                 }
@@ -479,7 +491,8 @@ class NotificationReaderService : NotificationListenerService() {
         groupKey: String,
         reasonName: String,
         reason: Int,
-        delayMs: Long
+        delayMs: Long,
+        route: IslandRoute
     ) {
         pendingDismissJobs[groupKey]?.cancel()
         pendingDismissJobs[groupKey] = serviceScope.launch {
@@ -492,7 +505,8 @@ class NotificationReaderService : NotificationListenerService() {
                 keyHash = keyHash,
                 groupKey = groupKey,
                 reasonName = reasonName,
-                reason = reason
+                reason = reason,
+                route = route
             )
         }
     }
@@ -503,9 +517,11 @@ class NotificationReaderService : NotificationListenerService() {
         keyHash: Int,
         groupKey: String,
         reasonName: String,
-        reason: Int
+        reason: Int,
+        route: IslandRoute
     ) {
-        val hyperId = activeTranslations[groupKey] ?: return
+        val hyperId = activeTranslations[groupKey]
+        if (route == IslandRoute.MIUI_BRIDGE && hyperId == null) return
 
         if (OverlayEventBus.emitDismiss(key)) {
             Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
@@ -521,27 +537,8 @@ class NotificationReaderService : NotificationListenerService() {
             Log.d(TAG, "event=autoDismiss reason=$dismissReason pkg=$pkg keyHash=$keyHash")
         }
 
-        // INSTRUMENTATION: Island remove with state transition
         if (BuildConfig.DEBUG) {
             val islandType = groupKey.substringAfterLast(":")
-            Log.d("HyperIsleIsland", "RID=$keyHash STAGE=REMOVE ACTION=ISLAND_DISMISS reason=$reasonName pkg=$pkg type=$islandType")
-            IslandRuntimeDump.recordRemove(
-                ctx = ProcCtx.synthetic(pkg, "onRemoved"),
-                reason = reasonName,
-                groupKey = groupKey,
-                islandType = islandType,
-                flags = mapOf("bridgeId" to hyperId, "removalReason" to reason)
-            )
-            // Record state transition to IDLE
-            IslandRuntimeDump.recordState(
-                ctx = null,
-                prevState = IslandUiState.SHOWING_COMPACT,
-                nextState = IslandUiState.IDLE,
-                groupKey = groupKey,
-                flags = mapOf("trigger" to "onNotificationRemoved")
-            )
-
-            // UI Snapshot: ISLAND_HIDE
             val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
                 rid = IslandUiSnapshotLogger.rid(),
                 pkg = pkg,
@@ -549,27 +546,41 @@ class NotificationReaderService : NotificationListenerService() {
                 keyHash = keyHash.toString(),
                 groupKey = groupKey
             )
+            if (route == IslandRoute.MIUI_BRIDGE) {
+                Log.d("HyperIsleIsland", "RID=$keyHash STAGE=REMOVE ACTION=ISLAND_DISMISS reason=$reasonName pkg=$pkg type=$islandType")
+                IslandRuntimeDump.recordRemove(
+                    ctx = ProcCtx.synthetic(pkg, "onRemoved"),
+                    reason = reasonName,
+                    groupKey = groupKey,
+                    islandType = islandType,
+                    flags = mapOf("bridgeId" to hyperId, "removalReason" to reason)
+                )
+                // Record state transition to IDLE
+                IslandRuntimeDump.recordState(
+                    ctx = null,
+                    prevState = IslandUiState.SHOWING_COMPACT,
+                    nextState = IslandUiState.IDLE,
+                    groupKey = groupKey,
+                    flags = mapOf("trigger" to "onNotificationRemoved")
+                )
+            }
             IslandUiSnapshotLogger.logEvent(
                 ctx = snapshotCtx,
                 evt = "ISLAND_HIDE",
-                route = IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE,
+                route = if (route == IslandRoute.MIUI_BRIDGE) {
+                    IslandUiSnapshotLogger.Route.MIUI_ISLAND_BRIDGE
+                } else {
+                    IslandUiSnapshotLogger.Route.APP_OVERLAY
+                },
                 reason = reasonName
             )
         }
 
-        try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
+        if (route == IslandRoute.MIUI_BRIDGE && hyperId != null) {
+            try { NotificationManagerCompat.from(this).cancel(hyperId) } catch (e: Exception) {}
+        }
 
-        activeIslands.remove(groupKey)
-        activeTranslations.remove(groupKey)
-        lastUpdateMap.remove(groupKey)
-        lastShownMap.remove(groupKey)
-        minVisibleUntil.remove(groupKey)
-        minVisibleJobs.remove(groupKey)?.cancel()
-        pendingDismissJobs.remove(groupKey)?.cancel()
-
-        // Stop call timer if exists
-        activeCallTimers[groupKey]?.second?.cancel()
-        activeCallTimers.remove(groupKey)
+        clearIslandState(groupKey)
 
         if (activeIslands.isEmpty()) {
             IslandCooldownManager.clearLastActiveIsland()
@@ -578,6 +589,19 @@ class NotificationReaderService : NotificationListenerService() {
             }
             Log.d("HyperIsleIsland", "RID=$keyHash EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
         }
+    }
+
+    private fun clearIslandState(groupKey: String) {
+        activeIslands.remove(groupKey)
+        activeTranslations.remove(groupKey)
+        activeRoutes.remove(groupKey)
+        lastUpdateMap.remove(groupKey)
+        lastShownMap.remove(groupKey)
+        minVisibleUntil.remove(groupKey)
+        minVisibleJobs.remove(groupKey)?.cancel()
+        pendingDismissJobs.remove(groupKey)?.cancel()
+        activeCallTimers[groupKey]?.second?.cancel()
+        activeCallTimers.remove(groupKey)
     }
 
     private fun shouldSkipUpdate(sbn: StatusBarNotification): Boolean {
@@ -1118,43 +1142,85 @@ class NotificationReaderService : NotificationListenerService() {
 
             val activityResult = IslandActivityStateMachine.processUpdate(groupKey, bridgeId, progress, contentHash)
 
-            when (activityResult) {
-                is IslandActivityStateMachine.ActivityResult.Completed -> {
-                    postNotification(sbn, bridgeId, groupKey, type.name, data, ctx.rid)
-                    attemptShadeCancel(sbn, type, isOngoingCall) // v0.9.5/v0.9.7: Cancel from shade if enabled
-                    Haptics.hapticOnIslandSuccess(applicationContext)
-                    serviceScope.launch {
-                        delay(activityResult.timeoutMs)
-                        try {
-                            NotificationManagerCompat.from(this@NotificationReaderService).cancel(bridgeId)
-                            activeIslands.remove(groupKey)
-                            activeTranslations.remove(groupKey)
-                            IslandActivityStateMachine.remove(groupKey)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to dismiss completed island: ${e.message}")
-                        }
-                    }
-                }
-                else -> {
-                    postNotification(sbn, bridgeId, groupKey, type.name, data, ctx.rid)
-                    attemptShadeCancel(sbn, type, isOngoingCall) // v0.9.5/v0.9.7: Cancel from shade if enabled
-                }
+            val overlaySupported = isOverlaySupported(type, isOngoingCall)
+            val canUseOverlay = overlaySupported && OverlayPermissionHelper.hasOverlayPermission(applicationContext)
+            val route = if (useMiuiBridgeIsland) {
+                IslandRoute.MIUI_BRIDGE
+            } else if (canUseOverlay) {
+                IslandRoute.APP_OVERLAY
+            } else {
+                null
             }
 
-            activeIslands[groupKey] = ActiveIsland(
-                id = bridgeId,
-                type = type,
-                postTime = System.currentTimeMillis(),
-                packageName = sbn.packageName,
-                title = title,
-                text = text,
-                subText = subText,
-                lastContentHash = newContentHash
-            )
+            when (route) {
+                IslandRoute.MIUI_BRIDGE -> {
+                    when (activityResult) {
+                        is IslandActivityStateMachine.ActivityResult.Completed -> {
+                            postNotification(sbn, bridgeId, groupKey, type.name, data, ctx.rid)
+                            attemptShadeCancel(sbn, type, isOngoingCall, route = IslandRoute.MIUI_BRIDGE)
+                            Haptics.hapticOnIslandSuccess(applicationContext)
+                            serviceScope.launch {
+                                delay(activityResult.timeoutMs)
+                                try {
+                                    NotificationManagerCompat.from(this@NotificationReaderService).cancel(bridgeId)
+                                    clearIslandState(groupKey)
+                                    IslandActivityStateMachine.remove(groupKey)
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Failed to dismiss completed island: ${e.message}")
+                                }
+                            }
+                        }
+                        else -> {
+                            postNotification(sbn, bridgeId, groupKey, type.name, data, ctx.rid)
+                            attemptShadeCancel(sbn, type, isOngoingCall, route = IslandRoute.MIUI_BRIDGE)
+                        }
+                    }
 
-            // --- iOS PILL OVERLAY ---
-            // Emit overlay event in addition to MIUI island (both run together)
-            emitOverlayEvent(sbn, type, title, text, isOngoingCall)
+                    activeIslands[groupKey] = ActiveIsland(
+                        id = bridgeId,
+                        type = type,
+                        postTime = System.currentTimeMillis(),
+                        packageName = sbn.packageName,
+                        title = title,
+                        text = text,
+                        subText = subText,
+                        lastContentHash = newContentHash
+                    )
+                    activeRoutes[groupKey] = IslandRoute.MIUI_BRIDGE
+
+                    // Emit overlay event in addition to MIUI island (both systems work together)
+                    emitOverlayEvent(sbn, type, title, text, isOngoingCall)
+                }
+                IslandRoute.APP_OVERLAY -> {
+                    val overlayDelivered = emitOverlayEvent(sbn, type, title, text, isOngoingCall)
+                    if (overlayDelivered) {
+                        startMinVisibleTimer(groupKey, sbn.key.hashCode())
+                    }
+                    attemptShadeCancel(
+                        sbn = sbn,
+                        type = type,
+                        isOngoingCall = isOngoingCall,
+                        route = IslandRoute.APP_OVERLAY,
+                        deliveryConfirmed = overlayDelivered
+                    )
+                    if (overlayDelivered) {
+                        activeIslands[groupKey] = ActiveIsland(
+                            id = bridgeId,
+                            type = type,
+                            postTime = System.currentTimeMillis(),
+                            packageName = sbn.packageName,
+                            title = title,
+                            text = text,
+                            subText = subText,
+                            lastContentHash = newContentHash
+                        )
+                        activeRoutes[groupKey] = IslandRoute.APP_OVERLAY
+                    }
+                }
+                null -> {
+                    // Fallback to system notification when overlay is unavailable.
+                }
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error", e)
@@ -1332,7 +1398,13 @@ class NotificationReaderService : NotificationListenerService() {
      * 
      * This method is called AFTER the Island has been shown (Contract A fulfilled).
      */
-    private suspend fun attemptShadeCancel(sbn: StatusBarNotification, type: NotificationType, isOngoingCall: Boolean = false) {
+    private suspend fun attemptShadeCancel(
+        sbn: StatusBarNotification,
+        type: NotificationType,
+        isOngoingCall: Boolean = false,
+        route: IslandRoute = IslandRoute.MIUI_BRIDGE,
+        deliveryConfirmed: Boolean = true
+    ) {
         val pkg = sbn.packageName
         val keyHash = sbn.key.hashCode()
         val clearable = sbn.isClearable
@@ -1356,10 +1428,21 @@ class NotificationReaderService : NotificationListenerService() {
             shadeCancelMode = shadeCancelMode,
             isOngoingCall = isOngoingCall
         )
-        val bridgeConfirmed = if (decision.cancelShade) {
-            awaitBridgeConfirmation(sbn)
-        } else {
-            bridgePostConfirmations.containsKey(sbn.key)
+        val routeConfirmed = when (route) {
+            IslandRoute.MIUI_BRIDGE -> if (decision.cancelShade) {
+                awaitBridgeConfirmation(sbn)
+            } else {
+                bridgePostConfirmations.containsKey(sbn.key)
+            }
+            IslandRoute.APP_OVERLAY -> deliveryConfirmed
+        }
+        val cancelReady = decision.cancelShade && routeConfirmed
+        val guardReason = when {
+            !decision.cancelShadeAllowed -> "SHADE_CANCEL_OFF"
+            !decision.cancelShadeEligible -> decision.ineligibilityReason ?: "NOT_ELIGIBLE"
+            !decision.cancelShadeSafe -> "ISLAND_CHANNEL_DISABLED"
+            !routeConfirmed -> if (route == IslandRoute.MIUI_BRIDGE) "BRIDGE_NOT_CONFIRMED" else "OVERLAY_NOT_CONFIRMED"
+            else -> "OK"
         }
         
         // INSTRUMENTATION: Shade cancel decision
@@ -1381,11 +1464,12 @@ class NotificationReaderService : NotificationListenerService() {
 
         Log.d(
             "HyperIsleIsland",
-            "RID=$keyHash EVT=CANCEL_GUARD decision={clearable=$clearable,eligible=${decision.cancelShadeEligible},safe=${decision.cancelShadeSafe},bridgeConfirmed=$bridgeConfirmed} result=${if (decision.cancelShade && bridgeConfirmed) "TRY" else "SKIP"} pkg=$pkg"
+            "RID=$keyHash EVT=CANCEL_GUARD reason=$guardReason decision={clearable=$clearable,eligible=${decision.cancelShadeEligible},safe=${decision.cancelShadeSafe},routeConfirmed=$routeConfirmed} result=${if (cancelReady) "TRY" else "SKIP"} pkg=$pkg"
         )
 
-        if (decision.cancelShade && !bridgeConfirmed) {
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=CANCEL_SKIPPED_BRIDGE_NOT_CONFIRMED pkg=$pkg")
+        if (decision.cancelShade && !routeConfirmed) {
+            val skipReason = if (route == IslandRoute.MIUI_BRIDGE) "BRIDGE_NOT_CONFIRMED" else "OVERLAY_NOT_CONFIRMED"
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=CANCEL_SKIPPED_$skipReason")
             return
         }
         
@@ -1414,6 +1498,7 @@ class NotificationReaderService : NotificationListenerService() {
                 if (groupKey != null) {
                     startMinVisibleTimer(groupKey, keyHash)
                 }
+                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK")
                 if (BuildConfig.DEBUG) {
                     Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_OK pkg=$pkg")
                     Log.d("HI_NOTIF", "event=shadeCancelled pkg=$pkg keyHash=$keyHash")
@@ -1439,6 +1524,7 @@ class NotificationReaderService : NotificationListenerService() {
             } catch (e: Exception) {
                 selfCancelKeys.remove(sbn.key)
                 Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
+                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_FAIL reason=${e.javaClass.simpleName}")
                 if (BuildConfig.DEBUG) {
                     Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_FAIL reason=${e.message} pkg=$pkg")
                     IslandRuntimeDump.recordEvent(
@@ -1540,8 +1626,10 @@ class NotificationReaderService : NotificationListenerService() {
             IslandLimitMode.MOST_RECENT -> {
                 val oldest = activeIslands.minByOrNull { it.value.postTime }
                 oldest?.let {
-                    NotificationManagerCompat.from(this).cancel(it.value.id)
-                    activeIslands.remove(it.key)
+                    if (activeRoutes[it.key] == IslandRoute.MIUI_BRIDGE) {
+                        NotificationManagerCompat.from(this).cancel(it.value.id)
+                    }
+                    clearIslandState(it.key)
                 }
             }
             IslandLimitMode.PRIORITY -> {
@@ -1552,8 +1640,10 @@ class NotificationReaderService : NotificationListenerService() {
                 if (lowestActiveEntry != null) {
                     val lowestPriority = appPriorityList.indexOf(lowestActiveEntry.value.packageName).takeIf { it != -1 } ?: 9999
                     if (newPriority < lowestPriority) {
-                        NotificationManagerCompat.from(this).cancel(lowestActiveEntry.value.id)
-                        activeIslands.remove(lowestActiveEntry.key)
+                        if (activeRoutes[lowestActiveEntry.key] == IslandRoute.MIUI_BRIDGE) {
+                            NotificationManagerCompat.from(this).cancel(lowestActiveEntry.value.id)
+                        }
+                        clearIslandState(lowestActiveEntry.key)
                     }
                 }
             }
@@ -1701,48 +1791,50 @@ class NotificationReaderService : NotificationListenerService() {
      * This runs in addition to MIUI island (both systems work together).
      * Only emits if overlay permission is granted.
      */
+    private fun isOverlaySupported(type: NotificationType, isOngoingCall: Boolean): Boolean {
+        return when (type) {
+            NotificationType.CALL -> !isOngoingCall
+            NotificationType.STANDARD -> true
+            else -> false
+        }
+    }
+
     private fun emitOverlayEvent(
         sbn: StatusBarNotification,
         type: NotificationType,
         title: String,
         text: String,
         isOngoingCall: Boolean
-    ) {
+    ): Boolean {
         // Skip if overlay permission not granted
         if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) {
             if (BuildConfig.DEBUG) {
                 Log.d(TAG, "Overlay permission not granted, skipping pill overlay")
             }
-            return
+            return false
         }
 
-        try {
+        if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) {
+            Log.w(TAG, "Overlay service unavailable, skipping pill overlay")
+            return false
+        }
+
+        return try {
             when (type) {
                 NotificationType.CALL -> {
-                    // Only show pill for incoming calls, not ongoing
-                    if (!isOngoingCall) {
-                        val callModel = buildCallOverlayModel(sbn, title)
-                        if (callModel != null) {
-                            OverlayEventBus.emitCall(callModel)
-                            if (BuildConfig.DEBUG) {
-                                Log.d(TAG, "Emitted call overlay event for ${sbn.packageName}")
-                            }
-                        }
-                    }
+                    if (isOngoingCall) return false
+                    val callModel = buildCallOverlayModel(sbn, title) ?: return false
+                    OverlayEventBus.emitCall(callModel)
                 }
                 NotificationType.STANDARD -> {
                     val notifModel = buildNotificationOverlayModel(sbn, title, text)
                     OverlayEventBus.emitNotification(notifModel)
-                    if (BuildConfig.DEBUG) {
-                        Log.d(TAG, "Emitted notification overlay event for ${sbn.packageName}")
-                    }
                 }
-                else -> {
-                    // Skip other types for now (NAVIGATION, TIMER, PROGRESS, MEDIA)
-                }
+                else -> false
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to emit overlay event: ${e.message}")
+            false
         }
     }
 

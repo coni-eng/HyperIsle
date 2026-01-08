@@ -712,6 +712,13 @@ class AppPreferences(context: Context) {
         save(SettingsKeys.CALLS_ONLY_ISLAND_CONFIRMED, confirmed.toString())
     }
 
+    // --- MIUI BRIDGE ISLAND (experimental) ---
+    val useMiuiBridgeIslandFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.PREF_USE_MIUI_BRIDGE_ISLAND).map { it.toBoolean(false) }
+
+    suspend fun setUseMiuiBridgeIsland(enabled: Boolean) {
+        save(SettingsKeys.PREF_USE_MIUI_BRIDGE_ISLAND, enabled.toString())
+    }
+
     /**
      * Counts how many apps have shade cancel enabled.
      * Used for diagnostics header.
