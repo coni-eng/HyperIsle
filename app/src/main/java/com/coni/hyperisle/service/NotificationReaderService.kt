@@ -137,8 +137,8 @@ class NotificationReaderService : NotificationListenerService() {
     private val MAX_ISLANDS = 9
     private val BRIDGE_CONFIRM_TIMEOUT_MS = 250L
     private val BRIDGE_CONFIRM_POLL_MS = 50L
-    private val MIN_VISIBLE_MS = 2000L
-    private val SELF_CANCEL_WINDOW_MS = 2000L
+    private val MIN_VISIBLE_MS = 2500L
+    private val SELF_CANCEL_WINDOW_MS = 5000L
     private val SYS_CANCEL_POST_DELAY_MS = 200L
 
     private lateinit var preferences: AppPreferences
@@ -350,17 +350,13 @@ class NotificationReaderService : NotificationListenerService() {
             
             if (isActiveIsland) {
                 val safeGroupKey = groupKey ?: return
-                val islandType = activeIslands[safeGroupKey]?.type
-                val isOngoing = islandType == NotificationType.CALL ||
-                        islandType == NotificationType.TIMER ||
-                        islandType == NotificationType.NAVIGATION
                 val remainingVisibleMs = remainingMinVisibleMs(safeGroupKey, now)
-
-                val action = when {
-                    selfCancel && isOngoing -> "SKIP_HIDE"
-                    remainingVisibleMs > 0L -> "DELAY_HIDE"
-                    else -> "HIDE_NOW"
+                val delayMs = when {
+                    selfCancel -> if (remainingVisibleMs > 0L) remainingVisibleMs else MIN_VISIBLE_MS
+                    remainingVisibleMs > 0L -> remainingVisibleMs
+                    else -> 0L
                 }
+                val action = if (delayMs > 0L) "DELAY_HIDE" else "HIDE_NOW"
 
                 Log.d(
                     "HyperIsleIsland",
@@ -368,9 +364,6 @@ class NotificationReaderService : NotificationListenerService() {
                 )
 
                 when (action) {
-                    "SKIP_HIDE" -> {
-                        // Keep island visible; another removal or user action will dismiss.
-                    }
                     "DELAY_HIDE" -> {
                         scheduleDeferredDismiss(
                             pkg = it.packageName,
@@ -379,7 +372,7 @@ class NotificationReaderService : NotificationListenerService() {
                             groupKey = safeGroupKey,
                             reasonName = reasonName,
                             reason = reason,
-                            delayMs = remainingVisibleMs
+                            delayMs = delayMs
                         )
                     }
                     else -> {
@@ -443,7 +436,7 @@ class NotificationReaderService : NotificationListenerService() {
     private fun markSelfCancel(key: String, keyHash: Int) {
         val now = System.currentTimeMillis()
         selfCancelKeys[key] = now
-        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SELF_CANCEL_MARK key=$keyHash rid=$keyHash ts=$now")
+        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SELF_CANCEL_MARK key=$keyHash rid=$keyHash ttlMs=$SELF_CANCEL_WINDOW_MS")
         serviceScope.launch {
             delay(SELF_CANCEL_WINDOW_MS)
             if (selfCancelKeys[key] == now) {
@@ -492,6 +485,7 @@ class NotificationReaderService : NotificationListenerService() {
         pendingDismissJobs[groupKey] = serviceScope.launch {
             delay(delayMs)
             pendingDismissJobs.remove(groupKey)
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=MIN_VISIBLE_ELAPSED")
             dismissIslandNow(
                 pkg = pkg,
                 key = key,
@@ -1412,10 +1406,14 @@ class NotificationReaderService : NotificationListenerService() {
                 )
             }
             
+            val groupKey = sbnKeyToGroupKey[sbn.key]
             try {
                 delay(SYS_CANCEL_POST_DELAY_MS)
-                markSelfCancel(sbn.key, keyHash)
                 cancelNotification(sbn.key)
+                markSelfCancel(sbn.key, keyHash)
+                if (groupKey != null) {
+                    startMinVisibleTimer(groupKey, keyHash)
+                }
                 if (BuildConfig.DEBUG) {
                     Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_OK pkg=$pkg")
                     Log.d("HI_NOTIF", "event=shadeCancelled pkg=$pkg keyHash=$keyHash")

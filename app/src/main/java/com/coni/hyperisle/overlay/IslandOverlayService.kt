@@ -228,7 +228,8 @@ class IslandOverlayService : Service() {
         overlayController.showOverlay(OverlayEvent.CallEvent(model)) {
             SwipeDismissContainer(
                 rid = model.notificationKey.hashCode(),
-                onDismiss = { dismissAllOverlays("SWIPE_DISMISSED") },
+                stateLabel = "expanded",
+                onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -286,7 +287,8 @@ class IslandOverlayService : Service() {
         overlayController.showOverlay(OverlayEvent.NotificationEvent(model)) {
             SwipeDismissContainer(
                 rid = model.notificationKey.hashCode(),
-                onDismiss = { dismissAllOverlays("SWIPE_DISMISSED") },
+                stateLabel = "compact",
+                onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -302,7 +304,7 @@ class IslandOverlayService : Service() {
                     },
                     onDismiss = {
                         Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=BTN_RED_X_CLICK reason=OVERLAY")
-                        dismissAllOverlays("BTN_RED_X")
+                        dismissFromUser("BTN_RED_X")
                     }
                 )
 
@@ -410,10 +412,15 @@ class IslandOverlayService : Service() {
         Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
     }
 
+    private fun dismissFromUser(reason: String) {
+        dismissAllOverlays(reason)
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     @Composable
     private fun SwipeDismissContainer(
         rid: Int,
+        stateLabel: String,
         modifier: Modifier = Modifier,
         onDismiss: () -> Unit,
         content: @Composable () -> Unit
@@ -424,6 +431,7 @@ class IslandOverlayService : Service() {
         var isSwiping by remember { mutableStateOf(false) }
         val density = LocalDensity.current
         val dismissThresholdPx = with(density) { 72.dp.toPx() }
+        val state = stateLabel.lowercase()
 
         Box(
             modifier = modifier
@@ -469,7 +477,7 @@ class IslandOverlayService : Service() {
                                         isSwiping = true
                                         Log.d(
                                             "HyperIsleIsland",
-                                            "RID=$rid EVT=SWIPE_START x=${down.position.x} y=${down.position.y}"
+                                            "RID=$rid EVT=SWIPE_START x=${down.position.x} y=${down.position.y} state=$state"
                                         )
                                     }
                                 }
@@ -513,7 +521,10 @@ class IslandOverlayService : Service() {
                                     onDismiss()
                                     offsetX = 0f
                                 }
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=SWIPE_END result=DISMISSED")
+                                Log.d(
+                                    "HyperIsleIsland",
+                                    "RID=$rid EVT=SWIPE_END result=DISMISSED dx=$dragTotal threshold=${dismissThresholdPx.roundToInt()}"
+                                )
                             } else {
                                 scope.launch {
                                     animate(
@@ -524,7 +535,10 @@ class IslandOverlayService : Service() {
                                         offsetX = value
                                     }
                                 }
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=SWIPE_END result=CANCELLED")
+                                Log.d(
+                                    "HyperIsleIsland",
+                                    "RID=$rid EVT=SWIPE_END result=CANCELLED dx=$dragTotal threshold=${dismissThresholdPx.roundToInt()}"
+                                )
                             }
                             isSwiping = false
                         }
