@@ -89,10 +89,13 @@
     <string name="action_needed">İşlem Gerekli</string>
 
     <string name="cat_all">Tümü</string>
+    <string name="cat_games">Oyun</string>
+    <string name="cat_messaging">Mesajlaşma</string>
     <string name="cat_music">Müzik</string>
     <string name="cat_nav">Navigasyon</string>
     <string name="cat_timer">Verimlilik</string>
     <string name="cat_other">Diğer</string>
+    <string name="select_all_apps">Tümünü seç</string>
 
     <string name="select_active_notifs">Aktif bildirimleri seç</string>
     <string name="type_standard">Mesajlar ve Genel</string>

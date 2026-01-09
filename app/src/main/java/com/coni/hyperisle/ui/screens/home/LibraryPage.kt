@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -39,8 +40,28 @@ fun LibraryPage(
             onSortChange = { viewModel.librarySort.value = it }
         )
 
+        val unselectedApps = remember(apps) { apps.filterNot { it.isBridged } }
+        val canSelectAll = unselectedApps.isNotEmpty()
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilledTonalButton(
+                onClick = { viewModel.enableApps(unselectedApps.map { it.packageName }) },
+                enabled = canSelectAll
+            ) {
+                Icon(Icons.Default.DoneAll, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.select_all_apps))
+            }
+        }
+
         if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {  
                 CircularProgressIndicator()
             }
         } else if (apps.isEmpty()) {

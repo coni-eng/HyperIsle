@@ -27,7 +27,13 @@ data class AppInfo(
 )
 
 enum class AppCategory(val label: String) {
-    ALL("All"), MUSIC("Music"), MAPS("Navigation"), TIMER("Productivity"), OTHER("Other")
+    ALL("All"),
+    GAMES("Games"),
+    MESSAGING("Messaging"),
+    MUSIC("Music"),
+    MAPS("Navigation"),
+    TIMER("Productivity"),
+    OTHER("Other")
 }
 
 enum class SortOption { NAME_AZ, NAME_ZA }
@@ -51,6 +57,8 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     val librarySort = MutableStateFlow(SortOption.NAME_AZ)
 
     // Helpers
+    private val GAMES_KEYS = listOf("game", "games", "minecraft", "roblox", "genshin", "fortnite", "pubg", "clash", "supercell", "steam")
+    private val MESSAGING_KEYS = listOf("whatsapp", "telegram", "signal", "messenger", "messages", "sms", "discord", "slack", "line", "wechat")
     private val MUSIC_KEYS = listOf("music", "spotify", "youtube", "deezer", "tidal", "sound", "audio", "podcast")
     private val MAPS_KEYS = listOf("map", "nav", "waze", "gps", "transit", "uber", "cabify")
     private val TIMER_KEYS = listOf("clock", "timer", "alarm", "stopwatch", "calendar", "todo")
@@ -101,7 +109,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     // --- PREFERENCE ACTIONS ---
 
     fun toggleApp(packageName: String, isEnabled: Boolean) {
-        viewModelScope.launch { 
+        viewModelScope.launch {
             if (isEnabled) {
                 preferences.toggleApp(packageName, true)
             } else {
@@ -109,6 +117,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
                 // clearAppSettings already removes from allowed packages
                 preferences.clearAppSettings(packageName)
             }
+        }
+    }
+
+    fun enableApps(packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        viewModelScope.launch {
+            preferences.addAllowedPackages(packageNames)
         }
     }
 
@@ -175,6 +190,8 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
                 val name = resolveInfo.loadLabel(packageManager).toString()
                 val icon = resolveInfo.loadIcon(packageManager).toBitmap()
                 val cat = when {
+                    GAMES_KEYS.any { pkg.contains(it, true) } -> AppCategory.GAMES
+                    MESSAGING_KEYS.any { pkg.contains(it, true) } -> AppCategory.MESSAGING
                     MUSIC_KEYS.any { pkg.contains(it, true) } -> AppCategory.MUSIC
                     MAPS_KEYS.any { pkg.contains(it, true) } -> AppCategory.MAPS
                     TIMER_KEYS.any { pkg.contains(it, true) } -> AppCategory.TIMER

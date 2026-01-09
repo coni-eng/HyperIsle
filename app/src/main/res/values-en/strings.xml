@@ -90,10 +90,13 @@
     <string name="action_needed">Action Needed</string>
 
     <string name="cat_all">All</string>
+    <string name="cat_games">Games</string>
+    <string name="cat_messaging">Messaging</string>
     <string name="cat_music">Music</string>
     <string name="cat_nav">Navigation</string>
     <string name="cat_timer">Productivity</string>
     <string name="cat_other">Other</string>
+    <string name="select_all_apps">Select all</string>
 
     <string name="select_active_notifs">Select active notifications</string>
     <string name="type_standard">Messages &amp; General</string>

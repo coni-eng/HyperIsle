@@ -99,9 +99,17 @@ class AppPreferences(context: Context) {
     suspend fun setPriorityEduShown(shown: Boolean) = save(SettingsKeys.PRIORITY_EDU, shown.toString())
 
     suspend fun toggleApp(packageName: String, isEnabled: Boolean) {
-        val currentString = dao.getSetting(SettingsKeys.ALLOWED_PACKAGES)
+        val currentString = dao.getSetting(SettingsKeys.ALLOWED_PACKAGES)       
         val currentSet = currentString.deserializeSet()
         val newSet = if (isEnabled) currentSet + packageName else currentSet - packageName
+        save(SettingsKeys.ALLOWED_PACKAGES, newSet.serialize())
+    }
+
+    suspend fun addAllowedPackages(packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        val currentString = dao.getSetting(SettingsKeys.ALLOWED_PACKAGES)
+        val currentSet = currentString.deserializeSet()
+        val newSet = currentSet + packageNames
         save(SettingsKeys.ALLOWED_PACKAGES, newSet.serialize())
     }
 

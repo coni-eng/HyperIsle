@@ -1563,6 +1563,17 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             }
         }
+
+        if (!cancelReady &&
+            decision.cancelShadeAllowed &&
+            decision.cancelShadeSafe &&
+            routeConfirmed &&
+            decision.ineligibilityReason == "NOT_CLEARABLE" &&
+            shadeCancelMode == ShadeCancelMode.AGGRESSIVE &&
+            type != NotificationType.CALL
+        ) {
+            attemptAggressiveShadeCancel(sbn, type, keyHash)
+        }
     }
 
     private fun isInQuietHours(): Boolean {
@@ -1662,16 +1673,6 @@ class NotificationReaderService : NotificationListenerService() {
             }
         }
 
-        if (!cancelReady &&
-            decision.cancelShadeAllowed &&
-            decision.cancelShadeSafe &&
-            routeConfirmed &&
-            decision.ineligibilityReason == "NOT_CLEARABLE" &&
-            shadeCancelMode == ShadeCancelMode.AGGRESSIVE &&
-            type != NotificationType.CALL
-        ) {
-            attemptAggressiveShadeCancel(sbn, type, keyHash)
-        }
     }
 
     private fun maybeShowNotClearableHint(pkg: String, keyHash: Int) {
