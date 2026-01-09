@@ -21,8 +21,10 @@
 - Follow existing Kotlin style and 4-space indentation; let Android Studio handle formatting.
 - Naming patterns: `*Screen.kt` for screens, `*ViewModel.kt` for view models, `*Receiver.kt` for broadcast receivers, `*Service.kt` for services, and `*Translator.kt` for translators.
 - Keep packages aligned with feature area (UI in `ui/`, background logic in `service/`).
+- Always add logging logic to new added features for debug-app. Use existing logging method and give command for new all logs.
 
 ## Skill Usage for Requests
+- Always look for skills in this directory: C:\Users\bekir\.codex\skills
 - UI/UX changes or styling requests: use the `frontend-design` skill.
 - Refactors or maintainability cleanups: use `code-refactoring`.
 - LLM features, prompts, or RAG: use `llm-application-dev`.

@@ -49,6 +49,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         val title = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null } ?: "Call"
 
         val isChronometerShown = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)
+        val isOngoingFlag = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
 
         val actions = sbn.notification.actions ?: emptyArray()
         val hasAnswerAction = actions.any { action ->
@@ -56,8 +57,8 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             answerKeywords.any { k -> txt.contains(k) }
         }
 
-        val isIncoming = !isChronometerShown && hasAnswerAction
-        val isOngoing = !isIncoming && isChronometerShown
+        val isIncoming = hasAnswerAction
+        val isOngoing = !isIncoming && (isChronometerShown || isOngoingFlag)
 
         // Debug-only lifecycle logging
         val callState = when {

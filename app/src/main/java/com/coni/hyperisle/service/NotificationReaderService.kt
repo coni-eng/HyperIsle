@@ -56,10 +56,12 @@ import com.coni.hyperisle.util.NotificationChannels
 import com.coni.hyperisle.util.IslandStyleContract
 import com.coni.hyperisle.service.IslandDecisionEngine
 import com.coni.hyperisle.service.IslandKeyManager
+import com.coni.hyperisle.overlay.CallOverlayState
 import com.coni.hyperisle.overlay.IosCallOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationReplyAction
 import com.coni.hyperisle.overlay.OverlayEventBus
+import com.coni.hyperisle.util.ForegroundAppDetector
 import com.coni.hyperisle.util.OverlayPermissionHelper
 import com.coni.hyperisle.util.SystemHyperIslandPoster
 import com.coni.hyperisle.util.getStringCompat
@@ -142,6 +144,7 @@ class NotificationReaderService : NotificationListenerService() {
 
     // Call timer tracking: groupKey -> (startTime, timerJob)
     private val activeCallTimers = ConcurrentHashMap<String, Pair<Long, Job>>()
+    private val callOverlayVisibility = ConcurrentHashMap<String, Boolean>()
 
     private lateinit var database: AppDatabase
 
@@ -611,6 +614,7 @@ class NotificationReaderService : NotificationListenerService() {
         pendingDismissJobs.remove(groupKey)?.cancel()
         activeCallTimers[groupKey]?.second?.cancel()
         activeCallTimers.remove(groupKey)
+        callOverlayVisibility.remove(groupKey)
     }
 
     private fun shouldSkipUpdate(sbn: StatusBarNotification): Boolean {
@@ -1016,13 +1020,14 @@ class NotificationReaderService : NotificationListenerService() {
             // v0.9.7: Detect if call is ongoing (for calls-only-island feature)
             val isOngoingCall = if (type == NotificationType.CALL) {
                 val isChronometerShown = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)
+                val isOngoingFlag = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
                 val actions = sbn.notification.actions ?: emptyArray()
                 val answerKeywords = resources.getStringArray(R.array.call_keywords_answer).toList()
                 val hasAnswerAction = actions.any { action ->
                     val txt = action.title.toString().lowercase(java.util.Locale.getDefault())
                     answerKeywords.any { k -> txt.contains(k) }
                 }
-                isChronometerShown && !hasAnswerAction
+                !hasAnswerAction && (isChronometerShown || isOngoingFlag)
             } else false
 
             // --- ISLAND STYLE CONTRACT ---
@@ -1040,6 +1045,7 @@ class NotificationReaderService : NotificationListenerService() {
                 "actionCount" to actionCount
             ))
 
+            var callDurationSeconds: Long? = null
             val data: HyperIslandData = when (type) {
                 NotificationType.CALL -> {
                     // Calculate duration for ongoing calls
@@ -1060,7 +1066,8 @@ class NotificationReaderService : NotificationListenerService() {
                         activeCallTimers.remove(groupKey)
                         null
                     }
-                    
+                    callDurationSeconds = durationSeconds
+
                     callTranslator.translate(sbn, picKey, finalConfig, durationSeconds)
                 }
                 NotificationType.NAVIGATION -> {
@@ -1198,10 +1205,26 @@ class NotificationReaderService : NotificationListenerService() {
                     activeRoutes[groupKey] = IslandRoute.MIUI_BRIDGE
 
                     // Emit overlay event in addition to MIUI island (both systems work together)
-                    emitOverlayEvent(sbn, type, title, text, isOngoingCall, finalConfig)
+                    emitOverlayEvent(
+                        sbn,
+                        type,
+                        title,
+                        text,
+                        isOngoingCall,
+                        callDurationSeconds,
+                        finalConfig
+                    )
                 }
                 IslandRoute.APP_OVERLAY -> {
-                    val overlayDelivered = emitOverlayEvent(sbn, type, title, text, isOngoingCall, finalConfig)
+                    val overlayDelivered = emitOverlayEvent(
+                        sbn,
+                        type,
+                        title,
+                        text,
+                        isOngoingCall,
+                        callDurationSeconds,
+                        finalConfig
+                    )
                     if (overlayDelivered) {
                         startMinVisibleTimer(groupKey, sbn.key.hashCode())
                     }
@@ -1771,9 +1794,13 @@ class NotificationReaderService : NotificationListenerService() {
                 
                 val durationSeconds = (System.currentTimeMillis() - startTime) / 1000
                 val data = callTranslator.translate(sbn, picKey, config, durationSeconds)
-                val bridgeId = activeTranslations[groupKey] ?: break
-                
+                emitCallOverlayUpdate(sbn, isOngoingCall = true, durationSeconds = durationSeconds)
+                val bridgeId = activeTranslations[groupKey]
+
                 // Check POST_NOTIFICATIONS permission before notify
+                if (bridgeId == null) {
+                    continue
+                }
                 if (!canPostNotifications()) {
                     if (BuildConfig.DEBUG) {
                         DebugTimeline.log(
@@ -1870,7 +1897,7 @@ class NotificationReaderService : NotificationListenerService() {
      */
     private fun isOverlaySupported(type: NotificationType, isOngoingCall: Boolean): Boolean {
         return when (type) {
-            NotificationType.CALL -> !isOngoingCall
+            NotificationType.CALL -> true
             NotificationType.STANDARD -> true
             else -> false
         }
@@ -1882,6 +1909,7 @@ class NotificationReaderService : NotificationListenerService() {
         title: String,
         text: String,
         isOngoingCall: Boolean,
+        durationSeconds: Long?,
         config: IslandConfig
     ): Boolean {
         val rid = sbn.key.hashCode()
@@ -1909,9 +1937,7 @@ class NotificationReaderService : NotificationListenerService() {
         return try {
             when (type) {
                 NotificationType.CALL -> {
-                    if (isOngoingCall) return false
-                    val callModel = buildCallOverlayModel(sbn, title) ?: return false
-                    OverlayEventBus.emitCall(callModel)
+                    emitCallOverlay(sbn, title, isOngoingCall, durationSeconds)
                 }
                 NotificationType.STANDARD -> {
                     val replyAction = extractReplyAction(sbn)
@@ -1925,6 +1951,75 @@ class NotificationReaderService : NotificationListenerService() {
             Log.w(TAG, "Failed to emit overlay event: ${e.message}")
             false
         }
+    }
+
+    private fun emitCallOverlay(
+        sbn: StatusBarNotification,
+        title: String,
+        isOngoingCall: Boolean,
+        durationSeconds: Long?
+    ): Boolean {
+        val groupKey = sbnKeyToGroupKey[sbn.key] ?: "${sbn.packageName}:CALL"
+        val shouldShow = shouldShowCallOverlay(sbn, groupKey)
+        val wasVisible = callOverlayVisibility[groupKey] ?: false
+        if (!shouldShow) {
+            if (wasVisible) {
+                callOverlayVisibility[groupKey] = false
+                OverlayEventBus.emitDismiss(sbn.key)
+            }
+            return false
+        }
+
+        val callModel = buildCallOverlayModel(sbn, title, isOngoingCall, durationSeconds)
+            ?: return false
+        callOverlayVisibility[groupKey] = true
+        return OverlayEventBus.emitCall(callModel)
+    }
+
+    private fun emitCallOverlayUpdate(
+        sbn: StatusBarNotification,
+        isOngoingCall: Boolean,
+        durationSeconds: Long?
+    ) {
+        val rid = sbn.key.hashCode()
+        if (!shouldRenderOverlay(NotificationType.CALL, rid)) return
+        if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) return
+        if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) return
+        val title = resolveCallTitle(sbn)
+        emitCallOverlay(sbn, title, isOngoingCall, durationSeconds)
+    }
+
+    private fun shouldShowCallOverlay(sbn: StatusBarNotification, groupKey: String): Boolean {
+        if (!ForegroundAppDetector.hasUsageAccess(applicationContext)) {
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=${sbn.key.hashCode()} EVT=OVERLAY_FG_UNKNOWN reason=USAGE_STATS_DENIED pkg=${sbn.packageName}"
+                )
+            }
+            return true
+        }
+
+        val isForeground = ForegroundAppDetector.isPackageForeground(
+            applicationContext,
+            sbn.packageName
+        )
+        if (isForeground) {
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=${sbn.key.hashCode()} EVT=OVERLAY_SKIP reason=CALL_UI_FOREGROUND pkg=${sbn.packageName}"
+                )
+            }
+            callOverlayVisibility[groupKey] = false
+            return false
+        }
+        return true
+    }
+
+    private fun resolveCallTitle(sbn: StatusBarNotification): String {
+        val extras = sbn.notification.extras
+        return extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null } ?: "Call"
     }
 
     private fun shouldRenderOverlay(type: NotificationType, rid: Int): Boolean {
@@ -1949,6 +2044,26 @@ class NotificationReaderService : NotificationListenerService() {
         if (rawTimeout == null) return OVERLAY_DEFAULT_COLLAPSE_MS
         if (rawTimeout <= 0L) return null
         return if (rawTimeout <= 60L) rawTimeout * 1000L else rawTimeout
+    }
+
+    private fun resolveCallDurationText(extras: android.os.Bundle, durationSeconds: Long?): String {
+        val subText = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim().ifBlank { null }
+        return when {
+            !subText.isNullOrEmpty() && subText.contains(":") -> subText
+            durationSeconds != null -> formatDuration(durationSeconds)
+            else -> ""
+        }
+    }
+
+    private fun formatDuration(seconds: Long): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        val secs = seconds % 60
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, secs)
+        } else {
+            String.format("%d:%02d", minutes, secs)
+        }
     }
 
     private fun extractReplyAction(sbn: StatusBarNotification): IosNotificationReplyAction? {
@@ -1978,33 +2093,59 @@ class NotificationReaderService : NotificationListenerService() {
      * Build IosCallOverlayModel from StatusBarNotification.
      * Extracts caller name and accept/decline PendingIntents from notification actions.
      */
-    private fun buildCallOverlayModel(sbn: StatusBarNotification, title: String): IosCallOverlayModel? {
+    private fun buildCallOverlayModel(
+        sbn: StatusBarNotification,
+        title: String,
+        isOngoingCall: Boolean,
+        durationSeconds: Long?
+    ): IosCallOverlayModel? {
         val extras = sbn.notification.extras
         val callerName = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null } ?: title
 
-        val actions = sbn.notification.actions ?: return null
-        
-        // Find accept and decline actions
+        val actions = sbn.notification.actions ?: emptyArray()
+
+        // Find accept/decline/speaker/mute actions
         val answerKeywords = resources.getStringArray(R.array.call_keywords_answer).toList()
         val hangUpKeywords = resources.getStringArray(R.array.call_keywords_hangup).toList()
+        val speakerKeywords = resources.getStringArray(R.array.call_keywords_speaker).toList()
+        val muteKeywords = resources.getStringArray(R.array.call_keywords_mute).toList()
 
         var acceptIntent: PendingIntent? = null
         var declineIntent: PendingIntent? = null
+        var hangUpIntent: PendingIntent? = null
+        var speakerIntent: PendingIntent? = null
+        var muteIntent: PendingIntent? = null
 
         for (action in actions) {
             val actionTitle = action.title?.toString()?.lowercase(java.util.Locale.getDefault()) ?: continue
             when {
                 answerKeywords.any { actionTitle.contains(it) } -> acceptIntent = action.actionIntent
-                hangUpKeywords.any { actionTitle.contains(it) } -> declineIntent = action.actionIntent
+                hangUpKeywords.any { actionTitle.contains(it) } -> {
+                    declineIntent = action.actionIntent
+                    hangUpIntent = action.actionIntent
+                }
+                speakerKeywords.any { actionTitle.contains(it) } -> speakerIntent = action.actionIntent
+                muteKeywords.any { actionTitle.contains(it) } -> muteIntent = action.actionIntent
             }
         }
 
+        val durationText = if (isOngoingCall) {
+            resolveCallDurationText(extras, durationSeconds)
+        } else {
+            ""
+        }
+
         return IosCallOverlayModel(
-            title = getString(R.string.call_incoming),
+            title = if (isOngoingCall) getString(R.string.call_ongoing) else getString(R.string.call_incoming),
             callerName = callerName,
             avatarBitmap = null, // Could extract from notification largeIcon if needed
             acceptIntent = acceptIntent,
             declineIntent = declineIntent,
+            hangUpIntent = hangUpIntent,
+            speakerIntent = speakerIntent,
+            muteIntent = muteIntent,
+            durationText = durationText,
+            state = if (isOngoingCall) CallOverlayState.ONGOING else CallOverlayState.INCOMING,
             packageName = sbn.packageName,
             notificationKey = sbn.key
         )

@@ -4,6 +4,11 @@ import android.app.PendingIntent
 import android.app.RemoteInput
 import android.graphics.Bitmap
 
+enum class CallOverlayState {
+    INCOMING,
+    ONGOING
+}
+
 /**
  * Data model for iOS-style call overlay.
  */
@@ -13,6 +18,11 @@ data class IosCallOverlayModel(
     val avatarBitmap: Bitmap? = null,
     val acceptIntent: PendingIntent? = null,
     val declineIntent: PendingIntent? = null,
+    val hangUpIntent: PendingIntent? = null,
+    val speakerIntent: PendingIntent? = null,
+    val muteIntent: PendingIntent? = null,
+    val durationText: String = "",
+    val state: CallOverlayState = CallOverlayState.INCOMING,
     val packageName: String,
     val notificationKey: String
 )

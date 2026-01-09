@@ -53,6 +53,8 @@ import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
+import com.coni.hyperisle.ui.components.ActiveCallCompactPill
+import com.coni.hyperisle.ui.components.ActiveCallExpandedPill
 import com.coni.hyperisle.ui.components.IncomingCallPill
 import com.coni.hyperisle.ui.components.MiniNotificationPill
 import com.coni.hyperisle.ui.components.NotificationPill
@@ -270,33 +272,11 @@ class IslandOverlayService : Service() {
     }
 
     private fun showCallOverlay(model: IosCallOverlayModel) {
-        Log.d(TAG, "Showing call overlay for: ${model.callerName}")
-        // INSTRUMENTATION: Overlay show call
-        if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=${model.notificationKey?.hashCode() ?: 0} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=CALL pkg=${model.packageName}")
-            IslandRuntimeDump.recordOverlay(null, "OVERLAY_SHOW", reason = "CALL", pkg = model.packageName, overlayType = "CALL")
-            // UI Snapshot: OVERLAY_SHOW for call
-            val slots = IslandUiSnapshotLogger.slotsCall(
-                hasAvatar = model.avatarBitmap != null,
-                hasCallerName = model.callerName.isNotEmpty(),
-                hasTimer = false,
-                actionLabels = listOf("decline", "accept"),
-                isIncoming = true,
-                isOngoing = false
-            )
-            val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
-                rid = IslandUiSnapshotLogger.rid(),
-                pkg = model.packageName,
-                type = "CALL",
-                keyHash = model.notificationKey?.hashCode()?.toString()
-            )
-            IslandUiSnapshotLogger.logEvent(
-                ctx = snapshotCtx,
-                evt = "OVERLAY_SHOW",
-                route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
-                slots = slots
-            )
-        }
+        val isIncoming = model.state == CallOverlayState.INCOMING
+        val isOngoing = model.state == CallOverlayState.ONGOING
+        val hasTimer = model.durationText.isNotEmpty()
+        val wasCallOverlay =
+            overlayController.currentEvent is OverlayEvent.CallEvent && overlayController.isShowing()
 
         // Cancel any auto-dismiss job (calls don't auto-dismiss)
         autoCollapseJob?.cancel()
@@ -305,60 +285,173 @@ class IslandOverlayService : Service() {
         currentNotificationModel = null
         currentCallModel = model
 
-        Log.d(
-            "HyperIsleIsland",
-            "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_META type=CALL pkg=${model.packageName} titleLen=${model.title.length} nameLen=${model.callerName.length} hasAvatar=${model.avatarBitmap != null}"
-        )
+        if (!wasCallOverlay) {
+            Log.d(TAG, "Showing call overlay for: ${model.callerName}")
+            // INSTRUMENTATION: Overlay show call
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=${model.notificationKey.hashCode()} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=CALL pkg=${model.packageName}"
+                )
+                IslandRuntimeDump.recordOverlay(
+                    null,
+                    "OVERLAY_SHOW",
+                    reason = "CALL",
+                    pkg = model.packageName,
+                    overlayType = "CALL"
+                )
+                // UI Snapshot: OVERLAY_SHOW for call
+                val slots = IslandUiSnapshotLogger.slotsCall(
+                    hasAvatar = model.avatarBitmap != null,
+                    hasCallerName = model.callerName.isNotEmpty(),
+                    hasTimer = hasTimer,
+                    actionLabels = if (isIncoming) listOf("decline", "accept") else listOf(
+                        "hangup",
+                        "speaker",
+                        "mute"
+                    ),
+                    isIncoming = isIncoming,
+                    isOngoing = isOngoing
+                )
+                val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                    rid = IslandUiSnapshotLogger.rid(),
+                    pkg = model.packageName,
+                    type = "CALL",
+                    keyHash = model.notificationKey.hashCode().toString()
+                )
+                IslandUiSnapshotLogger.logEvent(
+                    ctx = snapshotCtx,
+                    evt = "OVERLAY_SHOW",
+                    route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
+                    slots = slots
+                )
+            }
+
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_META type=CALL pkg=${model.packageName} state=${model.state.name} titleLen=${model.title.length} nameLen=${model.callerName.length} hasAvatar=${model.avatarBitmap != null} hasTimer=$hasTimer"
+            )
+        }
+
+        if (wasCallOverlay) {
+            return
+        }
 
         overlayController.showOverlay(OverlayEvent.CallEvent(model)) {
+            val activeModel = currentCallModel ?: return@showOverlay
+            val activeIsOngoing = activeModel.state == CallOverlayState.ONGOING
+            var isExpanded by remember(activeModel.notificationKey) { mutableStateOf(false) }
+
             SwipeDismissContainer(
-                rid = model.notificationKey.hashCode(),
-                stateLabel = "expanded",
+                rid = activeModel.notificationKey.hashCode(),
+                stateLabel = if (activeIsOngoing) {
+                    if (isExpanded) "expanded" else "compact"
+                } else {
+                    "expanded"
+                },
                 onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
+                onTap = if (activeIsOngoing && isExpanded) {
+                    { isExpanded = false }
+                } else {
+                    null
+                },
+                onLongPress = if (activeIsOngoing) {
+                    { isExpanded = true }
+                } else {
+                    null
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                IncomingCallPill(
-                    title = model.title,
-                    name = model.callerName,
-                    avatarBitmap = model.avatarBitmap,
-                    onDecline = {
-                        Log.d(
-                            "HyperIsleIsland",
-                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_CLICK pkg=${model.packageName}"
+                if (activeIsOngoing) {
+                    if (isExpanded) {
+                        ActiveCallExpandedPill(
+                            callerLabel = activeModel.callerName,
+                            durationText = activeModel.durationText,
+                            onHangUp = activeModel.hangUpIntent?.let {
+                                {
+                                    handleCallAction(
+                                        pendingIntent = it,
+                                        actionType = "hangup",
+                                        rid = activeModel.notificationKey.hashCode(),
+                                        pkg = activeModel.packageName
+                                    )
+                                }
+                            },
+                            onSpeaker = activeModel.speakerIntent?.let {
+                                {
+                                    handleCallAction(
+                                        pendingIntent = it,
+                                        actionType = "speaker",
+                                        rid = activeModel.notificationKey.hashCode(),
+                                        pkg = activeModel.packageName
+                                    )
+                                }
+                            },
+                            onMute = activeModel.muteIntent?.let {
+                                {
+                                    handleCallAction(
+                                        pendingIntent = it,
+                                        actionType = "mute",
+                                        rid = activeModel.notificationKey.hashCode(),
+                                        pkg = activeModel.packageName
+                                    )
+                                }
+                            },
+                            debugRid = activeModel.notificationKey.hashCode()
                         )
-                        val result = handleCallAction(
-                            pendingIntent = model.declineIntent,
-                            actionType = "decline",
-                            rid = model.notificationKey.hashCode(),
-                            pkg = model.packageName
+                    } else {
+                        ActiveCallCompactPill(
+                            callerLabel = activeModel.callerName,
+                            durationText = activeModel.durationText,
+                            debugRid = activeModel.notificationKey.hashCode()
                         )
-                        Log.d(
-                            "HyperIsleIsland",
-                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_RESULT result=${if (result) "OK" else "FAIL"} pkg=${model.packageName}"
-                        )
-                        dismissAllOverlays("CALL_DECLINE")
-                    },
-                    onAccept = {
-                        Log.d(
-                            "HyperIsleIsland",
-                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_CLICK pkg=${model.packageName}"
-                        )
-                        val result = handleCallAction(
-                            pendingIntent = model.acceptIntent,
-                            actionType = "accept",
-                            rid = model.notificationKey.hashCode(),
-                            pkg = model.packageName
-                        )
-                        Log.d(
-                            "HyperIsleIsland",
-                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_RESULT result=${if (result) "OK" else "FAIL"} pkg=${model.packageName}"
-                        )
-                        dismissAllOverlays("CALL_ACCEPT")
-                    },
-                    debugRid = model.notificationKey.hashCode()
-                )
+                    }
+                } else {
+                    IncomingCallPill(
+                        title = activeModel.title,
+                        name = activeModel.callerName,
+                        avatarBitmap = activeModel.avatarBitmap,
+                        onDecline = {
+                            Log.d(
+                                "HyperIsleIsland",
+                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_CLICK pkg=${activeModel.packageName}"
+                            )
+                            val result = handleCallAction(
+                                pendingIntent = activeModel.declineIntent,
+                                actionType = "decline",
+                                rid = activeModel.notificationKey.hashCode(),
+                                pkg = activeModel.packageName
+                            )
+                            val resultLabel = if (result) "OK" else "FAIL"
+                            Log.d(
+                                "HyperIsleIsland",
+                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_RESULT result=$resultLabel pkg=${activeModel.packageName}"
+                            )
+                            dismissAllOverlays("CALL_DECLINE")
+                        },
+                        onAccept = {
+                            Log.d(
+                                "HyperIsleIsland",
+                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_CLICK pkg=${activeModel.packageName}"
+                            )
+                            val result = handleCallAction(
+                                pendingIntent = activeModel.acceptIntent,
+                                actionType = "accept",
+                                rid = activeModel.notificationKey.hashCode(),
+                                pkg = activeModel.packageName
+                            )
+                            val resultLabel = if (result) "OK" else "FAIL"
+                            Log.d(
+                                "HyperIsleIsland",
+                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_RESULT result=$resultLabel pkg=${activeModel.packageName}"
+                            )
+                            dismissAllOverlays("CALL_ACCEPT")
+                        },
+                        debugRid = activeModel.notificationKey.hashCode()
+                    )
+                }
             }
         }
     }
@@ -828,3 +921,6 @@ class IslandOverlayService : Service() {
         }
     }
 }
+
+
+

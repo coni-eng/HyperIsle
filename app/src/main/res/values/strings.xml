@@ -314,6 +314,14 @@
         <item>hoparlör</item>
         <item>ses</item>
     </string-array>
+    <string-array name="call_keywords_mute">
+        <item>mute</item>
+        <item>microphone</item>
+        <item>mic</item>
+        <item>mikrofon</item>
+        <item>sessiz</item>
+        <item>kapat</item>
+    </string-array>
 
     <string name="title_0_3_0">Global Güncelleme</string>
     <string name="changelog_0_3_0">
