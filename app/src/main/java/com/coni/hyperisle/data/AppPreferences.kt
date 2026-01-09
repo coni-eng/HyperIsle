@@ -13,6 +13,8 @@ import com.coni.hyperisle.models.IslandLimitMode
 import com.coni.hyperisle.models.MusicIslandMode
 import com.coni.hyperisle.models.NavContent
 import com.coni.hyperisle.models.NotificationType
+import com.coni.hyperisle.models.DEFAULT_CONFIG_IDS
+import com.coni.hyperisle.models.DEFAULT_QUICK_ACTION_IDS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -87,6 +89,16 @@ class AppPreferences(context: Context) {
         NotificationType.STANDARD.name
     )
 
+    private fun normalizeOrder(raw: List<String>, defaults: List<String>): List<String> {
+        val filtered = raw.filter { it in defaults }.distinct()
+        return if (filtered.isEmpty()) defaults else filtered + defaults.filterNot { filtered.contains(it) }
+    }
+
+    private fun normalizeQuickActions(raw: List<String>): List<String> {
+        if (raw.isEmpty()) return DEFAULT_QUICK_ACTION_IDS
+        return raw.filter { it in DEFAULT_QUICK_ACTION_IDS }.distinct()
+    }
+
     private suspend fun save(key: String, value: String) {
         dao.insert(AppSetting(key, value))
     }
@@ -106,6 +118,25 @@ class AppPreferences(context: Context) {
     suspend fun setSetupComplete(isComplete: Boolean) = save(SettingsKeys.SETUP_COMPLETE, isComplete.toString())
     suspend fun setLastSeenVersion(versionCode: Int) = save(SettingsKeys.LAST_VERSION, versionCode.toString())
     suspend fun setPriorityEduShown(shown: Boolean) = save(SettingsKeys.PRIORITY_EDU, shown.toString())
+
+    // --- SETTINGS LAYOUT ---
+    val settingsQuickActionsOrderFlow: Flow<List<String>> =
+        dao.getSettingFlow(SettingsKeys.SETTINGS_QUICK_ACTIONS_ORDER).map { raw ->
+            normalizeQuickActions(raw.deserializeList())
+        }
+
+    val settingsConfigOrderFlow: Flow<List<String>> =
+        dao.getSettingFlow(SettingsKeys.SETTINGS_CONFIG_ORDER).map { raw ->
+            normalizeOrder(raw.deserializeList(), DEFAULT_CONFIG_IDS)
+        }
+
+    suspend fun setSettingsQuickActionsOrder(order: List<String>) {
+        save(SettingsKeys.SETTINGS_QUICK_ACTIONS_ORDER, order.joinToString(","))
+    }
+
+    suspend fun setSettingsConfigOrder(order: List<String>) {
+        save(SettingsKeys.SETTINGS_CONFIG_ORDER, order.joinToString(","))
+    }
 
     suspend fun toggleApp(packageName: String, isEnabled: Boolean) {
         val currentString = dao.getSetting(SettingsKeys.ALLOWED_PACKAGES)       

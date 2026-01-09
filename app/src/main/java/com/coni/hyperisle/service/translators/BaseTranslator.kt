@@ -11,6 +11,8 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.toColorInt
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.BridgeAction
 import com.coni.hyperisle.util.ActionDiagnostics
@@ -29,13 +31,13 @@ abstract class BaseTranslator(protected val context: Context) {
 
     protected fun getTransparentPicture(key: String): HyperPicture {
         val conf = Bitmap.Config.ARGB_8888
-        val transparentBitmap = Bitmap.createBitmap(96, 96, conf)
+        val transparentBitmap = createBitmap(96, 96, conf)
         return HyperPicture(key, transparentBitmap)
     }
 
     protected fun getColoredPicture(key: String, resId: Int, colorHex: String): HyperPicture {
         val drawable = ContextCompat.getDrawable(context, resId)?.mutate()
-        val color = Color.parseColor(colorHex)
+        val color = colorHex.toColorInt()
         drawable?.setTint(color)
         val bitmap = drawable?.toBitmap() ?: createFallbackBitmap()
         return HyperPicture(key, bitmap)
@@ -238,13 +240,13 @@ abstract class BaseTranslator(protected val context: Context) {
         }
     }
 
-    protected fun createFallbackBitmap(): Bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    protected fun createFallbackBitmap(): Bitmap = createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
     protected fun Drawable.toBitmap(): Bitmap {
         if (this is BitmapDrawable && this.bitmap != null) return this.bitmap
         val width = if (intrinsicWidth > 0) intrinsicWidth else 96
         val height = if (intrinsicHeight > 0) intrinsicHeight else 96
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         setBounds(0, 0, canvas.width, canvas.height)
         draw(canvas)

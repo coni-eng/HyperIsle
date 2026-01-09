@@ -1,6 +1,7 @@
 package com.coni.hyperisle.service
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -14,7 +15,9 @@ import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.edit
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.ActiveIsland
@@ -77,6 +80,7 @@ import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.debug.IslandUiState
 import com.coni.hyperisle.debug.ProcCtx
 import com.coni.hyperisle.util.toBitmap
+import java.util.Locale
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -1767,16 +1771,33 @@ class NotificationReaderService : NotificationListenerService() {
         val now = System.currentTimeMillis()
         if (now - lastShown < SHADE_CANCEL_HINT_COOLDOWN_MS) return
 
-        prefs.edit().putLong("not_clearable_last_shown_ms", now).apply()
+        prefs.edit {
+            putLong("not_clearable_last_shown_ms", now)
+        }
 
         val poster = SystemHyperIslandPoster(this)
-        if (!poster.hasNotificationPermission()) return
+        if (!canPostNotifications() || !poster.hasNotificationPermission()) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=SHADE_CANCEL_HINT_SKIP reason=NO_POST_PERMISSION pkg=$pkg"
+            )
+            return
+        }
 
-        poster.postSystemNotification(
-            SHADE_CANCEL_HINT_NOTIFICATION_ID,
-            getString(R.string.app_name),
-            getString(R.string.shade_cancel_not_clearable_banner)
-        )
+        try {
+            poster.postSystemNotification(
+                SHADE_CANCEL_HINT_NOTIFICATION_ID,
+                getString(R.string.app_name),
+                getString(R.string.shade_cancel_not_clearable_banner)
+            )
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Shade cancel hint post blocked: ${e.message}")
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=SHADE_CANCEL_HINT_SKIP reason=SECURITY_EXCEPTION pkg=$pkg"
+            )
+            return
+        }
         Log.d("HyperIsleIsland", "RID=$keyHash EVT=SHADE_CANCEL_HINT_SHOWN reason=NOT_CLEARABLE pkg=$pkg")
     }
 
@@ -1813,6 +1834,7 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
+    @SuppressLint("LaunchActivityFromNotification")
     private fun createLaunchIntent(packageName: String): android.app.PendingIntent? {
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         return if (launchIntent != null) {
@@ -1825,7 +1847,7 @@ class NotificationReaderService : NotificationListenerService() {
         } else {
             // Fallback to app details settings
             val settingsIntent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = android.net.Uri.parse("package:$packageName")
+                data = "package:$packageName".toUri()
             }
             android.app.PendingIntent.getActivity(
                 this,
@@ -1837,14 +1859,10 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     private fun canPostNotifications(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun startCallTimer(sbn: StatusBarNotification, groupKey: String, picKey: String, config: IslandConfig, startTime: Long): Job {
@@ -2166,9 +2184,9 @@ class NotificationReaderService : NotificationListenerService() {
         val minutes = (seconds % 3600) / 60
         val secs = seconds % 60
         return if (hours > 0) {
-            String.format("%d:%02d:%02d", hours, minutes, secs)
+            String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, secs)
         } else {
-            String.format("%d:%02d", minutes, secs)
+            String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
         }
     }
 

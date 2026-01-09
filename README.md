@@ -24,6 +24,13 @@
 
 ---
 
+## Recent Updates (v0.9.5-v0.9.6)
+
+- Optional iOS-style pill overlay alongside the system island (requires overlay permission).
+- Setup Health screen highlights required vs recommended permissions, plus a "Setup incomplete" banner.
+- Debug/QA "Mark Issue" action writes a timeline marker for diagnostics.
+- Per-app shade-cancel warning for persistent notifications that Android/MIUI cannot clear.
+
 ## 🚀 Features (Highlights)
 
 * **Native HyperOS Visuals** – Notifications rendered as system-style islands.
@@ -128,6 +135,9 @@ HyperIsle includes powerful debug-only diagnostics tools to make real-world issu
   - Save diagnostics as `.txt` (debug builds only)
   - Optional JSON format for structured analysis
 
+- **Issue markers (debug/QA builds):**
+  - "Mark Issue" button writes a timeline marker for later review.
+
 - **PII-safe by design:**
   - No notification titles or message content
   - Only package names, timestamps, counters, and reason codes
@@ -214,6 +224,8 @@ By default, the system’s native (HyperOS) music island is used, and HyperIsle 
    * **No Restrictions** (Battery)
    
    This prevents the system from killing the background service.
+
+3. Optional: If you enable the iOS-style pill overlay, grant "Display over other apps".
 
 ---
 

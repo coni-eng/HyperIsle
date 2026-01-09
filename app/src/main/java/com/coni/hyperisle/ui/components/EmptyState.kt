@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.dp
 fun EmptyState(
     title: String,
     description: String,
-    icon: ImageVector = Icons.Outlined.NotificationsOff,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Outlined.NotificationsOff
 ) {
     Column(
         modifier = modifier

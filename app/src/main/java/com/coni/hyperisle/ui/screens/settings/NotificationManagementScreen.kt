@@ -5,8 +5,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -85,60 +90,79 @@ fun NotificationManagementScreen(
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
+                ),
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                    MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
+                            )
+                        )
+                        .padding(16.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Notifications,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            stringResource(R.string.notification_management_status_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(0.3f))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            stringResource(R.string.notification_management_hidden_apps),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "$shadeCancelCount",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            stringResource(R.string.notification_management_calls_only_island),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            if (callsOnlyIslandEnabled) stringResource(R.string.status_active) else stringResource(R.string.notification_management_off),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (callsOnlyIslandEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            IconBadge(
+                                icon = Icons.Default.Notifications,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Column {
+                                Text(
+                                    stringResource(R.string.notification_management_status_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    stringResource(R.string.notification_management_status_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(0.3f))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                stringResource(R.string.notification_management_hidden_apps),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "$shadeCancelCount",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                stringResource(R.string.notification_management_calls_only_island),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                if (callsOnlyIslandEnabled) stringResource(R.string.status_active) else stringResource(R.string.notification_management_off),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (callsOnlyIslandEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -152,66 +176,70 @@ fun NotificationManagementScreen(
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f))
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.error.copy(alpha = 0.08f),
+                                        MaterialTheme.colorScheme.errorContainer
+                                    )
+                                )
+                            )
+                            .padding(16.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                stringResource(R.string.notification_management_warning_title),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                        Text(
-                            stringResource(R.string.notification_management_warning_message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Button(
-                            onClick = {
-                                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                IconBadge(
+                                    icon = Icons.Default.Warning,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Column {
+                                    Text(
+                                        stringResource(R.string.notification_management_warning_title),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        stringResource(R.string.notification_management_warning_message),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
                                 }
-                                context.startActivity(intent)
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            Text(stringResource(R.string.notification_management_warning_button))
+                            }
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                    }
+                                    context.startActivity(intent)
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Text(stringResource(R.string.notification_management_warning_button))
+                            }
                         }
                     }
                 }
             }
 
             // --- SECTION: APPS ---
-            Text(
-                stringResource(R.string.notification_management_section_apps),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 4.dp, top = 8.dp)
-            )
+            SectionHeader(title = stringResource(R.string.notification_management_section_apps))
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
-            ) {
+            PremiumSectionCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     // Apps list entry
                     Row(
@@ -219,9 +247,8 @@ fun NotificationManagementScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Apps,
-                            contentDescription = null,
+                        IconBadge(
+                            icon = Icons.Default.Apps,
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -265,28 +292,17 @@ fun NotificationManagementScreen(
             }
 
             // --- SECTION: ISLAND ROUTE ---
-            Text(
-                stringResource(R.string.notification_management_section_island),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 4.dp, top = 8.dp)
-            )
+            SectionHeader(title = stringResource(R.string.notification_management_section_island))
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
-            ) {
+            PremiumSectionCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
+                        IconBadge(
+                            icon = Icons.Default.Info,
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -311,19 +327,9 @@ fun NotificationManagementScreen(
             }
 
             // --- SECTION: CALLS ---
-            Text(
-                stringResource(R.string.notification_management_section_calls),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 4.dp, top = 8.dp)
-            )
+            SectionHeader(title = stringResource(R.string.notification_management_section_calls))
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
-            ) {
+            PremiumSectionCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     // Calls toggle
                     Row(
@@ -331,9 +337,8 @@ fun NotificationManagementScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Call,
-                            contentDescription = null,
+                        IconBadge(
+                            icon = Icons.Default.Call,
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -448,6 +453,50 @@ fun NotificationManagementScreen(
                     Text(stringResource(android.R.string.cancel))
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+    )
+}
+
+@Composable
+private fun PremiumSectionCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+    ) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun IconBadge(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: androidx.compose.ui.graphics.Color
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .background(tint.copy(alpha = 0.12f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(20.dp)
         )
     }
 }

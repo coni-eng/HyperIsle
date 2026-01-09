@@ -159,6 +159,22 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                 }
             }
 
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Info, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        stringResource(R.string.recents_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             // --- 1. SYSTEM COMPATIBILITY ---
             HealthSectionTitle(stringResource(R.string.setup_health_title))
             HealthGroupCard {
@@ -283,13 +299,6 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                stringResource(R.string.recents_note),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
             Spacer(modifier = Modifier.height(48.dp))
         }
     }

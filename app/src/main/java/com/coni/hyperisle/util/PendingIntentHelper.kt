@@ -1,7 +1,6 @@
 package com.coni.hyperisle.util
 
 import android.app.PendingIntent
-import android.os.Build
 import android.util.Log
 
 /**
@@ -112,13 +111,7 @@ object PendingIntentHelper {
             }
             else -> {
                 // Method 2: Try reflection on API 30+ if toString() didn't help
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    inferViaReflection(pendingIntent)
-                } else {
-                    // Cannot reliably detect, default to Activity
-                    Log.d(TAG, "Cannot infer type, defaulting to ACTIVITY")
-                    Pair(TYPE_ACTIVITY, true)
-                }
+                inferViaReflection(pendingIntent)
             }
         }
     }

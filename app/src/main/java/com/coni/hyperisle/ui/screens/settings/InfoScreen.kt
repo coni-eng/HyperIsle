@@ -1,11 +1,12 @@
 package com.coni.hyperisle.ui.screens.settings
 
 import android.content.Intent
-import android.net.Uri
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.net.toUri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -41,7 +42,9 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.BugReport
 import com.coni.hyperisle.BuildConfig
 import androidx.compose.material3.AlertDialog
@@ -63,6 +66,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,10 +85,23 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.coni.hyperisle.R
+import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.models.DEFAULT_CONFIG_IDS
+import com.coni.hyperisle.models.DEFAULT_QUICK_ACTION_IDS
+import com.coni.hyperisle.models.SettingsLayoutIds
+import com.coni.hyperisle.ui.components.SetupBanner
+import com.coni.hyperisle.util.HiLog
+import com.coni.hyperisle.util.isNotificationServiceEnabled
+import com.coni.hyperisle.util.isOverlayPermissionGranted
+import com.coni.hyperisle.util.isPostNotificationsEnabled
 import com.coni.hyperisle.util.parseBold
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -100,10 +118,12 @@ fun InfoScreen(
     onMusicIslandClick: () -> Unit,
     onSmartFeaturesClick: () -> Unit = {},
     onNotificationManagementClick: () -> Unit = {},
-    onDiagnosticsClick: () -> Unit = {}
+    onDiagnosticsClick: () -> Unit = {},
+    onCustomizeClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val preferences = remember { AppPreferences(context) }
 
     // FIX: Setup Scroll Behavior state
     val appBarState = rememberTopAppBarState()
@@ -111,6 +131,25 @@ fun InfoScreen(
 
     // --- STATE ---
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showSetupBanner by remember { mutableStateOf(true) }
+    var isListenerGranted by remember { mutableStateOf(isNotificationServiceEnabled(context)) }
+    var isOverlayGranted by remember { mutableStateOf(isOverlayPermissionGranted(context)) }
+    var isPostGranted by remember { mutableStateOf(isPostNotificationsEnabled(context)) }
+    var isBatteryOptimized by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isListenerGranted = isNotificationServiceEnabled(context)
+                isOverlayGranted = isOverlayPermissionGranted(context)
+                isPostGranted = isPostNotificationsEnabled(context)
+                isBatteryOptimized = isIgnoringBatteryOptimizations(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val appVersion = remember {
         try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0" }
@@ -121,6 +160,26 @@ fun InfoScreen(
         try { context.packageManager.getApplicationIcon(context.packageName).toBitmap().asImageBitmap() }
         catch (e: Exception) { null }
     }
+
+    val missingRequiredCount = listOf(!isListenerGranted, !isOverlayGranted).count { it }
+    val missingRecommendedCount = listOf(!isPostGranted, !isBatteryOptimized).count { it }
+    val requiredDone = 2 - missingRequiredCount
+    val recommendedDone = 2 - missingRecommendedCount
+
+    val quickActionOrder by preferences.settingsQuickActionsOrderFlow.collectAsState(
+        initial = DEFAULT_QUICK_ACTION_IDS
+    )
+    val configOrder by preferences.settingsConfigOrderFlow.collectAsState(
+        initial = DEFAULT_CONFIG_IDS
+    )
+
+    val quickActionSpecs = settingsQuickActionSpecs()
+    val quickActionMap = quickActionSpecs.associateBy { it.id }
+    val orderedQuickActions = quickActionOrder.mapNotNull { quickActionMap[it] }
+
+    val configSpecs = settingsConfigSpecs()
+    val configSpecMap = configSpecs.associateBy { it.id }
+    val orderedConfigSpecs = configOrder.mapNotNull { configSpecMap[it] }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -200,26 +259,161 @@ fun InfoScreen(
                 }
             }
 
+            item {
+                if (missingRequiredCount > 0 && showSetupBanner) {
+                    SetupBanner(
+                        missingCount = missingRequiredCount,
+                        onFixNow = {
+                            HiLog.d(
+                                HiLog.TAG_PREF,
+                                "SETTINGS_SETUP_BANNER",
+                                mapOf("action" to "fix_now")
+                            )
+                            onSetupClick()
+                        },
+                        onLater = {
+                            HiLog.d(
+                                HiLog.TAG_PREF,
+                                "SETTINGS_SETUP_BANNER",
+                                mapOf("action" to "later")
+                            )
+                            showSetupBanner = false
+                        }
+                    )
+                }
+            }
+
+            item {
+                SetupHealthSummaryCard(
+                    requiredDone = requiredDone,
+                    requiredTotal = 2,
+                    recommendedDone = recommendedDone,
+                    recommendedTotal = 2,
+                    missingRequiredCount = missingRequiredCount,
+                    onClick = {
+                        HiLog.d(
+                            HiLog.TAG_PREF,
+                            "SETTINGS_SETUP_SUMMARY",
+                            mapOf("action" to "open")
+                        )
+                        onSetupClick()
+                    }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            item {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    SettingsGroupTitle(stringResource(R.string.quick_actions_title))
+                    if (orderedQuickActions.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.settings_quick_actions_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    } else {
+                        orderedQuickActions.chunked(3).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                rowItems.forEach { item ->
+                                    val accent = when (item.id) {
+                                        SettingsLayoutIds.SETUP -> MaterialTheme.colorScheme.primary
+                                        SettingsLayoutIds.SMART -> MaterialTheme.colorScheme.tertiary
+                                        SettingsLayoutIds.NOTIFICATION -> MaterialTheme.colorScheme.secondary
+                                        else -> MaterialTheme.colorScheme.primary
+                                    }
+                                    QuickActionTile(
+                                        icon = item.icon,
+                                        title = item.title,
+                                        subtitle = item.subtitle,
+                                        accent = accent,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            HiLog.d(
+                                                HiLog.TAG_PREF,
+                                                "SETTINGS_QUICK_ACTION",
+                                                mapOf("target" to item.id)
+                                            )
+                                            when (item.id) {
+                                                SettingsLayoutIds.SETUP -> onSetupClick()
+                                                SettingsLayoutIds.SMART -> onSmartFeaturesClick()
+                                                SettingsLayoutIds.NOTIFICATION -> onNotificationManagementClick()
+                                            }
+                                        }
+                                    )
+                                }
+                                if (rowItems.size < 3) {
+                                    repeat(3 - rowItems.size) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+            }
+
+            item {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    SettingsGroupCard {
+                        SettingsItem(
+                            icon = Icons.Default.Tune,
+                            title = stringResource(R.string.settings_customize_title),
+                            subtitle = stringResource(R.string.settings_customize_desc),
+                            onClick = {
+                                HiLog.d(
+                                    HiLog.TAG_PREF,
+                                    "SETTINGS_CUSTOMIZE_OPEN",
+                                    mapOf("source" to "info")
+                                )
+                                onCustomizeClick()
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+
             // --- CONFIGURATION ---
             item {
                 Column(Modifier.padding(horizontal = 16.dp)) {
                     SettingsGroupTitle(stringResource(R.string.group_configuration))
                     SettingsGroupCard {
-                        SettingsItem(Icons.Default.SettingsSuggest, stringResource(R.string.system_setup), stringResource(R.string.system_setup_subtitle), onSetupClick)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.Tune, stringResource(R.string.island_behavior), stringResource(R.string.limit_strategy), onBehaviorClick)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.Palette, stringResource(R.string.global_settings), stringResource(R.string.island_appearance), onGlobalSettingsClick)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.Block, stringResource(R.string.blocked_terms), stringResource(R.string.spoiler_subtitle), onBlocklistClick)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.Save, stringResource(R.string.backup_restore_title), stringResource(R.string.backup_section_title), onBackupClick)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.MusicNote, stringResource(R.string.music_island_title), stringResource(R.string.music_island_desc), onMusicIslandClick)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.AutoAwesome, stringResource(R.string.smart_features_title), stringResource(R.string.smart_features_desc), onSmartFeaturesClick)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
-                        SettingsItem(Icons.Default.NotificationsOff, stringResource(R.string.notification_management_title), stringResource(R.string.notification_management_desc), onNotificationManagementClick)
+                        orderedConfigSpecs.forEachIndexed { index, item ->
+                            SettingsItem(
+                                icon = item.icon,
+                                title = item.title,
+                                subtitle = item.subtitle,
+                                onClick = {
+                                    HiLog.d(
+                                        HiLog.TAG_PREF,
+                                        "SETTINGS_CONFIG_OPEN",
+                                        mapOf("target" to item.id)
+                                    )
+                                    when (item.id) {
+                                        SettingsLayoutIds.SETUP -> onSetupClick()
+                                        SettingsLayoutIds.BEHAVIOR -> onBehaviorClick()
+                                        SettingsLayoutIds.GLOBAL -> onGlobalSettingsClick()
+                                        SettingsLayoutIds.BLOCKLIST -> onBlocklistClick()
+                                        SettingsLayoutIds.BACKUP -> onBackupClick()
+                                        SettingsLayoutIds.MUSIC -> onMusicIslandClick()
+                                        SettingsLayoutIds.SMART -> onSmartFeaturesClick()
+                                        SettingsLayoutIds.NOTIFICATION -> onNotificationManagementClick()
+                                    }
+                                }
+                            )
+                            if (index < orderedConfigSpecs.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f)
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                 }
@@ -235,7 +429,7 @@ fun InfoScreen(
                         SettingsItem(Icons.Default.Person, stringResource(R.string.developer), stringResource(R.string.developer_subtitle)) { uriHandler.openUri("https://github.com/coni-eng") }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
                         SettingsItem(Icons.Default.History, stringResource(R.string.version_history), "0.1.0 - $appVersion") {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/coni-eng/HyperIsle/blob/main/CHANGELOG.md"))
+                            val intent = Intent(Intent.ACTION_VIEW, "https://github.com/coni-eng/HyperIsle/blob/main/CHANGELOG.md".toUri())
                             context.startActivity(intent)
                         }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
@@ -382,3 +576,149 @@ fun SettingsItem(icon: ImageVector, title: String, subtitle: String, onClick: ()
         Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
     }
 }
+
+@Composable
+fun SetupHealthSummaryCard(
+    requiredDone: Int,
+    requiredTotal: Int,
+    recommendedDone: Int,
+    recommendedTotal: Int,
+    missingRequiredCount: Int,
+    onClick: () -> Unit
+) {
+    val statusColor = if (missingRequiredCount > 0) MaterialTheme.colorScheme.error else Color(0xFF34C759)
+    val statusIcon = if (missingRequiredCount > 0) Icons.Default.Warning else Icons.Default.CheckCircle
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clickable { onClick() }
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(statusColor.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.system_setup),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(R.string.system_setup_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusCountChip(
+                    label = stringResource(R.string.perm_required_section),
+                    value = "$requiredDone/$requiredTotal",
+                    isOk = missingRequiredCount == 0
+                )
+                StatusCountChip(
+                    label = stringResource(R.string.perm_recommended_section),
+                    value = "$recommendedDone/$recommendedTotal",
+                    isOk = recommendedDone == recommendedTotal
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusCountChip(label: String, value: String, isOk: Boolean) {
+    val accent = if (isOk) Color(0xFF34C759) else MaterialTheme.colorScheme.error
+    Row(
+        modifier = Modifier
+            .background(accent.copy(alpha = 0.12f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = accent
+        )
+    }
+}
+
+@Composable
+private fun QuickActionTile(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        shape = RoundedCornerShape(20.dp),
+        modifier = modifier
+            .heightIn(min = 120.dp)
+            .clickable { onClick() }
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(accent.copy(alpha = 0.14f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+

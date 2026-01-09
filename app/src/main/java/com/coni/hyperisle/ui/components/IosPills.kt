@@ -66,6 +66,7 @@ import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.overlay.MediaAction
 import kotlinx.coroutines.delay
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -77,10 +78,10 @@ private data class LayoutSnapshot(
 )
 
 @Composable
-private fun debugLayoutModifier(rid: Int?, element: String): Modifier {
-    if (!BuildConfig.DEBUG || rid == null) return Modifier
-    var lastSnapshot by remember { mutableStateOf<LayoutSnapshot?>(null) }
-    return Modifier.onGloballyPositioned { coords ->
+private fun Modifier.debugLayoutModifier(rid: Int?, element: String): Modifier {
+    if (!BuildConfig.DEBUG || rid == null) return this
+    var lastSnapshot by remember { mutableStateOf<LayoutSnapshot?>(null) }      
+    return this.onGloballyPositioned { coords ->
         val pos = coords.positionInRoot()
         val snapshot = LayoutSnapshot(
             x = pos.x.roundToInt(),
@@ -116,7 +117,7 @@ fun PillContainer(
         modifier = containerModifier
             .height(height)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(50.dp))
-            .then(debugLayoutModifier(debugRid, "${debugName}_root")),
+            .debugLayoutModifier(debugRid, "${debugName}_root"),
         shape = RoundedCornerShape(50.dp),
         color = Color(0xCC000000)
     ) {
@@ -160,7 +161,7 @@ fun IncomingCallPill(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(debugLayoutModifier(debugRid, "call_row")),
+                .debugLayoutModifier(debugRid, "call_row"),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -170,7 +171,7 @@ fun IncomingCallPill(
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF3A3A3C))
-                    .then(debugLayoutModifier(debugRid, "call_avatar")),
+                    .debugLayoutModifier(debugRid, "call_avatar"),
                 contentAlignment = Alignment.Center
             ) {
                 if (avatarBitmap != null) {
@@ -195,7 +196,7 @@ fun IncomingCallPill(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .then(debugLayoutModifier(debugRid, "call_text_column")),
+                    .debugLayoutModifier(debugRid, "call_text_column"),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
@@ -204,7 +205,7 @@ fun IncomingCallPill(
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = debugLayoutModifier(debugRid, "call_title")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "call_title")
                 )
                 Text(
                     text = name,
@@ -213,7 +214,7 @@ fun IncomingCallPill(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = debugLayoutModifier(debugRid, "call_name")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "call_name")
                 )
             }
 
@@ -227,8 +228,8 @@ fun IncomingCallPill(
                 // Decline button
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .then(debugLayoutModifier(debugRid, "call_decline_btn"))
+                        .size(55.dp)
+                        .debugLayoutModifier(debugRid, "call_decline_btn")
                         .clickable { onDecline() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -236,15 +237,15 @@ fun IncomingCallPill(
                         painter = painterResource(id = R.drawable.call_end),
                         contentDescription = "Decline call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(65.dp)
+                        modifier = Modifier.size(85.dp)
                     )
                 }
 
                 // Accept button
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .then(debugLayoutModifier(debugRid, "call_accept_btn"))
+                        .size(55.dp)
+                        .debugLayoutModifier(debugRid, "call_accept_btn")
                         .clickable { onAccept() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -252,7 +253,7 @@ fun IncomingCallPill(
                         painter = painterResource(id = R.drawable.call),
                         contentDescription = "Accept call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(65.dp)
+                        modifier = Modifier.size(85.dp)
                     )
                 }
             }
@@ -281,7 +282,7 @@ fun ActiveCallCompactPill(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(debugLayoutModifier(debugRid, "call_compact_row")),
+                .debugLayoutModifier(debugRid, "call_compact_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -293,7 +294,7 @@ fun ActiveCallCompactPill(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    .then(debugLayoutModifier(debugRid, "call_compact_name"))
+                    .debugLayoutModifier(debugRid, "call_compact_name")
             )
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -305,7 +306,7 @@ fun ActiveCallCompactPill(
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = debugLayoutModifier(debugRid, "call_compact_duration")
+                modifier = Modifier.debugLayoutModifier(debugRid, "call_compact_duration")
             )
         }
     }
@@ -335,7 +336,7 @@ fun ActiveCallExpandedPill(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(debugLayoutModifier(debugRid, "call_active_header")),
+                    .debugLayoutModifier(debugRid, "call_active_header"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -347,7 +348,7 @@ fun ActiveCallExpandedPill(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .weight(1f)
-                        .then(debugLayoutModifier(debugRid, "call_active_name"))
+                        .debugLayoutModifier(debugRid, "call_active_name")
                 )
                 Text(
                     text = durationText,
@@ -355,14 +356,14 @@ fun ActiveCallExpandedPill(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    modifier = debugLayoutModifier(debugRid, "call_active_duration")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "call_active_duration")
                 )
             }
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(debugLayoutModifier(debugRid, "call_active_actions")),
+                    .debugLayoutModifier(debugRid, "call_active_actions"),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -371,21 +372,21 @@ fun ActiveCallExpandedPill(
                     contentDescription = "End call",
                     background = Color(0xFFE53935),
                     onClick = onHangUp,
-                    debugModifier = debugLayoutModifier(debugRid, "call_active_end")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "call_active_end")
                 )
                 CallActionButton(
                     icon = Icons.AutoMirrored.Filled.VolumeUp,
                     contentDescription = "Speaker",
                     background = Color(0xFF3A3A3C),
                     onClick = onSpeaker,
-                    debugModifier = debugLayoutModifier(debugRid, "call_active_speaker")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "call_active_speaker")
                 )
                 CallActionButton(
                     icon = Icons.Default.MicOff,
                     contentDescription = "Mute",
                     background = Color(0xFF3A3A3C),
                     onClick = onMute,
-                    debugModifier = debugLayoutModifier(debugRid, "call_active_mute")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "call_active_mute")
                 )
             }
         }
@@ -398,7 +399,7 @@ private fun CallActionButton(
     contentDescription: String,
     background: Color,
     onClick: (() -> Unit)?,
-    debugModifier: Modifier = Modifier
+    modifier: Modifier = Modifier
 ) {
     val enabled = onClick != null
     val actionModifier = if (enabled) {
@@ -410,7 +411,7 @@ private fun CallActionButton(
     Box(
         modifier = Modifier
             .size(42.dp)
-            .then(debugModifier)
+            .then(modifier)
             .clip(CircleShape)
             .background(background)
             .then(actionModifier)
@@ -433,8 +434,8 @@ private fun CallActionButton(
 fun MediaPill(
     title: String,
     subtitle: String,
-    albumArt: Bitmap? = null,
     modifier: Modifier = Modifier,
+    albumArt: Bitmap? = null,
     debugRid: Int? = null
 ) {
     if (BuildConfig.DEBUG && debugRid != null) {
@@ -456,7 +457,7 @@ fun MediaPill(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(debugLayoutModifier(debugRid, "media_row")),
+                .debugLayoutModifier(debugRid, "media_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MediaArtwork(
@@ -470,7 +471,7 @@ fun MediaPill(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .then(debugLayoutModifier(debugRid, "media_text_column")),
+                    .debugLayoutModifier(debugRid, "media_text_column"),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
@@ -480,7 +481,7 @@ fun MediaPill(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = debugLayoutModifier(debugRid, "media_title")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "media_title")
                 )
                 if (subtitle.isNotEmpty()) {
                     Text(
@@ -489,13 +490,13 @@ fun MediaPill(
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = debugLayoutModifier(debugRid, "media_subtitle")
+                        modifier = Modifier.debugLayoutModifier(debugRid, "media_subtitle")
                     )
                 }
             }
 
             WaveformIndicator(
-                modifier = Modifier.then(debugLayoutModifier(debugRid, "media_waveform"))
+                modifier = Modifier.debugLayoutModifier(debugRid, "media_waveform")
             )
         }
     }
@@ -508,9 +509,9 @@ fun MediaPill(
 fun MediaExpandedPill(
     title: String,
     subtitle: String,
+    modifier: Modifier = Modifier,
     albumArt: Bitmap? = null,
     actions: List<MediaAction> = emptyList(),
-    modifier: Modifier = Modifier,
     debugRid: Int? = null
 ) {
     if (BuildConfig.DEBUG && debugRid != null) {
@@ -535,7 +536,7 @@ fun MediaExpandedPill(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(debugLayoutModifier(debugRid, "media_expanded_header")),
+                    .debugLayoutModifier(debugRid, "media_expanded_header"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 MediaArtwork(
@@ -549,7 +550,7 @@ fun MediaExpandedPill(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .then(debugLayoutModifier(debugRid, "media_expanded_text")),
+                        .debugLayoutModifier(debugRid, "media_expanded_text"),
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
@@ -559,7 +560,7 @@ fun MediaExpandedPill(
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = debugLayoutModifier(debugRid, "media_expanded_title")
+                        modifier = Modifier.debugLayoutModifier(debugRid, "media_expanded_title")
                     )
                     if (subtitle.isNotEmpty()) {
                         Text(
@@ -568,7 +569,7 @@ fun MediaExpandedPill(
                             fontSize = 12.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = debugLayoutModifier(debugRid, "media_expanded_subtitle")
+                            modifier = Modifier.debugLayoutModifier(debugRid, "media_expanded_subtitle")
                         )
                     }
                 }
@@ -578,7 +579,7 @@ fun MediaExpandedPill(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(debugLayoutModifier(debugRid, "media_expanded_actions")),
+                        .debugLayoutModifier(debugRid, "media_expanded_actions"),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -599,9 +600,9 @@ fun MediaExpandedPill(
  */
 @Composable
 fun MediaDot(
+    modifier: Modifier = Modifier,
     albumArt: Bitmap? = null,
     size: Dp = 36.dp,
-    modifier: Modifier = Modifier,
     debugRid: Int? = null
 ) {
     Box(
@@ -609,7 +610,7 @@ fun MediaDot(
             .size(size)
             .clip(CircleShape)
             .background(Color(0xCC000000))
-            .then(debugLayoutModifier(debugRid, "media_dot")),
+            .debugLayoutModifier(debugRid, "media_dot"),
         contentAlignment = Alignment.Center
     ) {
         if (albumArt != null) {
@@ -638,8 +639,8 @@ fun MediaDot(
 fun TimerDot(
     baseTimeMs: Long,
     isCountdown: Boolean,
-    size: Dp = 36.dp,
     modifier: Modifier = Modifier,
+    size: Dp = 36.dp,
     debugRid: Int? = null
 ) {
     val timerText by produceState(initialValue = "00:00", baseTimeMs, isCountdown) {
@@ -663,7 +664,7 @@ fun TimerDot(
             .size(size)
             .clip(CircleShape)
             .background(Color(0xCC000000))
-            .then(debugLayoutModifier(debugRid, "timer_dot")),
+            .debugLayoutModifier(debugRid, "timer_dot"),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -706,7 +707,7 @@ fun TimerPill(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(debugLayoutModifier(debugRid, "timer_row")),
+                .debugLayoutModifier(debugRid, "timer_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -714,7 +715,7 @@ fun TimerPill(
                     .size(28.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF3A3A3C))
-                    .then(debugLayoutModifier(debugRid, "timer_icon")),
+                    .debugLayoutModifier(debugRid, "timer_icon"),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -730,7 +731,7 @@ fun TimerPill(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .then(debugLayoutModifier(debugRid, "timer_text_column")),
+                    .debugLayoutModifier(debugRid, "timer_text_column"),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
@@ -740,7 +741,7 @@ fun TimerPill(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = debugLayoutModifier(debugRid, "timer_label")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "timer_label")
                 )
                 Text(
                     text = timerText,
@@ -749,7 +750,7 @@ fun TimerPill(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    modifier = debugLayoutModifier(debugRid, "timer_value")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "timer_value")
                 )
             }
         }
@@ -767,7 +768,7 @@ private fun MediaArtwork(
             .size(size)
             .clip(CircleShape)
             .background(Color(0xFF3A3A3C))
-            .then(debugLayoutModifier(debugRid, "media_artwork")),
+            .debugLayoutModifier(debugRid, "media_artwork"),
         contentAlignment = Alignment.Center
     ) {
         if (albumArt != null) {
@@ -877,7 +878,7 @@ private fun MediaActionButton(
                     }
                 }
             }
-            .then(debugLayoutModifier(debugRid, "media_action_${label.take(6)}")),
+            .debugLayoutModifier(debugRid, "media_action_${label.take(6)}"),
         contentAlignment = Alignment.Center
     ) {
         if (action.iconBitmap != null) {
@@ -900,7 +901,7 @@ private fun MediaActionButton(
 private fun formatDuration(seconds: Long): String {
     val minutes = seconds / 60
     val secs = seconds % 60
-    return String.format("%d:%02d", minutes, secs)
+    return String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
 }
 
 /**
@@ -954,14 +955,14 @@ fun NotificationPill(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(debugLayoutModifier(debugRid, "notif_row")),
+                .debugLayoutModifier(debugRid, "notif_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: Avatar with indicator dot
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .then(debugLayoutModifier(debugRid, "notif_avatar_stack"))
+                    .debugLayoutModifier(debugRid, "notif_avatar_stack")
             ) {
                 // Avatar circle
                 Box(
@@ -969,7 +970,7 @@ fun NotificationPill(
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF3A3A3C))
-                        .then(debugLayoutModifier(debugRid, "notif_avatar")),
+                        .debugLayoutModifier(debugRid, "notif_avatar"),
                     contentAlignment = Alignment.Center
                 ) {
                     if (avatarBitmap != null) {
@@ -996,14 +997,14 @@ fun NotificationPill(
                         .clip(CircleShape)
                         .background(Color(0xFF1B1B1B)) // Border color (near black)
                         .padding(2.dp)
-                        .then(debugLayoutModifier(debugRid, "notif_indicator_border"))
+                        .debugLayoutModifier(debugRid, "notif_indicator_border")
                 ) {
                     Box(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF34C759)) // iOS green
-                            .then(debugLayoutModifier(debugRid, "notif_indicator_dot"))
+                            .debugLayoutModifier(debugRid, "notif_indicator_dot")
                     )
                 }
             }
@@ -1014,7 +1015,7 @@ fun NotificationPill(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .then(debugLayoutModifier(debugRid, "notif_text_column")),
+                    .debugLayoutModifier(debugRid, "notif_text_column"),
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
@@ -1024,7 +1025,7 @@ fun NotificationPill(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = debugLayoutModifier(debugRid, "notif_sender")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "notif_sender")
                 )
 
                 // Message preview
@@ -1034,7 +1035,7 @@ fun NotificationPill(
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = debugLayoutModifier(debugRid, "notif_message")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "notif_message")
                 )
             }
 
@@ -1078,7 +1079,7 @@ fun NotificationReplyPill(
             text = replyText,
             onTextChange = onReplyChange,
             onSend = onSend,
-            modifier = debugLayoutModifier(debugRid, "notif_reply_composer")
+            modifier = Modifier.debugLayoutModifier(debugRid, "notif_reply_composer")
         )
     }
 }
@@ -1101,20 +1102,20 @@ fun MiniNotificationPill(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(debugLayoutModifier(debugRid, "notif_mini_row")),
+                .debugLayoutModifier(debugRid, "notif_mini_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .then(debugLayoutModifier(debugRid, "notif_mini_avatar_stack"))
+                    .debugLayoutModifier(debugRid, "notif_mini_avatar_stack")
             ) {
                 Box(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF3A3A3C))
-                        .then(debugLayoutModifier(debugRid, "notif_mini_avatar")),
+                        .debugLayoutModifier(debugRid, "notif_mini_avatar"),
                     contentAlignment = Alignment.Center
                 ) {
                     if (avatarBitmap != null) {
@@ -1140,14 +1141,14 @@ fun MiniNotificationPill(
                         .clip(CircleShape)
                         .background(Color(0xFF1B1B1B))
                         .padding(2.dp)
-                        .then(debugLayoutModifier(debugRid, "notif_mini_indicator_border"))
+                        .debugLayoutModifier(debugRid, "notif_mini_indicator_border")
                 ) {
                     Box(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF34C759))
-                            .then(debugLayoutModifier(debugRid, "notif_mini_indicator_dot"))
+                            .debugLayoutModifier(debugRid, "notif_mini_indicator_dot")
                     )
                 }
             }
@@ -1163,7 +1164,7 @@ fun MiniNotificationPill(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    .then(debugLayoutModifier(debugRid, "notif_mini_sender"))
+                    .debugLayoutModifier(debugRid, "notif_mini_sender")
             )
 
             if (onDismiss != null) {
@@ -1172,7 +1173,7 @@ fun MiniNotificationPill(
                     modifier = Modifier
                         .size(24.dp)
                         .clip(CircleShape)
-                        .then(debugLayoutModifier(debugRid, "notif_mini_dismiss_btn"))
+                        .debugLayoutModifier(debugRid, "notif_mini_dismiss_btn")
                         .clickable { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1245,3 +1246,4 @@ private fun PreviewNotificationPillWithReply() {
         )
     }
 }
+

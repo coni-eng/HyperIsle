@@ -1,5 +1,20 @@
 [Unreleased]
 
+## [v0.9.6] - Permission Guidance & Setup Health
+### Added
+- Setup Health screen with required and recommended permission guidance.
+- Setup incomplete banner that highlights missing required permissions.
+- Debug/QA "Mark Issue" action to log a diagnostics timeline marker.
+### Improved
+- Locale-aware formatting for diagnostics sizes and timer durations.
+- Shade-cancel hint posting now checks notification permission and handles security exceptions.
+
+## [v0.9.5] - iOS Pill Overlay & Shade Cancel Clarity
+### Added
+- Optional iOS-style pill overlay alongside the system island (requires overlay permission).
+- Dedicated notification channel for the overlay service.
+- Per-app shade-cancel hint for persistent notifications that Android/MIUI cannot clear.
+
 ##[v0.9.4] — Debug Export & Smart Priority Transparency
 Added
 

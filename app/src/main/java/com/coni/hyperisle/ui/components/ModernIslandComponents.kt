@@ -112,13 +112,13 @@ data class IslandAction(
 fun ModernPillIsland(
     title: String,
     subtitle: String,
+    modifier: Modifier = Modifier,
     appIcon: Bitmap? = null,
     appIconPlaceholder: ImageVector = Icons.Default.Notifications,
     timeLabel: String? = null,
     actions: List<IslandAction> = emptyList(),
     isExpanded: Boolean = false,
-    onExpandToggle: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onExpandToggle: (() -> Unit)? = null
 ) {
     val cornerRadius by animateDpAsState(
         targetValue = if (isExpanded) 28.dp else 24.dp,
@@ -276,13 +276,13 @@ fun ModernPillIsland(
 @Composable
 fun ModernCallIsland(
     callerDisplay: String,
+    onAccept: () -> Unit,
+    onReject: () -> Unit,
+    modifier: Modifier = Modifier,
     callDurationText: String = "",
     callerIcon: Bitmap? = null,
     isExpanded: Boolean = true,
-    onAccept: () -> Unit,
-    onReject: () -> Unit,
-    onExpandToggle: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onExpandToggle: (() -> Unit)? = null
 ) {
     // Guard: if callerDisplay is blank, show "Unknown" and initial "?"
     val displayName = callerDisplay.ifBlank { "Unknown" }
@@ -516,11 +516,11 @@ private fun IslandActionButton(
  */
 @Composable
 fun CollapsedPillIsland(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     appIcon: Bitmap? = null,
     appIconPlaceholder: ImageVector = Icons.Default.Notifications,
-    indicatorColor: Color = ModernIslandColors.acceptGreen,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    indicatorColor: Color = ModernIslandColors.acceptGreen
 ) {
     Surface(
         modifier = modifier

@@ -1,4 +1,5 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedResources,PluralsCandidate">
     <string name="app_name">HyperIsle</string>
 
     <string name="back">Back</string>
@@ -489,7 +490,7 @@
     <string name="summary_count">%d notifications</string>
     <string name="summary_more">+%d more</string>
     <string name="summary_notification_title">Daily Notification Summary</string>
-    <string name="summary_notification_text">Today: %d notifications - %s</string>
+    <string name="summary_notification_text">Today: %1$d notifications - %2$s</string>
     <string name="channel_summary">Notification Summary</string>
 
     <!-- Haptics & Interactions -->
@@ -503,6 +504,15 @@
 
     <!-- Quick Actions -->
     <string name="quick_actions_title">Quick Actions</string>
+    <string name="settings_customize_title">Customize</string>
+    <string name="settings_customize_desc">Personalize shortcuts and order</string>
+    <string name="settings_customize_screen_title">Customize Settings</string>
+    <string name="settings_customize_screen_desc">Pick quick actions and reorder sections. The About section stays fixed.</string>
+    <string name="settings_customize_quick_actions_title">Quick Actions</string>
+    <string name="settings_customize_quick_actions_desc">Choose which shortcuts appear and reorder them</string>
+    <string name="settings_customize_config_title">Configuration Order</string>
+    <string name="settings_customize_config_desc">Reorder the settings list</string>
+    <string name="settings_quick_actions_empty">No quick actions selected yet</string>
     <string name="quick_actions_mute_title">Mute this app</string>
     <string name="quick_actions_mute_desc">Temporarily stop showing islands from this app</string>
     <string name="quick_actions_block_title">Block this app</string>
@@ -536,6 +546,7 @@
     
     <!-- Smart Priority UX Improvements -->
     <string name="smart_priority_summary_title">Smart Priority</string>
+    <string name="smart_features_core_title">Core Settings</string>
     <string name="smart_priority_summary_desc">HyperIsle automatically balances notifications based on your behavior and context.</string>
     <string name="smart_priority_benefit_learns">Learns over time</string>
     <string name="smart_priority_benefit_reduces">Reduces noise</string>
@@ -653,6 +664,7 @@
     <string name="notification_management_title">Notification Management</string>
     <string name="notification_management_desc">System shade hiding and call settings</string>
     <string name="notification_management_status_title">Status</string>
+    <string name="notification_management_status_desc">Channels and hidden apps overview</string>
     <string name="notification_management_hidden_apps">Hidden apps</string>
     <string name="notification_management_calls_only_island">Calls-only-island</string>
     <string name="notification_management_off">Off</string>
@@ -682,4 +694,32 @@
     <string name="notification_management_section_island">Island Integration</string>
     <string name="miui_bridge_island_title">MIUI Island Integration (Experimental)</string>
     <string name="miui_bridge_island_desc">Uses the MIUI system island. Gestures like swipe may be limited.</string>
+
+    <!-- Mark Issue (debug/qa builds only) -->
+    <string name="debug_mark_issue_button">Mark Issue</string>
+    <string name="debug_mark_issue_done">Issue marked</string>
+
+    <!-- Permission Guidance System (v0.9.6) -->
+    <string name="perm_overlay_title">Display over other apps</string>
+    <string name="perm_overlay_desc">Required to show islands on the screen</string>
+    <string name="perm_required_section">Required Permissions</string>
+    <string name="perm_required_section_desc">These permissions are required for HyperIsle to work.</string>
+    <string name="perm_recommended_section">Recommended Permissions</string>
+    <string name="perm_recommended_section_desc">Recommended for a more stable experience.</string>
+    <string name="setup_banner_title">Setup incomplete</string>
+    <string name="setup_banner_message">Missing %d required permissions</string>
+    <string name="setup_banner_fix_now">Fix now</string>
+    <string name="setup_banner_later">Later</string>
+
+    <!-- iOS Pill Overlay (v0.9.5) -->
+    <string name="channel_ios_overlay">iOS Style Overlay</string>
+    <string name="overlay_service_active">Overlay service active</string>
+    <string name="ios_pill_overlay_title">iOS Style Pill Overlay</string>
+    <string name="ios_pill_overlay_desc">Show iOS-style pill notifications in addition to the MIUI island</string>
+    <string name="overlay_permission_required">Overlay permission required</string>
+    <string name="overlay_permission_desc">Display over other apps permission is required to show iOS-style pills</string>
+    <string name="grant_overlay_permission">Grant permission</string>
+
+    <!-- Per-App Shade Cancel (v0.9.5) -->
+    <string name="shade_cancel_not_clearable_banner">Some lock screen or persistent notifications (e.g. WhatsApp) cannot be removed by Android/MIUI. The island still shows, but the system notification may remain.</string>
 </resources>

@@ -44,6 +44,9 @@ android {
         compose = true
         buildConfig = true
     }
+    lint {
+        disable += listOf("GradleDependency", "NewerVersionAvailable")
+    }
 }
 
 dependencies {
@@ -69,14 +72,14 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    implementation("io.github.d4viddf:hyperisland_kit:0.4.4") // Resolved from toolkit submodule via composite build
+    implementation(libs.hyperisland.kit) // Resolved from toolkit submodule via composite build
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    implementation("com.google.code.gson:gson:2.13.2")
+    implementation(libs.gson)
 
     // WorkManager for scheduled tasks (Notification Summary)
-    implementation("androidx.work:work-runtime-ktx:2.11.0")
+    implementation(libs.androidx.work.runtime.ktx)
 }
 
 configurations.all {

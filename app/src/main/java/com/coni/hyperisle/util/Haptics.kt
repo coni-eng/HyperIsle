@@ -1,7 +1,6 @@
 package com.coni.hyperisle.util
 
 import android.content.Context
-import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -25,15 +24,8 @@ object Haptics {
         val vibrator = getVibrator(context) ?: return
         if (!vibrator.hasVibrator()) return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // API 26+: Use VibrationEffect
-            val effect = VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE)
-            vibrator.vibrate(effect)
-        } else {
-            // API < 26: Legacy vibration
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(15)
-        }
+        val effect = VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE)
+        vibrator.vibrate(effect)
     }
 
     /**
@@ -46,31 +38,17 @@ object Haptics {
         val vibrator = getVibrator(context) ?: return
         if (!vibrator.hasVibrator()) return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // API 26+: Use VibrationEffect with waveform
-            // Pattern: [delay, vibrate, pause, vibrate]
-            // Timings: 0ms delay, 10ms vibrate, 30ms pause, 15ms vibrate
-            val timings = longArrayOf(0, 10, 30, 15)
-            val amplitudes = intArrayOf(0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE)
-            val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
-            vibrator.vibrate(effect)
-        } else {
-            // API < 26: Legacy waveform vibration
-            // Pattern: [delay, vibrate, pause, vibrate]
-            val pattern = longArrayOf(0, 10, 30, 15)
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(pattern, -1)
-        }
+        // Pattern: [delay, vibrate, pause, vibrate]
+        // Timings: 0ms delay, 10ms vibrate, 30ms pause, 15ms vibrate
+        val timings = longArrayOf(0, 10, 30, 15)
+        val amplitudes = intArrayOf(0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE)
+        val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+        vibrator.vibrate(effect)
     }
 
     private fun getVibrator(context: Context): Vibrator? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-            vibratorManager?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        }
+        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+        return vibratorManager?.defaultVibrator
     }
 
     private fun isHapticsEnabled(context: Context): Boolean {

@@ -1,7 +1,8 @@
 [versions]
 agp = "8.13.2"
 datastorePreferences = "1.2.0"
-hyperislandKit = "0.3.3"
+gson = "2.13.2"
+hyperislandKit = "0.4.4"
 kotlin = "2.2.21"
 ksp = "2.2.21-2.0.4"
 coreKtx = "1.17.0"
@@ -17,6 +18,7 @@ roomCompiler = "2.8.4"
 roomRuntime = "2.8.4"
 roomKtx = "2.8.4"
 appcompat = "1.7.1"
+workRuntimeKtx = "2.11.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -42,6 +44,8 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "roomRuntime" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomKtx" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

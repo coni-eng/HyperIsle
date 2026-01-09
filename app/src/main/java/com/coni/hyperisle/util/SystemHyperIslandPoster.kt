@@ -5,7 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.util.Log
@@ -13,6 +12,7 @@ import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.createBitmap
 import com.coni.hyperisle.R
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.HyperPicture
@@ -77,14 +77,10 @@ class SystemHyperIslandPoster(private val context: Context) {
      * Check if we have POST_NOTIFICATIONS permission (Android 13+)
      */
     fun hasNotificationPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     /**
@@ -141,7 +137,7 @@ class SystemHyperIslandPoster(private val context: Context) {
 
         // Set big island info
         val hiddenKey = "hidden_system"
-        val transparentBitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+        val transparentBitmap = createBitmap(96, 96, Bitmap.Config.ARGB_8888)
         builder.addPicture(HyperPicture(hiddenKey, transparentBitmap))
 
         builder.setBigIslandInfo(
@@ -174,14 +170,14 @@ class SystemHyperIslandPoster(private val context: Context) {
             val drawable = context.packageManager.getApplicationIcon(context.packageName)
             val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96
             val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             drawable.setBounds(0, 0, canvas.width, canvas.height)
             drawable.draw(canvas)
             bitmap
         } catch (e: Exception) {
             // Fallback to a simple colored bitmap
-            Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+            createBitmap(96, 96, Bitmap.Config.ARGB_8888)
         }
     }
 

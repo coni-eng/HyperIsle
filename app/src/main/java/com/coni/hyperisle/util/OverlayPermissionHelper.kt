@@ -2,9 +2,9 @@ package com.coni.hyperisle.util
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import android.util.Log
+import androidx.core.net.toUri
 
 /**
  * Helper utility for managing overlay (SYSTEM_ALERT_WINDOW) permission.
@@ -28,7 +28,7 @@ object OverlayPermissionHelper {
         return try {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${context.packageName}")
+                "package:${context.packageName}".toUri()
             ).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -48,7 +48,7 @@ object OverlayPermissionHelper {
     private fun openAppSettings(context: Context): Boolean {
         return try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:${context.packageName}")
+                data = "package:${context.packageName}".toUri()
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)

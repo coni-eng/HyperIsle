@@ -11,6 +11,7 @@ import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import androidx.core.graphics.createBitmap
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.BridgeAction
@@ -28,6 +29,7 @@ import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
 import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
+import java.util.Locale
 
 class CallTranslator(context: Context) : BaseTranslator(context) {
 
@@ -244,7 +246,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
     }
 
     private fun tintBitmap(source: Bitmap, color: Int): Bitmap {
-        val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val result = createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         val paint = Paint()
         paint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
@@ -257,9 +259,9 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         val minutes = (seconds % 3600) / 60
         val secs = seconds % 60
         return if (hours > 0) {
-            String.format("%d:%02d:%02d", hours, minutes, secs)
+            String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, secs)
         } else {
-            String.format("%d:%02d", minutes, secs)
+            String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
         }
     }
 }

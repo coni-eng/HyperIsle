@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import androidx.core.content.edit
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.util.Haptics
@@ -73,10 +74,10 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
         }
 
         // Save state
-        prefs.edit()
-            .putString(KEY_LAST_DEVICE, deviceAddress)
-            .putLong(KEY_LAST_TIME, now)
-            .apply()
+        prefs.edit {
+            putString(KEY_LAST_DEVICE, deviceAddress)
+            putLong(KEY_LAST_TIME, now)
+        }
 
         // Post banner
         val poster = SystemHyperIslandPoster(context)

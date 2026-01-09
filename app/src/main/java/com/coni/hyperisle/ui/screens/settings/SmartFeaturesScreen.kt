@@ -5,9 +5,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -23,10 +26,12 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -152,14 +157,27 @@ fun SmartFeaturesScreen(
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                ),
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    MaterialTheme.colorScheme.primaryContainer
+                                )
+                            )
+                        )
+                        .padding(20.dp)
                 ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -201,18 +219,15 @@ fun SmartFeaturesScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    }
                 }
             }
             
             // --- CORE CONTROLS SECTION ---
-            Text(
-                "Core Settings",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            SectionHeader(title = stringResource(R.string.smart_features_core_title))
             
             // Smart Priority Enable Toggle
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+            PremiumSectionCard {
                 Column(Modifier.padding(16.dp)) {
                     SettingsHeaderRow(
                         icon = Icons.Default.Speed,
@@ -268,8 +283,10 @@ fun SmartFeaturesScreen(
             // --- ADVANCED SECTION (collapsed by default) ---
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                )
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
             ) {
                 Column(Modifier.fillMaxWidth()) {
                     // Collapsible header
@@ -306,7 +323,9 @@ fun SmartFeaturesScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             // --- CONTEXT-AWARE ISLANDS (v0.7.0) ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ) {
                                 Column(Modifier.padding(16.dp)) {
                                     SettingsHeaderRow(
                                         icon = Icons.Default.DarkMode,
@@ -348,7 +367,9 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- ACCESSIBILITY CONTEXT SIGNALS (optional) ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ) {
                                 Column(Modifier.padding(16.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -394,7 +415,9 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- CONTEXT PRESETS (v0.9.0) ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ) {
                                 Column(Modifier.padding(16.dp)) {
                                     Text(
                                         stringResource(R.string.context_preset_title),
@@ -455,7 +478,7 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- SMART SILENCE ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(containerColor = MaterialTheme.colorScheme.surface) {
                                 Column(Modifier.padding(16.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -502,7 +525,7 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- FOCUS MODE ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(containerColor = MaterialTheme.colorScheme.surface) {
                                 Column(Modifier.padding(16.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -614,7 +637,7 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- NOTIFICATION SUMMARY ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(containerColor = MaterialTheme.colorScheme.surface) {
                                 Column(Modifier.padding(16.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -701,7 +724,7 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- HAPTICS ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(containerColor = MaterialTheme.colorScheme.surface) {
                                 Column(Modifier.padding(16.dp)) {
                                     SettingsHeaderRow(
                                         icon = Icons.Default.Vibration,
@@ -714,7 +737,7 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- DISMISS COOLDOWN ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(containerColor = MaterialTheme.colorScheme.surface) {
                                 Column(Modifier.padding(16.dp)) {
                                     Text(
                                         stringResource(R.string.cooldown_title),
@@ -740,7 +763,7 @@ fun SmartFeaturesScreen(
                             }
 
                             // --- SYSTEM BANNERS ---
-                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            PremiumSectionCard(containerColor = MaterialTheme.colorScheme.surface) {
                                 Column(Modifier.padding(16.dp)) {
                                     Text(
                                         stringResource(R.string.banners_title),
@@ -800,11 +823,7 @@ fun SmartFeaturesScreen(
 
             // --- DEBUG DIAGNOSTICS (debug builds only) ---
             if (BuildConfig.DEBUG) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    )
-                ) {
+                PremiumSectionCard {
                     Column(Modifier.padding(16.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1166,6 +1185,40 @@ private fun CardDivider() {
 }
 
 @Composable
+private fun SectionHeader(title: String, subtitle: String? = null) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun PremiumSectionCard(
+    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+    ) {
+        Column {
+            content()
+        }
+    }
+}
+
+@Composable
 private fun SettingsHeaderRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
@@ -1183,12 +1236,19 @@ private fun SettingsHeaderRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -1233,11 +1293,19 @@ private fun SettingsToggleRow(
             modifier = Modifier.weight(1f)
         ) {
             if (icon != null) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Spacer(Modifier.width(8.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -1272,17 +1340,22 @@ private fun BenefitChip(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier,
+        modifier = modifier
+            .background(
+                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f),
+                RoundedCornerShape(999.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
         Icon(
             Icons.Default.CheckCircle,
             contentDescription = null,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(14.dp),
             tint = MaterialTheme.colorScheme.onPrimaryContainer
         )
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
             text,
             style = MaterialTheme.typography.labelSmall,

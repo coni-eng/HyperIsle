@@ -1,4 +1,5 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedResources,PluralsCandidate">
     <string name="app_name">HyperIsle</string>
 
     <string name="back">Geri</string>
@@ -347,7 +348,7 @@
         Daha geniş VoIP ve Çevirici uygulamalarını desteklemek için geliştirilmiş algılama mantığı.\n\n
         <b>Düzeltmeler ve İyileştirmeler 🛠️</b>\n
         • Yeniden başlatmadan sonra uygulamanın yüklemede takılı kaldığı kritik bir hata düzeltildi.\n
-        • Bildirimlerin bazen içerik yerine ham paket adları (örn. "com.google...") gösterdiği durum düzeltildi.\n
+        • Bildirimlerin bazen içerik yerine ham paket adları (örn. "com.google…") gösterdiği durum düzeltildi.\n
         • Daha iyi kullanılabilirlik için Uygulama Yapılandırma sayfası yeniden tasarlandı.\n
         • Ayrıntılı cihaz bilgisiyle Uyumluluk Kontrolü ekranı iyileştirildi.
     </string>
@@ -486,7 +487,7 @@
     <string name="summary_count">%d bildirim</string>
     <string name="summary_more">+%d daha fazla</string>
     <string name="summary_notification_title">Günlük Bildirim Özeti</string>
-    <string name="summary_notification_text">Bugün: %d bildirim - %s</string>
+    <string name="summary_notification_text">Bugün: %1$d bildirim - %2$s</string>
     <string name="channel_summary">Bildirim Özeti</string>
 
     <!-- Haptics & Interactions -->
@@ -500,6 +501,15 @@
 
     <!-- Quick Actions -->
     <string name="quick_actions_title">Hızlı İşlemler</string>
+    <string name="settings_customize_title">Düzenle</string>
+    <string name="settings_customize_desc">Kısayolları ve sıralamayı özelleştir</string>
+    <string name="settings_customize_screen_title">Ayarları Düzenle</string>
+    <string name="settings_customize_screen_desc">Hızlı işlemleri seç, sıralamayı değiştir. Hakkında bölümü sabittir.</string>
+    <string name="settings_customize_quick_actions_title">Hızlı İşlemler</string>
+    <string name="settings_customize_quick_actions_desc">Görünecek kısayolları seç ve sırala</string>
+    <string name="settings_customize_config_title">Yapılandırma Sırası</string>
+    <string name="settings_customize_config_desc">Ayarlar listesini yeniden sırala</string>
+    <string name="settings_quick_actions_empty">Henüz hızlı işlem seçilmedi</string>
     <string name="quick_actions_mute_title">Bu uygulamayı sessize al</string>
     <string name="quick_actions_mute_desc">Geçici olarak bu uygulamadan ada gösterme</string>
     <string name="quick_actions_block_title">Bu uygulamayı engelle</string>
@@ -533,6 +543,7 @@
     
     <!-- Smart Priority UX Improvements -->
     <string name="smart_priority_summary_title">Akıllı Öncelik</string>
+    <string name="smart_features_core_title">Temel Ayarlar</string>
     <string name="smart_priority_summary_desc">HyperIsle, davranışlarınıza ve bağlama göre bildirimleri otomatik olarak dengeler.</string>
     <string name="smart_priority_benefit_learns">Zamanla öğrenir</string>
     <string name="smart_priority_benefit_reduces">Gürültüyü azaltır</string>
@@ -667,6 +678,7 @@
     <string name="notification_management_title">Bildirim Yönetimi</string>
     <string name="notification_management_desc">Sistem paneli gizleme ve arama ayarları</string>
     <string name="notification_management_status_title">Durum</string>
+    <string name="notification_management_status_desc">Bildirim kanalları ve gizli uygulamalar</string>
     <string name="notification_management_hidden_apps">Gizli uygulamalar</string>
     <string name="notification_management_calls_only_island">Sadece ada aramaları</string>
     <string name="notification_management_off">Kapalı</string>

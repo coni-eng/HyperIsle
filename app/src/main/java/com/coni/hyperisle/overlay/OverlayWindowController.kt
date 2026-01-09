@@ -1,5 +1,6 @@
 package com.coni.hyperisle.overlay
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Build
@@ -156,6 +157,7 @@ class OverlayWindowController(private val context: Context) {
     /**
      * Get status bar height for proper positioning.
      */
+    @SuppressLint("DiscouragedApi", "InternalInsetResource")
     private fun getStatusBarHeight(): Int {
         val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (resourceId > 0) {

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import androidx.core.content.edit
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.util.ContextStateManager
@@ -76,9 +77,9 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
         }
 
         // Save state
-        prefs.edit()
-            .putLong(KEY_LAST_TIME, now)
-            .apply()
+        prefs.edit {
+            putLong(KEY_LAST_TIME, now)
+        }
 
         // Post banner
         val poster = SystemHyperIslandPoster(context)

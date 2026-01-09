@@ -68,6 +68,7 @@ import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.util.DiagnosticsManager
 import kotlinx.coroutines.delay
 import org.json.JSONObject
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -522,6 +523,6 @@ private fun formatFileSize(bytes: Long): String {
     return when {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-        else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+        else -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
     }
 }

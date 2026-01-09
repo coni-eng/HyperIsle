@@ -8,6 +8,7 @@ import android.content.Intent
 import android.media.AudioManager
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import androidx.core.content.edit
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.util.SystemHyperIslandPoster
@@ -57,10 +58,10 @@ class SystemModesReceiver : BroadcastReceiver() {
 
             // Only check if state changed and debounce passed
             if (currentFilter != lastFilter && lastFilter != -1 && (now - lastTime) >= DEBOUNCE_INTERVAL_MS) {
-                prefs.edit()
-                    .putInt(KEY_LAST_DND_FILTER, currentFilter)
-                    .putLong(KEY_LAST_DND_TIME, now)
-                    .apply()
+                prefs.edit {
+                    putInt(KEY_LAST_DND_FILTER, currentFilter)
+                    putLong(KEY_LAST_DND_TIME, now)
+                }
 
                 val message = when {
                     currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL -> 
@@ -85,9 +86,9 @@ class SystemModesReceiver : BroadcastReceiver() {
                 )
             } else if (lastFilter == -1) {
                 // First run - just save state
-                prefs.edit()
-                    .putInt(KEY_LAST_DND_FILTER, currentFilter)
-                    .apply()
+                prefs.edit {
+                    putInt(KEY_LAST_DND_FILTER, currentFilter)
+                }
             }
         }
     }
@@ -150,10 +151,10 @@ class SystemModesReceiver : BroadcastReceiver() {
         }
 
         // Save new state
-        prefs.edit()
-            .putInt(KEY_LAST_RINGER_MODE, currentMode)
-            .putLong(KEY_LAST_RINGER_TIME, now)
-            .apply()
+        prefs.edit {
+            putInt(KEY_LAST_RINGER_MODE, currentMode)
+            putLong(KEY_LAST_RINGER_TIME, now)
+        }
 
         val message = when (currentMode) {
             AudioManager.RINGER_MODE_SILENT -> context.getString(R.string.mode_silent_enabled)
@@ -187,10 +188,10 @@ class SystemModesReceiver : BroadcastReceiver() {
         }
 
         // Save new state
-        prefs.edit()
-            .putInt(KEY_LAST_DND_FILTER, currentFilter)
-            .putLong(KEY_LAST_DND_TIME, now)
-            .apply()
+        prefs.edit {
+            putInt(KEY_LAST_DND_FILTER, currentFilter)
+            putLong(KEY_LAST_DND_TIME, now)
+        }
 
         val message = getDndMessage(context, notificationManager, currentFilter)
         val title = context.getString(R.string.app_name)
@@ -251,10 +252,10 @@ class SystemModesReceiver : BroadcastReceiver() {
             
             // Still apply debounce
             if ((now - lastTime) >= DEBOUNCE_INTERVAL_MS) {
-                prefs.edit()
-                    .putInt(KEY_LAST_DND_FILTER, currentFilter)
-                    .putLong(KEY_LAST_DND_TIME, now)
-                    .apply()
+                prefs.edit {
+                    putInt(KEY_LAST_DND_FILTER, currentFilter)
+                    putLong(KEY_LAST_DND_TIME, now)
+                }
 
                 val message = getDndMessage(context, notificationManager, currentFilter)
                 val title = context.getString(R.string.app_name)
@@ -267,9 +268,9 @@ class SystemModesReceiver : BroadcastReceiver() {
             }
         } else if (lastFilter == -1) {
             // First run - just save state without posting
-            prefs.edit()
-                .putInt(KEY_LAST_DND_FILTER, currentFilter)
-                .apply()
+            prefs.edit {
+                putInt(KEY_LAST_DND_FILTER, currentFilter)
+            }
         }
     }
 

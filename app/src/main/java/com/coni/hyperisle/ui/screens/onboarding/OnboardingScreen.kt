@@ -1,6 +1,7 @@
 package com.coni.hyperisle.ui.screens.onboarding
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -11,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,14 +34,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Architecture
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Construction
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Security
@@ -54,6 +59,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,6 +72,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -131,13 +138,12 @@ fun OnboardingScreen(onFinish: () -> Unit) {
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (pagerState.currentPage > 0) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(24.dp)
                         .navigationBarsPadding(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Progress Indicator
                     Row(
@@ -158,9 +164,9 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${pagerState.currentPage} of 7",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "${pagerState.currentPage} of 6",
+                            style = MaterialTheme.typography.labelSmall,        
+                            color = MaterialTheme.colorScheme.onSurfaceVariant  
                         )
                     }
 
@@ -173,23 +179,41 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     }
                     val isLastPage = pagerState.currentPage == 6
 
-                    Button(
-                        onClick = {
-                            if (isLastPage) onFinish()
-                            else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                        },
-                        enabled = canProceed,
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = stringResource(if (isLastPage) R.string.finish else R.string.onboarding_continue),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontSize = 16.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp))
+                        OutlinedButton(
+                            onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.back))
+                        }
+
+                        Button(
+                            onClick = {
+                                if (isLastPage) onFinish()
+                                else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                            },
+                            enabled = canProceed,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text(
+                                text = stringResource(if (isLastPage) R.string.finish else R.string.onboarding_continue),
+                                style = MaterialTheme.typography.labelLarge,        
+                                fontSize = 16.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp))
+                        }
                     }
                 }
             }
@@ -203,18 +227,24 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             userScrollEnabled = false
         ) { page ->
             when (page) {
-                0 -> WelcomePage(onStartClick = { scope.launch { pagerState.animateScrollToPage(1) } })
-                1 -> ExplanationPage()
-                2 -> PrivacyPage()
-                3 -> CompatibilityPage()
+                0 -> WelcomePage(
+                    stepIndex = 1,
+                    stepCount = 7,
+                    onStartClick = { scope.launch { pagerState.animateScrollToPage(1) } }
+                )
+                1 -> ExplanationPage(stepIndex = 2, stepCount = 7)
+                2 -> PrivacyPage(stepIndex = 3, stepCount = 7)
+                3 -> CompatibilityPage(stepIndex = 4, stepCount = 7)
                 4 -> PostPermissionPage(
+                    stepIndex = 5,
+                    stepCount = 7,
                     isGranted = isPostGranted,
                     onRequest = {
                         postPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 )
-                5 -> ListenerPermissionPage(context, isListenerGranted)
-                6 -> OptimizationPage(context)
+                5 -> ListenerPermissionPage(context, isListenerGranted, stepIndex = 6, stepCount = 7)
+                6 -> OptimizationPage(context, stepIndex = 7, stepCount = 7)
             }
         }
     }
@@ -225,7 +255,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 // ==========================================
 
 @Composable
-fun WelcomePage(onStartClick: () -> Unit) {
+fun WelcomePage(stepIndex: Int, stepCount: Int, onStartClick: () -> Unit) {
     val context = LocalContext.current
     val appIconBitmap = remember(context) {
         try { context.packageManager.getApplicationIcon(context.packageName).toBitmap().asImageBitmap() } catch (e: Exception) { null }
@@ -236,48 +266,53 @@ fun WelcomePage(onStartClick: () -> Unit) {
             .fillMaxSize()
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Spacer(modifier = Modifier.weight(1f))
+        StepChip(stepIndex = stepIndex, stepCount = stepCount)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (appIconBitmap != null) {
+                Image(
+                    bitmap = appIconBitmap,
+                    contentDescription = stringResource(R.string.logo_desc),
+                    modifier = Modifier.size(140.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Bolt,
+                    contentDescription = stringResource(R.string.logo_desc),
+                    modifier = Modifier.size(140.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
 
-        // Icon (No Box Container)
-        if (appIconBitmap != null) {
-            Image(
-                bitmap = appIconBitmap,
-                contentDescription = stringResource(R.string.logo_desc),
-                modifier = Modifier.size(140.dp)
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = stringResource(R.string.welcome_title),
+                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
             )
-        } else {
-            Icon(
-                imageVector = Icons.Default.Bolt,
-                contentDescription = stringResource(R.string.logo_desc),
-                modifier = Modifier.size(140.dp),
-                tint = MaterialTheme.colorScheme.primary
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = stringResource(R.string.welcome_subtitle),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 26.sp,
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            IslandPreviewCard()
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            FeatureChips()
         }
-
-        Spacer(modifier = Modifier.height(56.dp))
-
-        Text(
-            text = stringResource(R.string.welcome_title),
-            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = stringResource(R.string.welcome_subtitle),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            lineHeight = 26.sp,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
         Button(
             onClick = onStartClick,
             modifier = Modifier
@@ -292,19 +327,27 @@ fun WelcomePage(onStartClick: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
 // Shared Layout
 @Composable
 fun OnboardingPageLayout(
+    stepIndex: Int,
+    stepCount: Int,
     title: String,
     description: String,
     icon: ImageVector,
     iconColor: Color = MaterialTheme.colorScheme.primary,
+    compactHeader: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val topSpacer = if (compactHeader) 8.dp else 16.dp
+    val iconOuterSize = if (compactHeader) 120.dp else 140.dp
+    val iconInnerSize = if (compactHeader) 92.dp else 104.dp
+    val titleSpacer = if (compactHeader) 18.dp else 24.dp
+    val contentSpacer = if (compactHeader) 24.dp else 32.dp
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -312,24 +355,35 @@ fun OnboardingPageLayout(
             .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(topSpacer))
+        StepChip(stepIndex = stepIndex, stepCount = stepCount)
+        Spacer(modifier = Modifier.height(titleSpacer))
 
-        // Expressive Icon Container
+        val haloBrush = Brush.radialGradient(
+            colors = listOf(iconColor.copy(alpha = 0.22f), Color.Transparent)
+        )
         Box(
             modifier = Modifier
-                .size(120.dp)
-                .background(iconColor.copy(alpha = 0.1f), CircleShape),
+                .size(iconOuterSize)
+                .background(haloBrush, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = iconColor
-            )
+            Box(
+                modifier = Modifier
+                    .size(iconInnerSize)
+                    .background(iconColor.copy(alpha = 0.12f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp),
+                    tint = iconColor
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(titleSpacer))
 
         Text(
             text = title,
@@ -348,7 +402,7 @@ fun OnboardingPageLayout(
             lineHeight = 26.sp
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(contentSpacer))
 
         // Content Area
         Box(
@@ -360,13 +414,15 @@ fun OnboardingPageLayout(
             }
         }
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(40.dp))
     }
 }
 
 @Composable
-fun ExplanationPage() {
+fun ExplanationPage(stepIndex: Int, stepCount: Int) {
     OnboardingPageLayout(
+        stepIndex = stepIndex,
+        stepCount = stepCount,
         title = stringResource(R.string.how_it_works),
         description = stringResource(R.string.how_it_works_desc),
         icon = Icons.Default.Architecture,
@@ -393,8 +449,10 @@ fun ExplanationPage() {
 }
 
 @Composable
-fun PrivacyPage() {
+fun PrivacyPage(stepIndex: Int, stepCount: Int) {
     OnboardingPageLayout(
+        stepIndex = stepIndex,
+        stepCount = stepCount,
         title = stringResource(R.string.privacy_title),
         description = stringResource(R.string.privacy_desc),
         icon = Icons.Default.Security,
@@ -421,7 +479,7 @@ fun PrivacyPage() {
 }
 
 @Composable
-fun CompatibilityPage() {
+fun CompatibilityPage(stepIndex: Int, stepCount: Int) {
     val isXiaomi = DeviceUtils.isXiaomi
     val isCompatibleOS = DeviceUtils.isCompatibleOS()
     val isCN = DeviceUtils.isCNRom
@@ -435,6 +493,8 @@ fun CompatibilityPage() {
     }
 
     OnboardingPageLayout(
+        stepIndex = stepIndex,
+        stepCount = stepCount,
         title = stringResource(titleRes),
         description = stringResource(descRes),
         icon = icon,
@@ -486,8 +546,10 @@ data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourt
 
 // --- 5. POST PERMISSION PAGE ---
 @Composable
-fun PostPermissionPage(isGranted: Boolean, onRequest: () -> Unit) {
+fun PostPermissionPage(stepIndex: Int, stepCount: Int, isGranted: Boolean, onRequest: () -> Unit) {
     OnboardingPageLayout(
+        stepIndex = stepIndex,
+        stepCount = stepCount,
         title = stringResource(R.string.show_island),
         description = stringResource(R.string.perm_post_desc),
         icon = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Notifications,
@@ -501,6 +563,8 @@ fun PostPermissionPage(isGranted: Boolean, onRequest: () -> Unit) {
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = Color(0xFF34C759),
+                disabledContentColor = Color.White
             )
         ) {
             Text(
@@ -508,14 +572,20 @@ fun PostPermissionPage(isGranted: Boolean, onRequest: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
+            if (isGranted) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
 
 // --- 6. LISTENER PERMISSION PAGE ---
 @Composable
-fun ListenerPermissionPage(context: Context, isGranted: Boolean) {
+fun ListenerPermissionPage(context: Context, isGranted: Boolean, stepIndex: Int, stepCount: Int) {
     OnboardingPageLayout(
+        stepIndex = stepIndex,
+        stepCount = stepCount,
         title = stringResource(R.string.read_data),
         description = stringResource(R.string.perm_listener_desc),
         icon = if (isGranted) Icons.Default.CheckCircle else Icons.Default.NotificationsActive,
@@ -533,6 +603,8 @@ fun ListenerPermissionPage(context: Context, isGranted: Boolean) {
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = Color(0xFF34C759),
+                disabledContentColor = Color.White
             )
         ) {
             Text(
@@ -540,18 +612,26 @@ fun ListenerPermissionPage(context: Context, isGranted: Boolean) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
+            if (isGranted) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
 
 // --- 7. OPTIMIZATION PAGE ---
 @Composable
-fun OptimizationPage(context: Context) {
+@SuppressLint("BatteryLife")
+fun OptimizationPage(context: Context, stepIndex: Int, stepCount: Int) {
     OnboardingPageLayout(
+        stepIndex = stepIndex,
+        stepCount = stepCount,
         title = stringResource(R.string.optimization_title),
         description = stringResource(R.string.optimization_desc),
         icon = Icons.Default.BatteryStd,
-        iconColor = Color(0xFFFF9800)
+        iconColor = Color(0xFFFF9800),
+        compactHeader = true
     ) {
         OutlinedButton(
             onClick = {
@@ -564,13 +644,13 @@ fun OptimizationPage(context: Context) {
                     context.startActivity(intent)
                 } catch (e: Exception) { }
             },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Text(stringResource(R.string.enable_autostart), style = MaterialTheme.typography.bodyLarge)
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
             onClick = {
@@ -581,13 +661,13 @@ fun OptimizationPage(context: Context) {
                     context.startActivity(intent)
                 } catch (e: Exception) { }
             },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Text(stringResource(R.string.no_restrictions), style = MaterialTheme.typography.bodyLarge)
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
             onClick = {
@@ -622,10 +702,136 @@ fun OptimizationPage(context: Context) {
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Text(stringResource(R.string.enable_overlay), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+private fun StepChip(stepIndex: Int, stepCount: Int, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(999.dp)
+    ) {
+        Text(
+            text = "$stepIndex/$stepCount",
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun IslandPreviewCard() {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.status_now_playing),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.music_island_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = stringResource(R.string.status_now_playing),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeatureChips() {
+    val scrollState = rememberScrollState()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FeatureChip(
+            label = stringResource(R.string.smart_priority_summary_title),
+            icon = Icons.Default.Bolt,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        FeatureChip(
+            label = stringResource(R.string.summary_title),
+            icon = Icons.Default.NotificationsActive,
+            tint = MaterialTheme.colorScheme.secondary
+        )
+        FeatureChip(
+            label = stringResource(R.string.music_island_title),
+            icon = Icons.Default.MusicNote,
+            tint = MaterialTheme.colorScheme.tertiary
+        )
+    }
+}
+
+@Composable
+private fun FeatureChip(label: String, icon: ImageVector, tint: Color) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = tint.copy(alpha = 0.12f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

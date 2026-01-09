@@ -8,6 +8,9 @@ import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.annotation.ColorInt
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
+import androidx.core.graphics.toColorInt
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -77,20 +80,20 @@ object AccentColorResolver {
     private fun Drawable.toSmallBitmap(): Bitmap {
         // If already a bitmap, scale it down
         if (this is BitmapDrawable && this.bitmap != null) {
-            return Bitmap.createScaledBitmap(this.bitmap, SAMPLE_SIZE, SAMPLE_SIZE, true)
+            return this.bitmap.scale(SAMPLE_SIZE, SAMPLE_SIZE)
         }
 
         // Create bitmap from drawable
         val width = if (intrinsicWidth > 0) intrinsicWidth else SAMPLE_SIZE
         val height = if (intrinsicHeight > 0) intrinsicHeight else SAMPLE_SIZE
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         setBounds(0, 0, canvas.width, canvas.height)
         draw(canvas)
 
         // Scale down for faster processing
         return if (width > SAMPLE_SIZE || height > SAMPLE_SIZE) {
-            Bitmap.createScaledBitmap(bitmap, SAMPLE_SIZE, SAMPLE_SIZE, true)
+            bitmap.scale(SAMPLE_SIZE, SAMPLE_SIZE)
         } else {
             bitmap
         }
@@ -133,7 +136,7 @@ object AccentColorResolver {
 
         // Find most common color
         val dominant = colorCounts.maxByOrNull { it.value }?.key
-        return dominant ?: Color.parseColor(DEFAULT_COLOR)
+        return dominant ?: DEFAULT_COLOR.toColorInt()
     }
 
     /**
