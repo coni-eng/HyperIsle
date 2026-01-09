@@ -13,6 +13,7 @@
 - `./gradlew test`: run local unit tests.
 - `./gradlew connectedAndroidTest`: run instrumentation tests on a device or emulator.
 - `./gradlew lint`: run Android lint checks.
+- always run build and test commands after finishing code edits
 
 ## Coding Style and Naming Conventions
 - Kotlin only; UI is Jetpack Compose with Material 3.
