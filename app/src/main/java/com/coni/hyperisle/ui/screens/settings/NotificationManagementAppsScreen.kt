@@ -154,6 +154,7 @@ fun NotificationManagementAppsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AppCategoryFilterRow(
     selectedCategory: AppCategory,

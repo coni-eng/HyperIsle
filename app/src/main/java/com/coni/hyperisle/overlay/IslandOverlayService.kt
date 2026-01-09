@@ -670,7 +670,7 @@ class IslandOverlayService : Service() {
                             var endedByCancel = false
                             val touchSlop = viewConfiguration.touchSlop
                             val longPressJob = if (onLongPress != null) {
-                                launch {
+                                scope.launch {
                                     delay(viewConfiguration.longPressTimeoutMillis.toLong())
                                     if (!hasStarted && totalDx <= touchSlop && totalDy <= touchSlop) {
                                         longPressTriggered = true
