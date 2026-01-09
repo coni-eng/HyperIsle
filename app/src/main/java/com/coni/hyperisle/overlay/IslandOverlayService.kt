@@ -303,6 +303,11 @@ class IslandOverlayService : Service() {
         currentNotificationModel = null
         currentCallModel = model
 
+        Log.d(
+            "HyperIsleIsland",
+            "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_META type=CALL pkg=${model.packageName} titleLen=${model.title.length} nameLen=${model.callerName.length} hasAvatar=${model.avatarBitmap != null}"
+        )
+
         overlayController.showOverlay(OverlayEvent.CallEvent(model)) {
             SwipeDismissContainer(
                 rid = model.notificationKey.hashCode(),
@@ -321,7 +326,16 @@ class IslandOverlayService : Service() {
                             "HyperIsleIsland",
                             "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_CLICK pkg=${model.packageName}"
                         )
-                        handleCallAction(model.declineIntent, "decline")
+                        val result = handleCallAction(
+                            pendingIntent = model.declineIntent,
+                            actionType = "decline",
+                            rid = model.notificationKey.hashCode(),
+                            pkg = model.packageName
+                        )
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_RESULT result=${if (result) "OK" else "FAIL"} pkg=${model.packageName}"
+                        )
                         dismissAllOverlays("CALL_DECLINE")
                     },
                     onAccept = {
@@ -329,7 +343,16 @@ class IslandOverlayService : Service() {
                             "HyperIsleIsland",
                             "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_CLICK pkg=${model.packageName}"
                         )
-                        handleCallAction(model.acceptIntent, "accept")
+                        val result = handleCallAction(
+                            pendingIntent = model.acceptIntent,
+                            actionType = "accept",
+                            rid = model.notificationKey.hashCode(),
+                            pkg = model.packageName
+                        )
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${model.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_RESULT result=${if (result) "OK" else "FAIL"} pkg=${model.packageName}"
+                        )
                         dismissAllOverlays("CALL_ACCEPT")
                     },
                     debugRid = model.notificationKey.hashCode()
@@ -341,6 +364,10 @@ class IslandOverlayService : Service() {
     private fun showNotificationOverlay(model: IosNotificationOverlayModel) {
         Log.d(TAG, "Showing notification overlay from: ${model.sender}")
         val rid = model.notificationKey.hashCode()
+        Log.d(
+            "HyperIsleIsland",
+            "RID=$rid EVT=OVERLAY_META type=NOTIFICATION pkg=${model.packageName} senderLen=${model.sender.length} messageLen=${model.message.length} timeLen=${model.timeLabel.length} hasAvatar=${model.avatarBitmap != null} hasReplyAction=${model.replyAction != null}"
+        )
         // INSTRUMENTATION: Overlay show notification
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=${model.notificationKey?.hashCode() ?: 0} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NOTIFICATION pkg=${model.packageName}")
@@ -395,7 +422,7 @@ class IslandOverlayService : Service() {
                             "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
                         )
                         Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
-                        handleNotificationTap(model.contentIntent)
+                        handleNotificationTap(model.contentIntent, rid, model.packageName)
                         Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
                         dismissAllOverlays("TAP_OPEN")
                     }
@@ -408,6 +435,7 @@ class IslandOverlayService : Service() {
                         }
                         isReplying = true
                         Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN reason=LONG_PRESS")
                     }
                 } else {
                     null
@@ -418,9 +446,18 @@ class IslandOverlayService : Service() {
             ) {
                 LaunchedEffect(isNotificationCollapsed) {
                     if (isNotificationCollapsed) {
+                        if (isReplying) {
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_CLOSE reason=COLLAPSE")
+                        }
                         isReplying = false
                         replyText = ""
                     }
+                }
+                LaunchedEffect(isReplying) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$rid EVT=REPLY_STATE state=${if (isReplying) "OPEN" else "CLOSED"}"
+                    )
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -440,17 +477,6 @@ class IslandOverlayService : Service() {
                             timeLabel = model.timeLabel,
                             message = model.message,
                             avatarBitmap = model.avatarBitmap,
-                            replyLabel = if (replyAction != null) getString(R.string.overlay_reply) else null,
-                            onReply = if (replyAction != null) {
-                                {
-                                    isReplying = !isReplying
-                                    if (isReplying) {
-                                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN")
-                                    }
-                                }
-                            } else {
-                                null
-                            },
                             onDismiss = {
                                 Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                                 dismissFromUser("BTN_RED_X")
@@ -520,35 +546,51 @@ class IslandOverlayService : Service() {
         }
     }
 
-    private fun handleCallAction(pendingIntent: PendingIntent?, actionType: String) {
+    private fun handleCallAction(
+        pendingIntent: PendingIntent?,
+        actionType: String,
+        rid: Int,
+        pkg: String?
+    ): Boolean {
         if (pendingIntent == null) {
             Log.w(TAG, "No PendingIntent for call action: $actionType")
-            return
+            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=NO_INTENT pkg=$pkg")
+            return false
         }
 
-        try {
+        return try {
             pendingIntent.send()
             Log.d(TAG, "Call action sent successfully: $actionType")
+            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType pkg=$pkg")
+            true
         } catch (e: PendingIntent.CanceledException) {
             Log.e(TAG, "PendingIntent was cancelled for action: $actionType", e)
+            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=CANCELED pkg=$pkg")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send call action: $actionType", e)
+            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=${e.javaClass.simpleName} pkg=$pkg")
+            false
         }
     }
 
-    private fun handleNotificationTap(contentIntent: PendingIntent?) {
+    private fun handleNotificationTap(contentIntent: PendingIntent?, rid: Int, pkg: String) {
         if (contentIntent == null) {
             Log.w(TAG, "No contentIntent for notification tap")
+            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=NO_INTENT pkg=$pkg")
             return
         }
 
         try {
             contentIntent.send()
             Log.d(TAG, "Notification tap intent sent successfully")
+            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_OK pkg=$pkg")
         } catch (e: PendingIntent.CanceledException) {
             Log.e(TAG, "Notification contentIntent was cancelled", e)
+            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=CANCELED pkg=$pkg")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send notification tap intent", e)
+            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=${e.javaClass.simpleName} pkg=$pkg")
         }
     }
 

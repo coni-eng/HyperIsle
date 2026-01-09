@@ -258,8 +258,6 @@ fun NotificationPill(
     timeLabel: String,
     message: String,
     avatarBitmap: Bitmap? = null,
-    replyLabel: String? = null,
-    onReply: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
@@ -269,11 +267,11 @@ fun NotificationPill(
         val hasAvatar = avatarBitmap != null
         val hasDismiss = onDismiss != null
         val hasClick = onClick != null
-        val hasReply = onReply != null && !replyLabel.isNullOrBlank()
-        LaunchedEffect(sender, timeLabel, message, hasAvatar, hasDismiss, hasClick, hasReply) {
+        val hasLongPress = onLongPress != null
+        LaunchedEffect(sender, timeLabel, message, hasAvatar, hasDismiss, hasClick, hasLongPress) {
             Log.d(
                 "HyperIsleIsland",
-                "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION senderLen=${sender.length} timeLen=${timeLabel.length} messageLen=${message.length} hasAvatar=$hasAvatar hasDismiss=$hasDismiss hasClick=$hasClick hasReply=$hasReply"
+                "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION senderLen=${sender.length} timeLen=${timeLabel.length} messageLen=${message.length} hasAvatar=$hasAvatar hasDismiss=$hasDismiss hasClick=$hasClick hasLongPress=$hasLongPress"
             )
         }
     }
@@ -379,44 +377,9 @@ fun NotificationPill(
                 )
             }
 
-            if (!replyLabel.isNullOrBlank() && onReply != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF2C2C2E))
-                        .then(debugLayoutModifier(debugRid, "notif_reply_btn"))
-                        .clickable { onReply() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = replyLabel,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.width(5.dp))
 
-            if (onDismiss != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .then(debugLayoutModifier(debugRid, "notif_dismiss_btn"))
-                        .clickable { onDismiss() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Dismiss notification",
-                        tint = Color(0xFF8E8E93),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
+            // Right: Close button
         }
     }
 }
@@ -578,8 +541,6 @@ private fun PreviewNotificationPillWithReply() {
             sender = "WhatsApp",
             timeLabel = "",
             message = "Long-press to reply",
-            replyLabel = stringResource(R.string.overlay_reply),
-            onReply = { isReplying = !isReplying },
             onLongPress = { isReplying = true },
             onClick = {},
             onDismiss = {}
