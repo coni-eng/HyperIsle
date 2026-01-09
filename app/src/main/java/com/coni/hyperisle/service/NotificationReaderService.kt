@@ -2125,20 +2125,39 @@ class NotificationReaderService : NotificationListenerService() {
             return true
         }
 
+        // Check if the call app itself is in foreground
         val isForeground = ForegroundAppDetector.isPackageForeground(
             applicationContext,
             sbn.packageName
         )
-        if (isForeground) {
+        
+        // Also check common dialer/incallui packages
+        val foregroundPkg = ForegroundAppDetector.getForegroundPackage(applicationContext)
+        val isDialerForeground = foregroundPkg in CALL_FOREGROUND_PACKAGES
+        
+        if (isForeground || isDialerForeground) {
             if (BuildConfig.DEBUG) {
                 Log.d(
                     "HyperIsleIsland",
-                    "RID=${sbn.key.hashCode()} EVT=OVERLAY_SKIP reason=CALL_UI_FOREGROUND pkg=${sbn.packageName}"
+                    "RID=${sbn.key.hashCode()} EVT=OVERLAY_SKIP reason=CALL_UI_FOREGROUND pkg=${sbn.packageName} fg=$foregroundPkg"
                 )
             }
-            callOverlayVisibility[groupKey] = true
+            callOverlayVisibility[groupKey] = false
+            return false
         }
+        
+        callOverlayVisibility[groupKey] = true
         return true
+    }
+    
+    companion object {
+        private val CALL_FOREGROUND_PACKAGES = setOf(
+            "com.google.android.dialer",
+            "com.android.incallui",
+            "com.android.dialer",
+            "com.samsung.android.incallui",
+            "com.miui.incallui"
+        )
     }
 
     private fun resolveCallTitle(sbn: StatusBarNotification): String {

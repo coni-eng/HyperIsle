@@ -178,10 +178,14 @@ class IslandOverlayService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.channel_ios_overlay),
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_MIN
         ).apply {
             description = "iOS-style pill overlay service"
             setShowBadge(false)
+            setSound(null, null)
+            enableVibration(false)
+            enableLights(false)
+            lockscreenVisibility = Notification.VISIBILITY_SECRET
         }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
@@ -189,14 +193,15 @@ class IslandOverlayService : Service() {
 
     private fun createForegroundNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_island)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.overlay_service_active))
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .setSilent(true)
             .setShowWhen(false)
             .setOnlyAlertOnce(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 
@@ -1083,9 +1088,23 @@ class IslandOverlayService : Service() {
     ) {
         autoCollapseJob?.cancel()
         val collapseAfterMs = model.collapseAfterMs
-        if (collapseAfterMs == null || collapseAfterMs <= 0L) return
+        if (collapseAfterMs == null || collapseAfterMs <= 0L) {
+            // Default auto-dismiss after 5 seconds if no collapse time specified
+            autoCollapseJob = serviceScope.launch {
+                delay(5000L)
+                if (currentNotificationModel?.notificationKey == model.notificationKey) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_DISMISS reason=AUTO_TIMEOUT"
+                    )
+                    dismissNotificationOverlay("AUTO_TIMEOUT", restoreCall = restoreCallAfterDismiss)
+                }
+            }
+            return
+        }
 
         autoCollapseJob = serviceScope.launch {
+            // First: collapse after collapseAfterMs
             delay(collapseAfterMs)
             if (currentNotificationModel?.notificationKey == model.notificationKey) {
                 if (restoreCallAfterDismiss) {
@@ -1097,6 +1116,16 @@ class IslandOverlayService : Service() {
                 } else if (!isNotificationCollapsed) {
                     isNotificationCollapsed = true
                     Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_COLLAPSE reason=TIMEOUT")
+                    
+                    // Second: auto-dismiss 3 seconds after collapse
+                    delay(3000L)
+                    if (currentNotificationModel?.notificationKey == model.notificationKey && isNotificationCollapsed) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_DISMISS reason=COLLAPSE_TIMEOUT"
+                        )
+                        dismissNotificationOverlay("COLLAPSE_TIMEOUT", restoreCall = false)
+                    }
                 }
             }
         }

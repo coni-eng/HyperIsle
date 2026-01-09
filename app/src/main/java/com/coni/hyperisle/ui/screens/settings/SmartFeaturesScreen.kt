@@ -153,72 +153,126 @@ fun SmartFeaturesScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // --- SMART PRIORITY SUMMARY CARD (non-interactive, always visible) ---
+            // --- SMART PRIORITY HERO CARD (interactive toggle) ---
             Card(
+                onClick = { scope.launch { preferences.setSmartPriorityEnabled(!smartPriorityEnabled) } },
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = if (smartPriorityEnabled) 
+                        MaterialTheme.colorScheme.primaryContainer 
+                    else 
+                        MaterialTheme.colorScheme.surfaceContainerHigh
                 ),
                 shape = RoundedCornerShape(28.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                border = BorderStroke(
+                    1.dp, 
+                    if (smartPriorityEnabled) 
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    else 
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                )
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    MaterialTheme.colorScheme.primaryContainer
+                            if (smartPriorityEnabled) {
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    )
                                 )
-                            )
+                            } else {
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        MaterialTheme.colorScheme.surfaceContainerHigh
+                                    )
+                                )
+                            }
                         )
                         .padding(20.dp)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Speed,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(28.dp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .background(
+                                            if (smartPriorityEnabled)
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            else
+                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                            CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Speed,
+                                        contentDescription = null,
+                                        tint = if (smartPriorityEnabled)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                                Text(
+                                    stringResource(R.string.smart_priority_summary_title),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = if (smartPriorityEnabled)
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Switch(
+                                checked = smartPriorityEnabled,
+                                onCheckedChange = { scope.launch { preferences.setSmartPriorityEnabled(it) } }
+                            )
+                        }
+                        
                         Text(
-                            stringResource(R.string.smart_priority_summary_title),
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            stringResource(R.string.smart_priority_summary_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (smartPriorityEnabled)
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    
-                    Text(
-                        stringResource(R.string.smart_priority_summary_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    
-                    // Benefit bullets
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        BenefitChip(
-                            text = stringResource(R.string.smart_priority_benefit_learns),
-                            modifier = Modifier.weight(1f)
-                        )
-                        BenefitChip(
-                            text = stringResource(R.string.smart_priority_benefit_reduces),
-                            modifier = Modifier.weight(1f)
-                        )
-                        BenefitChip(
-                            text = stringResource(R.string.smart_priority_benefit_adapts),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                        
+                        // Benefit chips - horizontal scroll for small screens
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SmartBenefitChip(
+                                icon = Icons.Default.Schedule,
+                                text = stringResource(R.string.smart_priority_benefit_learns),
+                                enabled = smartPriorityEnabled
+                            )
+                            SmartBenefitChip(
+                                icon = Icons.Default.Notifications,
+                                text = stringResource(R.string.smart_priority_benefit_reduces),
+                                enabled = smartPriorityEnabled
+                            )
+                            SmartBenefitChip(
+                                icon = Icons.Default.DarkMode,
+                                text = stringResource(R.string.smart_priority_benefit_adapts),
+                                enabled = smartPriorityEnabled
+                            )
+                        }
                     }
                 }
             }
@@ -371,45 +425,73 @@ fun SmartFeaturesScreen(
                                 containerColor = MaterialTheme.colorScheme.surface
                             ) {
                                 Column(Modifier.padding(16.dp)) {
+                                    // Header with icon and title
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Icon(
-                                            Icons.Default.Visibility,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                        Spacer(Modifier.width(12.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .background(
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                    CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Visibility,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 stringResource(R.string.accessibility_context_title),
                                                 style = MaterialTheme.typography.titleMedium
                                             )
+                                        }
+                                        // Status badge
+                                        Surface(
+                                            color = if (isAccessibilityContextEnabled)
+                                                MaterialTheme.colorScheme.primaryContainer
+                                            else
+                                                MaterialTheme.colorScheme.surfaceContainerHighest,
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
                                             Text(
-                                                stringResource(R.string.accessibility_context_settings_desc),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Spacer(Modifier.height(6.dp))
-                                            Text(
-                                                if (isAccessibilityContextEnabled) {
+                                                if (isAccessibilityContextEnabled)
                                                     stringResource(R.string.status_active)
-                                                } else {
-                                                    stringResource(R.string.notification_management_off)
-                                                },
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = if (isAccessibilityContextEnabled) {
+                                                else
+                                                    stringResource(R.string.notification_management_off),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isAccessibilityContextEnabled)
                                                     MaterialTheme.colorScheme.primary
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                }
+                                                else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )
                                         }
-                                        FilledTonalButton(onClick = { openAccessibilitySettings(context) }) {
-                                            Text(stringResource(R.string.accessibility_context_open_settings))
-                                        }
+                                    }
+                                    
+                                    Spacer(Modifier.height(12.dp))
+                                    
+                                    // Description text - full width
+                                    Text(
+                                        stringResource(R.string.accessibility_context_settings_desc),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    
+                                    Spacer(Modifier.height(16.dp))
+                                    
+                                    // Button - full width at bottom
+                                    FilledTonalButton(
+                                        onClick = { openAccessibilitySettings(context) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(stringResource(R.string.accessibility_context_open_settings))
                                     }
                                 }
                             }
@@ -1362,5 +1444,47 @@ private fun BenefitChip(
             color = MaterialTheme.colorScheme.onPrimaryContainer,
             maxLines = 1
         )
+    }
+}
+
+@Composable
+private fun SmartBenefitChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = if (enabled)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        else
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = if (enabled)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (enabled)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
     }
 }

@@ -905,10 +905,11 @@ private fun formatDuration(seconds: Long): String {
 }
 
 /**
- * iOS-style notification pill with avatar (+ indicator dot), sender info, and message preview.
+ * iOS-style notification pill with avatar, sender info, and message preview.
+ * Designed to match iOS Dynamic Island notification appearance.
  *
  * @param sender Bold white text showing sender/app name
- * @param message Single-line message preview with reduced opacity
+ * @param message Message preview (up to 2 lines)
  * @param avatarBitmap Optional avatar/app icon bitmap
  * @param onLongPress Optional callback when pill is long-pressed
  * @param onClick Optional callback when pill is tapped
@@ -947,101 +948,106 @@ fun NotificationPill(
     } else {
         Modifier
     }
-    PillContainer(
-        modifier = tapModifier,
-        debugRid = debugRid,
-        debugName = "notif"
+    
+    // iOS-style notification pill - compact and clean
+    Surface(
+        modifier = tapModifier
+            .fillMaxWidth()
+            .shadow(elevation = 12.dp, shape = RoundedCornerShape(24.dp))
+            .debugLayoutModifier(debugRid, "notif_root"),
+        shape = RoundedCornerShape(24.dp),
+        color = Color(0xE61C1C1E) // Slightly more opaque for better readability
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp)
                 .debugLayoutModifier(debugRid, "notif_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Avatar with indicator dot
+            // Left: App icon (rounded square like iOS)
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .debugLayoutModifier(debugRid, "notif_avatar_stack")
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF3A3A3C))
+                    .debugLayoutModifier(debugRid, "notif_avatar"),
+                contentAlignment = Alignment.Center
             ) {
-                // Avatar circle
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF3A3A3C))
-                        .debugLayoutModifier(debugRid, "notif_avatar"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (avatarBitmap != null) {
-                        Image(
-                            bitmap = avatarBitmap.asImageBitmap(),
-                            contentDescription = "App icon",
-                            modifier = Modifier.size(44.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Default icon",
-                            tint = Color(0xFF8E8E93),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-
-                // Green indicator dot (bottom-left)
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .offset(x = 0.dp, y = 32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1B1B1B)) // Border color (near black)
-                        .padding(2.dp)
-                        .debugLayoutModifier(debugRid, "notif_indicator_border")
-                ) {
-                    Box(
+                if (avatarBitmap != null) {
+                    Image(
+                        bitmap = avatarBitmap.asImageBitmap(),
+                        contentDescription = "App icon",
                         modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF34C759)) // iOS green
-                            .debugLayoutModifier(debugRid, "notif_indicator_dot")
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Default icon",
+                        tint = Color(0xFF8E8E93),
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Center: Sender, time, and message
+            // Center: Sender and message
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .debugLayoutModifier(debugRid, "notif_text_column"),
                 verticalArrangement = Arrangement.Center
             ) {
+                // Sender name - bold
                 Text(
                     text = sender,
                     color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.debugLayoutModifier(debugRid, "notif_sender")
                 )
 
-                // Message preview
-                Text(
-                    text = message,
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.debugLayoutModifier(debugRid, "notif_message")
-                )
+                // Message preview - 2 lines max for better content visibility
+                if (message.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = message,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.debugLayoutModifier(debugRid, "notif_message")
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(5.dp))
-
-            // Right: Close button
+            // Right: Dismiss button (X)
+            if (onDismiss != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF48484A))
+                        .clickable { onDismiss() }
+                        .debugLayoutModifier(debugRid, "notif_dismiss_btn"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss notification",
+                        tint = Color(0xFFAEAEB2),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }
