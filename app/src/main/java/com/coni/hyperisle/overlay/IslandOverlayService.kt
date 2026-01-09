@@ -18,10 +18,12 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -52,9 +54,9 @@ import com.coni.hyperisle.R
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.ui.components.IncomingCallPill
-import com.coni.hyperisle.ui.components.InlineReplyComposer
 import com.coni.hyperisle.ui.components.MiniNotificationPill
 import com.coni.hyperisle.ui.components.NotificationPill
+import com.coni.hyperisle.ui.components.NotificationReplyPill
 import com.coni.hyperisle.util.ContextStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -407,106 +409,118 @@ class IslandOverlayService : Service() {
             var replyText by remember(model.notificationKey) { mutableStateOf("") }
             val replyAction = model.replyAction
 
-            SwipeDismissContainer(
-                rid = rid,
-                stateLabel = if (isNotificationCollapsed) "collapsed" else "expanded",
-                onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
-                onTap = {
-                    if (isNotificationCollapsed) {
-                        isNotificationCollapsed = false
-                        scheduleAutoCollapse(model)
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
-                    } else {
-                        Log.d(
-                            "HyperIsleIsland",
-                            "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
-                        )
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
-                        handleNotificationTap(model.contentIntent, rid, model.packageName)
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
-                        dismissAllOverlays("TAP_OPEN")
-                    }
-                },
-                onLongPress = if (replyAction != null) {
-                    {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(if (isReplying) Color(0x99000000) else Color.Transparent),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                SwipeDismissContainer(
+                    rid = rid,
+                    stateLabel = if (isNotificationCollapsed) "collapsed" else "expanded",
+                    onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
+                    onTap = {
+                        if (isReplying) {
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_IGNORED reason=REPLY_OPEN")
+                            return@SwipeDismissContainer
+                        }
                         if (isNotificationCollapsed) {
                             isNotificationCollapsed = false
                             scheduleAutoCollapse(model)
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
+                        } else {
+                            Log.d(
+                                "HyperIsleIsland",
+                                "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
+                            )
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                            handleNotificationTap(model.contentIntent, rid, model.packageName)
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                            dismissAllOverlays("TAP_OPEN")
                         }
-                        isReplying = true
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN reason=LONG_PRESS")
-                    }
-                } else {
-                    null
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                LaunchedEffect(isNotificationCollapsed) {
-                    if (isNotificationCollapsed) {
-                        if (isReplying) {
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_CLOSE reason=COLLAPSE")
-                        }
-                        isReplying = false
-                        replyText = ""
-                    }
-                }
-                LaunchedEffect(isReplying) {
-                    Log.d(
-                        "HyperIsleIsland",
-                        "RID=$rid EVT=REPLY_STATE state=${if (isReplying) "OPEN" else "CLOSED"}"
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (isNotificationCollapsed) {
-                        MiniNotificationPill(
-                            sender = model.sender,
-                            avatarBitmap = model.avatarBitmap,
-                            onDismiss = {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
-                                dismissFromUser("BTN_RED_X")
-                            },
-                            debugRid = rid
-                        )
-                    } else {
-                        NotificationPill(
-                            sender = model.sender,
-                            timeLabel = model.timeLabel,
-                            message = model.message,
-                            avatarBitmap = model.avatarBitmap,
-                            onDismiss = {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
-                                dismissFromUser("BTN_RED_X")
-                            },
-                            debugRid = rid
-                        )
-                    }
-
-                    if (!isNotificationCollapsed && replyAction != null && isReplying) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        InlineReplyComposer(
-                            label = getString(R.string.overlay_reply),
-                            text = replyText,
-                            onTextChange = { replyText = it },
-                            onSend = send@{
-                                val trimmed = replyText.trim()
-                                if (trimmed.isEmpty()) {
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
-                                    return@send
-                                }
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
-                                val result = sendInlineReply(replyAction, trimmed, rid)
-                                if (result) {
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
-                                    isReplying = false
-                                    replyText = ""
-                                    dismissAllOverlays("REPLY_SENT")
-                                }
+                    },
+                    onLongPress = if (replyAction != null) {
+                        {
+                            if (isNotificationCollapsed) {
+                                isNotificationCollapsed = false
+                                scheduleAutoCollapse(model)
                             }
+                            isReplying = true
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN reason=LONG_PRESS")
+                        }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    LaunchedEffect(isNotificationCollapsed) {
+                        if (isNotificationCollapsed) {
+                            if (isReplying) {
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_CLOSE reason=COLLAPSE")
+                            }
+                            isReplying = false
+                            replyText = ""
+                        }
+                    }
+                    LaunchedEffect(isReplying) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=$rid EVT=REPLY_STATE state=${if (isReplying) "OPEN" else "CLOSED"}"
                         )
+                    }
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (isNotificationCollapsed) {
+                            MiniNotificationPill(
+                                sender = model.sender,
+                                avatarBitmap = model.avatarBitmap,
+                                onDismiss = {
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                    dismissFromUser("BTN_RED_X")
+                                },
+                                debugRid = rid
+                            )
+                        } else if (replyAction != null && isReplying) {
+                            NotificationReplyPill(
+                                sender = model.sender,
+                                message = model.message,
+                                avatarBitmap = model.avatarBitmap,
+                                replyText = replyText,
+                                onReplyChange = { replyText = it },
+                                onSend = send@{
+                                    val trimmed = replyText.trim()
+                                    if (trimmed.isEmpty()) {
+                                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
+                                        return@send
+                                    }
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
+                                    val result = sendInlineReply(replyAction, trimmed, rid)
+                                    if (result) {
+                                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
+                                        isReplying = false
+                                        replyText = ""
+                                        dismissAllOverlays("REPLY_SENT")
+                                    }
+                                },
+                                sendLabel = getString(R.string.overlay_send),
+                                debugRid = rid
+                            )
+                        } else {
+                            NotificationPill(
+                                sender = model.sender,
+                                timeLabel = model.timeLabel,
+                                message = model.message,
+                                avatarBitmap = model.avatarBitmap,
+                                onDismiss = {
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                    dismissFromUser("BTN_RED_X")
+                                },
+                                debugRid = rid
+                            )
+                        }
                     }
                 }
             }
