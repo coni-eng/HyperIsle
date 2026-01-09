@@ -146,6 +146,8 @@ class OverlayWindowController(private val context: Context) {
         return when (event) {
             is OverlayEvent.CallEvent -> event.model.notificationKey.hashCode()
             is OverlayEvent.NotificationEvent -> event.model.notificationKey.hashCode()
+            is OverlayEvent.MediaEvent -> event.model.notificationKey.hashCode()
+            is OverlayEvent.TimerEvent -> event.model.notificationKey.hashCode()
             is OverlayEvent.DismissEvent,
             OverlayEvent.DismissAllEvent -> 0
         }

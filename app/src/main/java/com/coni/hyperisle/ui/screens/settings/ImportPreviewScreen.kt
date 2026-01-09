@@ -46,11 +46,14 @@ fun ImportPreviewScreen(
     val settingsList = backupData.settings
 
     val hasBlocklist = settingsList.any { it.key == SettingsKeys.GLOBAL_BLOCKED_TERMS || it.key.endsWith("_blocked") }
-    val hasPriorities = settingsList.any { it.key == SettingsKeys.PRIORITY_ORDER }
+    val hasPriorities = settingsList.any {
+        it.key == SettingsKeys.PRIORITY_ORDER || it.key == SettingsKeys.TYPE_PRIORITY_ORDER
+    }
     val hasSettings = settingsList.any {
         it.key != SettingsKeys.GLOBAL_BLOCKED_TERMS &&
                 !it.key.endsWith("_blocked") &&
-                it.key != SettingsKeys.PRIORITY_ORDER
+                it.key != SettingsKeys.PRIORITY_ORDER &&
+                it.key != SettingsKeys.TYPE_PRIORITY_ORDER
     }
 
     val formattedDate = remember {

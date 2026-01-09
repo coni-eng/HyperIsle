@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,9 +39,14 @@ import com.coni.hyperisle.util.ActionDiagnostics
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.DiagnosticsFileHelper
 import com.coni.hyperisle.util.PriorityDiagnostics
+import com.coni.hyperisle.util.isContextAccessibilityEnabled
+import com.coni.hyperisle.util.openAccessibilitySettings
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.ContextPreset
 import com.coni.hyperisle.models.NotificationType
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,6 +95,19 @@ fun SmartFeaturesScreen(
 
     // Context Presets (v0.9.0)
     val contextPreset by preferences.contextPresetFlow.collectAsState(initial = ContextPreset.OFF)
+
+    // Accessibility context signals (optional)
+    var isAccessibilityContextEnabled by remember { mutableStateOf(isContextAccessibilityEnabled(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isAccessibilityContextEnabled = isContextAccessibilityEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Debug Diagnostics (debug builds only)
     val actionDiagnosticsEnabled by preferences.actionDiagnosticsEnabledFlow.collectAsState(initial = false)
@@ -323,6 +342,52 @@ fun SmartFeaturesScreen(
                                                 checked = contextChargingSuppressBatteryBanners,
                                                 onCheckedChange = { scope.launch { preferences.setContextChargingSuppressBatteryBanners(it) } }
                                             )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // --- ACCESSIBILITY CONTEXT SIGNALS (optional) ---
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Visibility,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                stringResource(R.string.accessibility_context_title),
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Text(
+                                                stringResource(R.string.accessibility_context_settings_desc),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(
+                                                if (isAccessibilityContextEnabled) {
+                                                    stringResource(R.string.status_active)
+                                                } else {
+                                                    stringResource(R.string.notification_management_off)
+                                                },
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = if (isAccessibilityContextEnabled) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                                }
+                                            )
+                                        }
+                                        FilledTonalButton(onClick = { openAccessibilitySettings(context) }) {
+                                            Text(stringResource(R.string.accessibility_context_open_settings))
                                         }
                                     }
                                 }

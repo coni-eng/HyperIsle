@@ -164,6 +164,12 @@
     <string name="move_up">Yukarı Taşı</string>
     <string name="move_down">Aşağı Taşı</string>
     <string name="configure_order">Uygulama sırasını yapılandır</string>
+    <string name="type_priority_title">Tür Öncelik Sırası</string>
+    <string name="type_priority_desc">Ada çakışmalarında bildirim türlerinin önceliğini belirleyin.</string>
+    <string name="type_priority_tip">En üstteki tür en yüksek önceliğe sahiptir.</string>
+    <string name="configure_type_order">Tür sırasını ayarla</string>
+    <string name="configure_app_order">Uygulama sırasını ayarla</string>
+    <string name="priority_order_limit_note">Öncelik çakışmalarında yalnızca ilk 5 uygulama kullanılır.</string>
 
     <string name="global_settings">Genel Ayarlar</string>
     <string name="island_appearance">Ada Görünümü</string>
@@ -390,6 +396,11 @@
     <string name="optimization_title">Cihaz Optimizasyonu</string>
     <string name="no_restrictions">"2. Kısıtlama Yok" Ayarla</string>
     <string name="enable_overlay">3. Diğer Uygulamaların Üzerinde Göster</string>
+    <string name="accessibility_context_service_label">HyperIsle Bağlam Sinyalleri</string>
+    <string name="accessibility_context_desc">Tam ekran, klavye ve ön plan uygulamayı algılayarak adayı daha sakin gösterir. Tüm sinyaller cihazda kalır.</string>
+    <string name="accessibility_context_title">Erişilebilirlik Bağlamı (Opsiyonel)</string>
+    <string name="accessibility_context_settings_desc">Tam ekran/video ve klavye açıkken adayı küçültür; yanlış dokunuşları azaltır.</string>
+    <string name="accessibility_context_open_settings">Erişilebilirlik Ayarları</string>
 
     <string name="privacy_card_title">Önce Çevrimdışı</string>
     <string name="privacy_card_desc">İnternet bağlantısı gerekmez.</string>

@@ -15,6 +15,7 @@ import io.github.d4viddf.hyperisland_kit.models.TextInfo
 import io.github.d4viddf.hyperisland_kit.models.TimerInfo
 
 class TimerTranslator(context: Context) : BaseTranslator(context) {
+    private val EXTRA_CHRONOMETER_COUNTDOWN = "android.chronometerCountDown"
 
     fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig): HyperIslandData {
         val extras = sbn.notification.extras
@@ -23,7 +24,7 @@ class TimerTranslator(context: Context) : BaseTranslator(context) {
 
         val baseTime = sbn.notification.`when`
         val now = System.currentTimeMillis()
-        val isCountdown = baseTime > now
+        val isCountdown = extras.getBoolean(EXTRA_CHRONOMETER_COUNTDOWN) || baseTime > now
         val timerType = if (isCountdown) -1 else 1
 
         val builder = HyperIslandNotification.Builder(context, "bridge_${sbn.packageName}", title)

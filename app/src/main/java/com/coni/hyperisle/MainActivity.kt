@@ -53,11 +53,12 @@ import com.coni.hyperisle.ui.screens.settings.NavCustomizationScreen
 import com.coni.hyperisle.ui.screens.settings.PrioritySettingsScreen
 import com.coni.hyperisle.ui.screens.settings.SetupHealthScreen
 import com.coni.hyperisle.ui.screens.settings.SmartFeaturesScreen
-import com.coni.hyperisle.ui.screens.settings.NotificationSummaryScreenV2
-import com.coni.hyperisle.ui.screens.settings.NotificationManagementScreen
-import com.coni.hyperisle.ui.screens.settings.NotificationManagementAppsScreen
+import com.coni.hyperisle.ui.screens.settings.NotificationSummaryScreenV2       
+import com.coni.hyperisle.ui.screens.settings.NotificationManagementScreen      
+import com.coni.hyperisle.ui.screens.settings.NotificationManagementAppsScreen  
 import com.coni.hyperisle.ui.screens.settings.DiagnosticsScreen
 import com.coni.hyperisle.ui.screens.settings.IslandStylePreviewScreen
+import com.coni.hyperisle.ui.screens.settings.TypePriorityScreen
 import com.coni.hyperisle.ui.theme.HyperIsleTheme
 import com.coni.hyperisle.util.BackupManager
 import com.coni.hyperisle.worker.NotificationSummaryWorker
@@ -89,7 +90,7 @@ class MainActivity : AppCompatActivity() {
 enum class Screen(val depth: Int) {
     ONBOARDING(0), HOME(1), INFO(2), SETUP(3), LICENSES(3), BEHAVIOR(3), GLOBAL_SETTINGS(3), HISTORY(3),
     BACKUP(3), IMPORT_PREVIEW(4), // Backup Flow
-    NAV_CUSTOMIZATION(4), APP_PRIORITY(4), GLOBAL_BLOCKLIST(4), BLOCKLIST_APPS(5),
+    NAV_CUSTOMIZATION(4), APP_PRIORITY(4), TYPE_PRIORITY(4), GLOBAL_BLOCKLIST(4), BLOCKLIST_APPS(5),
     MUSIC_ISLAND(3), // Music Island Settings
     SMART_FEATURES(3), // Smart Silence, Focus, Summary settings
     NOTIFICATION_SUMMARY(4), // Summary list screen
@@ -187,7 +188,7 @@ fun MainRootNavigation(
             Screen.GLOBAL_BLOCKLIST -> Screen.INFO
             Screen.NAV_CUSTOMIZATION -> if (navConfigPackage != null) Screen.HOME else Screen.GLOBAL_SETTINGS
             Screen.GLOBAL_SETTINGS -> Screen.INFO
-            Screen.APP_PRIORITY -> Screen.BEHAVIOR
+            Screen.APP_PRIORITY, Screen.TYPE_PRIORITY -> Screen.BEHAVIOR
             Screen.HISTORY -> Screen.INFO
             Screen.BEHAVIOR, Screen.SETUP, Screen.LICENSES, Screen.MUSIC_ISLAND, Screen.SMART_FEATURES, Screen.NOTIFICATION_MANAGEMENT -> Screen.INFO
             Screen.NOTIFICATION_SUMMARY -> Screen.SMART_FEATURES
@@ -247,8 +248,14 @@ fun MainRootNavigation(
                 Screen.NAV_CUSTOMIZATION -> NavCustomizationScreen(onBack = { currentScreen = if (navConfigPackage != null) Screen.HOME else Screen.GLOBAL_SETTINGS }, packageName = navConfigPackage)
                 Screen.SETUP -> SetupHealthScreen(onBack = { currentScreen = Screen.INFO })
                 Screen.LICENSES -> LicensesScreen(onBack = { currentScreen = Screen.INFO })
-                Screen.BEHAVIOR -> PrioritySettingsScreen(onBack = { currentScreen = Screen.INFO }, onNavigateToPriorityList = { currentScreen = Screen.APP_PRIORITY })
+                Screen.BEHAVIOR -> PrioritySettingsScreen(
+                    onBack = { currentScreen = Screen.INFO },
+                    onNavigateToPriorityList = { currentScreen = Screen.APP_PRIORITY },
+                    onNavigateToTypePriorityList = { currentScreen = Screen.TYPE_PRIORITY },
+                    onNavigateToSmartFeatures = { currentScreen = Screen.SMART_FEATURES }
+                )
                 Screen.APP_PRIORITY -> AppPriorityScreen(onBack = { currentScreen = Screen.BEHAVIOR })
+                Screen.TYPE_PRIORITY -> TypePriorityScreen(onBack = { currentScreen = Screen.BEHAVIOR })
                 Screen.HISTORY -> ChangelogHistoryScreen(onBack = { currentScreen = Screen.INFO })
                 Screen.MUSIC_ISLAND -> MusicIslandSettingsScreen(onBack = { currentScreen = Screen.INFO })
 

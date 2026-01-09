@@ -52,6 +52,20 @@ object OverlayEventBus {
     }
 
     /**
+     * Emit a media event.
+     */
+    fun emitMedia(model: MediaOverlayModel): Boolean {
+        return tryEmit(OverlayEvent.MediaEvent(model))
+    }
+
+    /**
+     * Emit a timer event.
+     */
+    fun emitTimer(model: TimerOverlayModel): Boolean {
+        return tryEmit(OverlayEvent.TimerEvent(model))
+    }
+
+    /**
      * Emit a dismiss event for a specific notification.
      */
     fun emitDismiss(notificationKey: String? = null): Boolean {

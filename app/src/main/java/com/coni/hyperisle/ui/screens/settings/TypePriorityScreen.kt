@@ -2,7 +2,6 @@ package com.coni.hyperisle.ui.screens.settings
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
@@ -22,13 +21,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -51,11 +48,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -66,83 +61,41 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
-import com.coni.hyperisle.util.toBitmap
-import kotlinx.coroutines.Dispatchers
+import com.coni.hyperisle.models.NotificationType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-/**
- * Simple data class to hold app metadata for the priority list.
- * Does not hold the heavy Bitmap directly to avoid UI lag during recomposition.
- */
-data class PriorityAppInfo(val name: String, val packageName: String)
-
-/**
- * Screen that allows users to reorder apps to define priority.
- *
- * Features:
- * - **Drag and Drop:** Custom implementation using pointerInput to handle item swapping and auto-scrolling.
- * - **Manual Sorting:** Arrows for accessibility and precision.
- * - **Accessibility:** Custom semantic actions for TalkBack users to "Move Up" or "Move Down".
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppPriorityScreen(onBack: () -> Unit) {
+fun TypePriorityScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferences = remember { AppPreferences(context) }
-    val packageManager = context.packageManager
 
-    // Load live data from DataStore
-    val enabledPackages: Set<String> by preferences.allowedPackagesFlow.collectAsState(initial = emptySet())
-    val savedOrder: List<String> by preferences.appPriorityListFlow.collectAsState(initial = emptyList())
+    val savedOrder: List<String> by preferences.typePriorityOrderFlow.collectAsState(
+        initial = NotificationType.entries.map { it.name }
+    )
 
-    // Mutable list required for instant drag-and-drop visual updates
-    val displayList = remember { mutableStateListOf<PriorityAppInfo>() }
-    var isLoaded by remember { mutableStateOf(false) }
+    val displayList = remember { mutableStateListOf<NotificationType>() }
 
-    // Merge saved priority order with currently enabled apps
-    LaunchedEffect(enabledPackages, savedOrder) {
-        if (enabledPackages.isEmpty()) {
-            displayList.clear()
-            isLoaded = true
-            return@LaunchedEffect
+    LaunchedEffect(savedOrder) {
+        val ordered = savedOrder.mapNotNull { name ->
+            NotificationType.entries.firstOrNull { it.name == name }
         }
-
-        withContext(Dispatchers.IO) {
-            // 1. Existing items in their saved order
-            val ordered = savedOrder.filter { enabledPackages.contains(it) }
-            // 2. New items appended to the end
-            val newApps = enabledPackages.filter { !savedOrder.contains(it) }
-            val finalPackageList = ordered + newApps
-
-            // 3. Load Labels (Lightweight operation)
-            val infoList = finalPackageList.map { pkg ->
-                try {
-                    val appInfo = packageManager.getApplicationInfo(pkg, 0)
-                    val name = packageManager.getApplicationLabel(appInfo).toString()
-                    PriorityAppInfo(name, pkg)
-                } catch (e: Exception) {
-                    PriorityAppInfo(pkg, pkg) // Fallback
-                }
-            }
-
-            withContext(Dispatchers.Main) {
-                displayList.clear()
-                displayList.addAll(infoList)
-                isLoaded = true
-            }
-        }
+        displayList.clear()
+        displayList.addAll(ordered)
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.priority_order)) },
+                title = { Text(stringResource(R.string.type_priority_title)) },
                 navigationIcon = {
                     FilledTonalIconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            stringResource(R.string.back)
+                        )
                     }
                 }
             )
@@ -157,57 +110,39 @@ fun AppPriorityScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = stringResource(R.string.priority_order_desc),
+                text = stringResource(R.string.type_priority_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = stringResource(R.string.priority_order_limit_note),
+                text = stringResource(R.string.type_priority_tip),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (!isLoaded) {
-                Box(Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (displayList.isEmpty()) {
-                Box(Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.no_active_bridges), color = MaterialTheme.colorScheme.error)
-                }
-            } else {
-                // The main reorderable list component
-                DraggableLazyList(
-                    items = displayList,
-                    onMove = { from, to ->
-                        // Update local state immediately for smoothness
-                        displayList.apply { add(to, removeAt(from)) }
-                    },
-                    onDragEnd = {
-                        // Commit changes to persistent storage
-                        scope.launch {
-                            preferences.setAppPriorityOrder(displayList.map { it.packageName })
-                        }
+            DraggableTypeList(
+                items = displayList,
+                onMove = { from, to ->
+                    displayList.apply { add(to, removeAt(from)) }
+                },
+                onDragEnd = {
+                    scope.launch {
+                        preferences.setTypePriorityOrder(displayList.map { it.name })
                     }
-                )
-            }
+                }
+            )
         }
     }
 }
 
-/**
- * A custom implementation of a Drag-and-Drop list using LazyColumn.
- * * @param onMove Called when two items swap positions during the drag.
- * @param onDragEnd Called when the user releases the finger (save data here).
- */
 @Composable
-fun DraggableLazyList(
-    items: List<PriorityAppInfo>,
+private fun DraggableTypeList(
+    items: List<NotificationType>,
     onMove: (Int, Int) -> Unit,
     onDragEnd: () -> Unit
 ) {
@@ -217,17 +152,15 @@ fun DraggableLazyList(
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
 
-    // Auto-scrolling setup
-    val density = LocalDensity.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
     val scrollThreshold = with(density) { 60.dp.toPx() }
     var scrollVelocity by remember { mutableFloatStateOf(0f) }
 
-    // Coroutine to handle auto-scrolling when dragging near edges
     LaunchedEffect(scrollVelocity) {
         if (scrollVelocity != 0f) {
             while (true) {
                 listState.scrollBy(scrollVelocity)
-                delay(16) // ~60 FPS loop
+                delay(16)
                 if (scrollVelocity == 0f) break
             }
         }
@@ -238,13 +171,13 @@ fun DraggableLazyList(
         modifier = Modifier
             .fillMaxSize()
             .padding(bottom = 24.dp)
-            // Global touch handler for the drag gesture
             .pointerInput(Unit) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { offset ->
-                        // Hit test: Find which item index is under the finger
                         listState.layoutInfo.visibleItemsInfo
-                            .firstOrNull { item -> offset.y.toInt() in item.offset..(item.offset + item.size) }
+                            .firstOrNull { item ->
+                                offset.y.toInt() in item.offset..(item.offset + item.size)
+                            }
                             ?.let {
                                 draggingIndex = it.index
                                 dragOffset = 0f
@@ -254,43 +187,36 @@ fun DraggableLazyList(
                         change.consume()
                         dragOffset += dragAmount.y
 
-                        // 1. Auto-Scroll Logic
                         val viewportHeight = listState.layoutInfo.viewportSize.height
                         val touchY = change.position.y
 
                         scrollVelocity = if (touchY < scrollThreshold) {
-                            // Scroll Up (Negative velocity) if allowed
                             if (listState.canScrollBackward && dragAmount.y <= 0) -20f else 0f
                         } else if (touchY > viewportHeight - scrollThreshold) {
-                            // Scroll Down (Positive velocity) if allowed
                             if (listState.canScrollForward && dragAmount.y >= 0) 20f else 0f
                         } else {
                             0f
                         }
 
-                        // 2. Item Swap Logic
                         val currentIndex = draggingIndex ?: return@detectDragGesturesAfterLongPress
                         val currentItemInfo = listState.layoutInfo.visibleItemsInfo
                             .firstOrNull { it.index == currentIndex }
 
                         if (currentItemInfo != null) {
                             val itemHeight = currentItemInfo.size
-                            val threshold = itemHeight * 0.5f // Swap when overlapped 50%
+                            val threshold = itemHeight * 0.5f
 
-                            // Dragging Down
                             if (dragOffset > threshold) {
                                 if (currentIndex < items.lastIndex) {
                                     onMove(currentIndex, currentIndex + 1)
                                     draggingIndex = currentIndex + 1
-                                    dragOffset -= itemHeight // Compensate visual offset
+                                    dragOffset -= itemHeight
                                 }
-                            }
-                            // Dragging Up
-                            else if (dragOffset < -threshold) {
+                            } else if (dragOffset < -threshold) {
                                 if (currentIndex > 0) {
                                     onMove(currentIndex, currentIndex - 1)
                                     draggingIndex = currentIndex - 1
-                                    dragOffset += itemHeight // Compensate visual offset
+                                    dragOffset += itemHeight
                                 }
                             }
                         }
@@ -310,20 +236,16 @@ fun DraggableLazyList(
             },
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        itemsIndexed(items, key = { _, item -> item.packageName }) { index, item ->
-
+        itemsIndexed(items, key = { _, item -> item.name }) { index, item ->
             val isDragging = index == draggingIndex
-
-            // Visual Feedback: Lift up and scale
             val elevation by animateDpAsState(if (isDragging) 12.dp else 0.dp, label = "elevation")
             val scale by animateFloatAsState(if (isDragging) 1.05f else 1f, label = "scale")
             val alpha = if (isDragging) 0.9f else 1f
-
             val areButtonsEnabled = draggingIndex == null
 
             Box(
                 modifier = Modifier
-                    .zIndex(if (isDragging) 1f else 0f) // Ensure dragged item is on top
+                    .zIndex(if (isDragging) 1f else 0f)
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
@@ -331,12 +253,11 @@ fun DraggableLazyList(
                         translationY = if (isDragging) dragOffset else 0f
                     }
                     .shadow(elevation, RoundedCornerShape(12.dp))
-                    // Only animate items shifting into place, NOT the item being dragged
                     .then(if (!isDragging) Modifier.animateItem() else Modifier)
             ) {
-                PriorityAppItem(
+                PriorityTypeItem(
                     rank = index + 1,
-                    app = item,
+                    type = item,
                     isFirst = index == 0,
                     isLast = index == items.lastIndex,
                     areButtonsEnabled = areButtonsEnabled,
@@ -361,20 +282,18 @@ fun DraggableLazyList(
 }
 
 @Composable
-fun PriorityAppItem(
+private fun PriorityTypeItem(
     rank: Int,
-    app: PriorityAppInfo,
+    type: NotificationType,
     isFirst: Boolean,
     isLast: Boolean,
     areButtonsEnabled: Boolean,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit
 ) {
-    // Accessibility Strings
     val moveUpLabel = stringResource(R.string.cd_move_up)
     val moveDownLabel = stringResource(R.string.cd_move_down)
     val handleDesc = stringResource(R.string.cd_drag_handle)
-    val appIconDesc = stringResource(R.string.cd_app_icon, app.name)
 
     val buttonTint = if (areButtonsEnabled) MaterialTheme.colorScheme.primary else Color.Transparent
 
@@ -382,7 +301,6 @@ fun PriorityAppItem(
         modifier = Modifier
             .fillMaxWidth()
             .semantics {
-                // Accessibility Support for TalkBack users who cannot drag
                 stateDescription = "Priority $rank"
                 customActions = buildList {
                     if (areButtonsEnabled && !isFirst) {
@@ -400,7 +318,6 @@ fun PriorityAppItem(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Visual Drag Handle
             Icon(
                 imageVector = Icons.Default.DragHandle,
                 contentDescription = handleDesc,
@@ -416,57 +333,34 @@ fun PriorityAppItem(
                 modifier = Modifier.width(32.dp)
             )
 
-            // Icon with Description
-            AppIconLoader(packageName = app.packageName, contentDescription = appIconDesc)
-
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = app.name,
+                text = stringResource(type.labelRes),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
 
-            // Manual Control Buttons (Hidden while dragging to prevent layout shifts)
-            IconButton(onClick = onMoveUp, modifier = Modifier.size(32.dp), enabled = areButtonsEnabled && !isFirst) {
-                if (!isFirst) Icon(Icons.Default.ArrowUpward, moveUpLabel, tint = buttonTint, modifier = Modifier.size(20.dp))
+            IconButton(
+                onClick = onMoveUp,
+                modifier = Modifier.size(32.dp),
+                enabled = areButtonsEnabled && !isFirst
+            ) {
+                if (!isFirst) {
+                    Icon(Icons.Default.ArrowUpward, moveUpLabel, tint = buttonTint, modifier = Modifier.size(20.dp))
+                }
             }
-            IconButton(onClick = onMoveDown, modifier = Modifier.size(32.dp), enabled = areButtonsEnabled && !isLast) {
-                if (!isLast) Icon(Icons.Default.ArrowDownward, moveDownLabel, tint = buttonTint, modifier = Modifier.size(20.dp))
+            IconButton(
+                onClick = onMoveDown,
+                modifier = Modifier.size(32.dp),
+                enabled = areButtonsEnabled && !isLast
+            ) {
+                if (!isLast) {
+                    Icon(Icons.Default.ArrowDownward, moveDownLabel, tint = buttonTint, modifier = Modifier.size(20.dp))
+                }
             }
             Spacer(Modifier.width(8.dp))
         }
-    }
-}
-
-@Composable
-fun AppIconLoader(packageName: String, contentDescription: String) {
-    val context = LocalContext.current
-    // Remember bitmap so it doesn't reload on every recomposition
-    var iconBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-
-    LaunchedEffect(packageName) {
-        withContext(Dispatchers.IO) {
-            try {
-                val drawable = context.packageManager.getApplicationIcon(packageName)
-                iconBitmap = drawable.toBitmap()
-            } catch (e: Exception) { /* Ignore */ }
-        }
-    }
-
-    if (iconBitmap != null) {
-        Image(
-            bitmap = iconBitmap!!.asImageBitmap(),
-            contentDescription = contentDescription,
-            modifier = Modifier.size(36.dp)
-        )
-    } else {
-        Icon(
-            imageVector = Icons.Default.Android,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(36.dp),
-            tint = MaterialTheme.colorScheme.surfaceVariant
-        )
     }
 }

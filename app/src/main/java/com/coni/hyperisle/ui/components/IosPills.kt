@@ -1,5 +1,6 @@
 package com.coni.hyperisle.ui.components
 
+import android.app.PendingIntent
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.foundation.Image
@@ -19,10 +20,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Icon
@@ -32,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +55,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -54,6 +64,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
+import com.coni.hyperisle.overlay.MediaAction
+import kotlinx.coroutines.delay
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 private data class LayoutSnapshot(
@@ -93,13 +106,14 @@ private fun debugLayoutModifier(rid: Int?, element: String): Modifier {
 fun PillContainer(
     modifier: Modifier = Modifier,
     height: Dp = 72.dp,
+    fillMaxWidth: Boolean = true,
     debugRid: Int? = null,
     debugName: String = "pill",
     content: @Composable () -> Unit
 ) {
+    val containerModifier = if (fillMaxWidth) modifier.fillMaxWidth() else modifier
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = containerModifier
             .height(height)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(50.dp))
             .then(debugLayoutModifier(debugRid, "${debugName}_root")),
@@ -253,10 +267,14 @@ fun IncomingCallPill(
 fun ActiveCallCompactPill(
     callerLabel: String,
     durationText: String,
+    modifier: Modifier = Modifier,
+    fillMaxWidth: Boolean = true,
     debugRid: Int? = null
 ) {
     PillContainer(
+        modifier = modifier,
         height = 48.dp,
+        fillMaxWidth = fillMaxWidth,
         debugRid = debugRid,
         debugName = "call_compact"
     ) {
@@ -409,8 +427,485 @@ private fun CallActionButton(
 }
 
 /**
+ * Compact media pill with album art and waveform.
+ */
+@Composable
+fun MediaPill(
+    title: String,
+    subtitle: String,
+    albumArt: Bitmap? = null,
+    modifier: Modifier = Modifier,
+    debugRid: Int? = null
+) {
+    if (BuildConfig.DEBUG && debugRid != null) {
+        val hasArt = albumArt != null
+        LaunchedEffect(title, subtitle, hasArt) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$debugRid EVT=UI_CONTENT type=MEDIA titleLen=${title.length} subtitleLen=${subtitle.length} hasArt=$hasArt"
+            )
+        }
+    }
+    PillContainer(
+        modifier = modifier,
+        height = 48.dp,
+        fillMaxWidth = false,
+        debugRid = debugRid,
+        debugName = "media_compact"
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(debugLayoutModifier(debugRid, "media_row")),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MediaArtwork(
+                albumArt = albumArt,
+                size = 28.dp,
+                debugRid = debugRid
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .then(debugLayoutModifier(debugRid, "media_text_column")),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = debugLayoutModifier(debugRid, "media_title")
+                )
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        text = subtitle,
+                        color = Color(0xFF8E8E93),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = debugLayoutModifier(debugRid, "media_subtitle")
+                    )
+                }
+            }
+
+            WaveformIndicator(
+                modifier = Modifier.then(debugLayoutModifier(debugRid, "media_waveform"))
+            )
+        }
+    }
+}
+
+/**
+ * Expanded media pill with actions.
+ */
+@Composable
+fun MediaExpandedPill(
+    title: String,
+    subtitle: String,
+    albumArt: Bitmap? = null,
+    actions: List<MediaAction> = emptyList(),
+    modifier: Modifier = Modifier,
+    debugRid: Int? = null
+) {
+    if (BuildConfig.DEBUG && debugRid != null) {
+        val hasArt = albumArt != null
+        LaunchedEffect(title, subtitle, hasArt, actions.size) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$debugRid EVT=UI_CONTENT type=MEDIA_EXPANDED titleLen=${title.length} subtitleLen=${subtitle.length} actions=${actions.size} hasArt=$hasArt"
+            )
+        }
+    }
+    PillContainer(
+        modifier = modifier,
+        height = 84.dp,
+        debugRid = debugRid,
+        debugName = "media_expanded"
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(debugLayoutModifier(debugRid, "media_expanded_header")),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MediaArtwork(
+                    albumArt = albumArt,
+                    size = 36.dp,
+                    debugRid = debugRid
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(debugLayoutModifier(debugRid, "media_expanded_text")),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = debugLayoutModifier(debugRid, "media_expanded_title")
+                    )
+                    if (subtitle.isNotEmpty()) {
+                        Text(
+                            text = subtitle,
+                            color = Color(0xFF8E8E93),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = debugLayoutModifier(debugRid, "media_expanded_subtitle")
+                        )
+                    }
+                }
+            }
+
+            if (actions.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(debugLayoutModifier(debugRid, "media_expanded_actions")),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    actions.take(3).forEach { action ->
+                        MediaActionButton(
+                            action = action,
+                            debugRid = debugRid
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Small circular media dot with album art.
+ */
+@Composable
+fun MediaDot(
+    albumArt: Bitmap? = null,
+    size: Dp = 36.dp,
+    modifier: Modifier = Modifier,
+    debugRid: Int? = null
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color(0xCC000000))
+            .then(debugLayoutModifier(debugRid, "media_dot")),
+        contentAlignment = Alignment.Center
+    ) {
+        if (albumArt != null) {
+            Image(
+                bitmap = albumArt.asImageBitmap(),
+                contentDescription = "Album art",
+                modifier = Modifier
+                    .size(size)
+                    .clip(CircleShape)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.MusicNote,
+                contentDescription = "Music",
+                tint = Color(0xFF8E8E93),
+                modifier = Modifier.size(size * 0.45f)
+            )
+        }
+    }
+}
+
+/**
+ * Small circular timer dot with live time.
+ */
+@Composable
+fun TimerDot(
+    baseTimeMs: Long,
+    isCountdown: Boolean,
+    size: Dp = 36.dp,
+    modifier: Modifier = Modifier,
+    debugRid: Int? = null
+) {
+    val timerText by produceState(initialValue = "00:00", baseTimeMs, isCountdown) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            val deltaMs = if (isCountdown) max(0L, baseTimeMs - now) else now - baseTimeMs
+            value = formatDuration(deltaMs / 1000)
+            delay(1000L)
+        }
+    }
+    if (BuildConfig.DEBUG && debugRid != null) {
+        LaunchedEffect(timerText) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$debugRid EVT=UI_CONTENT type=TIMER textLen=${timerText.length} countdown=$isCountdown"
+            )
+        }
+    }
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color(0xCC000000))
+            .then(debugLayoutModifier(debugRid, "timer_dot")),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = timerText,
+            color = Color.White,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * Timer pill for standalone timer activity.
+ */
+@Composable
+fun TimerPill(
+    label: String,
+    baseTimeMs: Long,
+    isCountdown: Boolean,
+    modifier: Modifier = Modifier,
+    debugRid: Int? = null
+) {
+    val timerText by produceState(initialValue = "00:00", baseTimeMs, isCountdown) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            val deltaMs = if (isCountdown) max(0L, baseTimeMs - now) else now - baseTimeMs
+            value = formatDuration(deltaMs / 1000)
+            delay(1000L)
+        }
+    }
+    PillContainer(
+        modifier = modifier,
+        height = 48.dp,
+        fillMaxWidth = false,
+        debugRid = debugRid,
+        debugName = "timer_pill"
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(debugLayoutModifier(debugRid, "timer_row")),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF3A3A3C))
+                    .then(debugLayoutModifier(debugRid, "timer_icon")),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccessTime,
+                    contentDescription = "Timer",
+                    tint = Color(0xFF8E8E93),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .then(debugLayoutModifier(debugRid, "timer_text_column")),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = label,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = debugLayoutModifier(debugRid, "timer_label")
+                )
+                Text(
+                    text = timerText,
+                    color = Color(0xFF34C759),
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    modifier = debugLayoutModifier(debugRid, "timer_value")
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaArtwork(
+    albumArt: Bitmap?,
+    size: Dp,
+    debugRid: Int?
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color(0xFF3A3A3C))
+            .then(debugLayoutModifier(debugRid, "media_artwork")),
+        contentAlignment = Alignment.Center
+    ) {
+        if (albumArt != null) {
+            Image(
+                bitmap = albumArt.asImageBitmap(),
+                contentDescription = "Album art",
+                modifier = Modifier
+                    .size(size)
+                    .clip(CircleShape)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.MusicNote,
+                contentDescription = "Music",
+                tint = Color(0xFF8E8E93),
+                modifier = Modifier.size(size * 0.45f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun WaveformIndicator(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "media_waveform")
+    val bar1 by transition.animateFloat(
+        initialValue = 4f,
+        targetValue = 12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bar1"
+    )
+    val bar2 by transition.animateFloat(
+        initialValue = 6f,
+        targetValue = 16f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bar2"
+    )
+    val bar3 by transition.animateFloat(
+        initialValue = 5f,
+        targetValue = 13f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(550),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bar3"
+    )
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        WaveformBar(height = bar1.dp)
+        WaveformBar(height = bar2.dp)
+        WaveformBar(height = bar3.dp)
+    }
+}
+
+@Composable
+private fun WaveformBar(height: Dp) {
+    Box(
+        modifier = Modifier
+            .width(3.dp)
+            .height(height)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Color(0xFF34C759))
+    )
+}
+
+@Composable
+private fun MediaActionButton(
+    action: MediaAction,
+    debugRid: Int? = null
+) {
+    val label = action.label.ifBlank { "?" }
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF3A3A3C))
+            .clickable {
+                try {
+                    action.actionIntent.send()
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${debugRid ?: 0} EVT=MEDIA_ACTION_OK label=${label.take(12)}"
+                        )
+                    }
+                } catch (e: PendingIntent.CanceledException) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${debugRid ?: 0} EVT=MEDIA_ACTION_FAIL label=${label.take(12)} reason=CANCELED"
+                        )
+                    }
+                } catch (e: Exception) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${debugRid ?: 0} EVT=MEDIA_ACTION_FAIL label=${label.take(12)} reason=${e.javaClass.simpleName}"
+                        )
+                    }
+                }
+            }
+            .then(debugLayoutModifier(debugRid, "media_action_${label.take(6)}")),
+        contentAlignment = Alignment.Center
+    ) {
+        if (action.iconBitmap != null) {
+            Image(
+                bitmap = action.iconBitmap.asImageBitmap(),
+                contentDescription = label,
+                modifier = Modifier.size(18.dp)
+            )
+        } else {
+            Text(
+                text = label.take(1),
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+private fun formatDuration(seconds: Long): String {
+    val minutes = seconds / 60
+    val secs = seconds % 60
+    return String.format("%d:%02d", minutes, secs)
+}
+
+/**
  * iOS-style notification pill with avatar (+ indicator dot), sender info, and message preview.
- * 
+ *
  * @param sender Bold white text showing sender/app name
  * @param message Single-line message preview with reduced opacity
  * @param avatarBitmap Optional avatar/app icon bitmap

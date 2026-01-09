@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import com.coni.hyperisle.service.ContextSignalsAccessibilityService
 
 /**
  * Opens the hidden Xiaomi Autostart management screen.
@@ -129,6 +130,35 @@ fun openAppNotificationSettings(context: Context) {
             intent.data = Uri.parse("package:${context.packageName}")
             context.startActivity(intent)
         }
+    } catch (e: Exception) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = Uri.parse("package:${context.packageName}")
+            context.startActivity(intent)
+        } catch (e2: Exception) {
+            Toast.makeText(context, "Settings not found", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+/**
+ * Checks if HyperIsle Accessibility context service is enabled.
+ */
+fun isContextAccessibilityEnabled(context: Context): Boolean {
+    val component = ComponentName(context, ContextSignalsAccessibilityService::class.java)
+    val enabledServices = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    return enabledServices.split(':').any { it.equals(component.flattenToString(), ignoreCase = true) }
+}
+
+/**
+ * Opens the Accessibility settings screen.
+ */
+fun openAccessibilitySettings(context: Context) {
+    try {
+        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     } catch (e: Exception) {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)

@@ -78,6 +78,15 @@ class AppPreferences(context: Context) {
     private fun String?.deserializeSet(): Set<String> = this?.split(",")?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
     private fun String?.deserializeList(): List<String> = this?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
 
+    private val defaultTypePriorityOrder = listOf(
+        NotificationType.CALL.name,
+        NotificationType.NAVIGATION.name,
+        NotificationType.TIMER.name,
+        NotificationType.MEDIA.name,
+        NotificationType.PROGRESS.name,
+        NotificationType.STANDARD.name
+    )
+
     private suspend fun save(key: String, value: String) {
         dao.insert(AppSetting(key, value))
     }
@@ -118,9 +127,17 @@ class AppPreferences(context: Context) {
         try { IslandLimitMode.valueOf(it ?: IslandLimitMode.MOST_RECENT.name) } catch(e: Exception) { IslandLimitMode.MOST_RECENT }
     }
     val appPriorityListFlow: Flow<List<String>> = dao.getSettingFlow(SettingsKeys.PRIORITY_ORDER).map { it.deserializeList() }
+    val typePriorityOrderFlow: Flow<List<String>> = dao.getSettingFlow(SettingsKeys.TYPE_PRIORITY_ORDER).map { raw ->
+        val parsed = raw.deserializeList().filter { name ->
+            NotificationType.entries.any { it.name == name }
+        }.distinct()
+        val withDefaults = parsed + defaultTypePriorityOrder.filterNot { parsed.contains(it) }
+        if (withDefaults.isEmpty()) defaultTypePriorityOrder else withDefaults
+    }
 
     suspend fun setLimitMode(mode: IslandLimitMode) = save("limit_mode", mode.name)
     suspend fun setAppPriorityOrder(order: List<String>) = save(SettingsKeys.PRIORITY_ORDER, order.joinToString(","))
+    suspend fun setTypePriorityOrder(order: List<String>) = save(SettingsKeys.TYPE_PRIORITY_ORDER, order.joinToString(","))
 
     // --- TYPE CONFIG ---
     fun getAppConfig(packageName: String): Flow<Set<String>> {

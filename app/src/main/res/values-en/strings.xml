@@ -167,6 +167,12 @@
     <string name="move_up">Move Up</string>
     <string name="move_down">Move Down</string>
     <string name="configure_order">Configure apps order</string>
+    <string name="type_priority_title">Type Priority Order</string>
+    <string name="type_priority_desc">Define which notification types win collisions.</string>
+    <string name="type_priority_tip">Topmost type has the highest priority.</string>
+    <string name="configure_type_order">Configure type order</string>
+    <string name="configure_app_order">Configure app order</string>
+    <string name="priority_order_limit_note">Only the top 5 apps are used for priority collisions.</string>
 
     <string name="global_settings">Global Settings</string>
     <string name="island_appearance">Island Appearance</string>
@@ -393,6 +399,11 @@
     <string name="optimization_title">Device Optimization</string>
     <string name="no_restrictions">Set "No Restrictions"</string>
     <string name="enable_overlay">3. Display Over Other Apps</string>
+    <string name="accessibility_context_service_label">HyperIsle Context Signals</string>
+    <string name="accessibility_context_desc">Detects fullscreen, keyboard, and foreground app to keep the island calm. Signals stay on-device.</string>
+    <string name="accessibility_context_title">Accessibility Context (Optional)</string>
+    <string name="accessibility_context_settings_desc">Minimizes the island during fullscreen/video and while the keyboard is open.</string>
+    <string name="accessibility_context_open_settings">Accessibility Settings</string>
 
     <string name="privacy_card_title">Offline First</string>
     <string name="privacy_card_desc">No internet connection required.</string>

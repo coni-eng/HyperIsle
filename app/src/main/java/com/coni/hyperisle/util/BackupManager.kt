@@ -57,7 +57,8 @@ class BackupManager(
                     key == SettingsKeys.GLOBAL_BLOCKED_TERMS || key.endsWith("_blocked") -> selection.includeBlocklist
 
                     // Priority keys
-                    key == SettingsKeys.PRIORITY_ORDER -> selection.includePriorities
+                    key == SettingsKeys.PRIORITY_ORDER || key == SettingsKeys.TYPE_PRIORITY_ORDER ->
+                        selection.includePriorities
 
                     // Everything else is considered "App Settings" (Config, Setup, etc.)
                     else -> selection.includeSettings
@@ -109,7 +110,8 @@ class BackupManager(
                 val key = item.key
                 when {
                     key == SettingsKeys.GLOBAL_BLOCKED_TERMS || key.endsWith("_blocked") -> selection.includeBlocklist
-                    key == SettingsKeys.PRIORITY_ORDER -> selection.includePriorities
+                    key == SettingsKeys.PRIORITY_ORDER || key == SettingsKeys.TYPE_PRIORITY_ORDER ->
+                        selection.includePriorities
                     else -> selection.includeSettings
                 }
             }.map { AppSetting(it.key, it.value) }

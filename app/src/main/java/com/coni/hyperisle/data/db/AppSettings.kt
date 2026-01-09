@@ -19,6 +19,7 @@ object SettingsKeys {
     const val PRIORITY_EDU = "priority_edu_shown"
     const val ALLOWED_PACKAGES = "allowed_packages"
     const val PRIORITY_ORDER = "priority_app_order"
+    const val TYPE_PRIORITY_ORDER = "priority_type_order"
 
     // Global Configs
     const val GLOBAL_FLOAT = "global_float"

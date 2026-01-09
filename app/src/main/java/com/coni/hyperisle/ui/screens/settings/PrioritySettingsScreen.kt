@@ -2,6 +2,7 @@ package com.coni.hyperisle.ui.screens.settings
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,16 +17,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LowPriority
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -39,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -46,13 +51,16 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.IslandLimitMode
+import com.coni.hyperisle.util.HiLog
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrioritySettingsScreen(
     onBack: () -> Unit,
-    onNavigateToPriorityList: () -> Unit // Navigation Callback
+    onNavigateToPriorityList: () -> Unit, // Navigation Callback
+    onNavigateToTypePriorityList: () -> Unit,
+    onNavigateToSmartFeatures: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -113,15 +121,62 @@ fun PrioritySettingsScreen(
 
             // 4. PRIORITY CONFIG BUTTON (Only if Priority is selected)
             if (currentMode == IslandLimitMode.PRIORITY) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = onNavigateToPriorityList,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = stringResource(R.string.group_configuration),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.List, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.configure_order))
+                    Column {
+                        PrioritySetupItem(
+                            icon = Icons.Default.Visibility,
+                            title = stringResource(R.string.accessibility_context_title),
+                            subtitle = stringResource(R.string.accessibility_context_settings_desc),
+                            onClick = {
+                                HiLog.d(
+                                    HiLog.TAG_PREF,
+                                    "PRIORITY_SETUP_NAV",
+                                    mapOf("target" to "smart_features")
+                                )
+                                onNavigateToSmartFeatures()
+                            }
+                        )
+                        HorizontalDivider()
+                        PrioritySetupItem(
+                            icon = Icons.Default.LowPriority,
+                            title = stringResource(R.string.type_priority_title),
+                            subtitle = stringResource(R.string.type_priority_desc),
+                            onClick = {
+                                HiLog.d(
+                                    HiLog.TAG_PREF,
+                                    "PRIORITY_SETUP_NAV",
+                                    mapOf("target" to "type_priority")
+                                )
+                                onNavigateToTypePriorityList()
+                            }
+                        )
+                        HorizontalDivider()
+                        PrioritySetupItem(
+                            icon = Icons.AutoMirrored.Filled.List,
+                            title = stringResource(R.string.priority_order),
+                            subtitle = stringResource(R.string.priority_order_limit_note),
+                            onClick = {
+                                HiLog.d(
+                                    HiLog.TAG_PREF,
+                                    "PRIORITY_SETUP_NAV",
+                                    mapOf("target" to "app_priority")
+                                )
+                                onNavigateToPriorityList()
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -191,4 +246,42 @@ fun BehaviorOptionCard(
             }
         }
     }
+}
+
+@Composable
+private fun PrioritySetupItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        headlineContent = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        supportingContent = {
+            Text(
+                text = subtitle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingContent = {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    )
 }

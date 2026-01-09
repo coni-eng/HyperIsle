@@ -5,6 +5,7 @@ import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.graphics.Bitmap
 import android.content.pm.PackageManager
 import android.os.Build
 import android.service.notification.NotificationListenerService
@@ -56,11 +57,15 @@ import com.coni.hyperisle.util.NotificationChannels
 import com.coni.hyperisle.util.IslandStyleContract
 import com.coni.hyperisle.service.IslandDecisionEngine
 import com.coni.hyperisle.service.IslandKeyManager
+import android.graphics.drawable.Icon
 import com.coni.hyperisle.overlay.CallOverlayState
 import com.coni.hyperisle.overlay.IosCallOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationReplyAction
+import com.coni.hyperisle.overlay.MediaAction
+import com.coni.hyperisle.overlay.MediaOverlayModel
 import com.coni.hyperisle.overlay.OverlayEventBus
+import com.coni.hyperisle.overlay.TimerOverlayModel
 import com.coni.hyperisle.util.ForegroundAppDetector
 import com.coni.hyperisle.util.OverlayPermissionHelper
 import com.coni.hyperisle.util.SystemHyperIslandPoster
@@ -71,11 +76,13 @@ import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.debug.IslandUiState
 import com.coni.hyperisle.debug.ProcCtx
+import com.coni.hyperisle.util.toBitmap
 
 class NotificationReaderService : NotificationListenerService() {
 
     private val TAG = "HyperIsleService"
     private val ISLAND_CHANNEL_ID = "hyper_isle_island_channel"
+    private val EXTRA_CHRONOMETER_COUNTDOWN = "android.chronometerCountDown"
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
 
@@ -88,6 +95,15 @@ class NotificationReaderService : NotificationListenerService() {
     private var allowedPackageSet: Set<String> = emptySet()
     private var currentMode = IslandLimitMode.MOST_RECENT
     private var appPriorityList = emptyList<String>()
+    private val defaultTypePriorityOrder = listOf(
+        NotificationType.CALL.name,
+        NotificationType.NAVIGATION.name,
+        NotificationType.TIMER.name,
+        NotificationType.MEDIA.name,
+        NotificationType.PROGRESS.name,
+        NotificationType.STANDARD.name
+    )
+    private var typePriorityOrder: List<String> = defaultTypePriorityOrder
 
     // NEW: Cache for Global Blocked Terms (for synchronous check)
     private var globalBlockedTerms: Set<String> = emptySet()
@@ -150,6 +166,7 @@ class NotificationReaderService : NotificationListenerService() {
 
     private val UPDATE_INTERVAL_MS = 200L
     private val MAX_ISLANDS = 9
+    private val MAX_PRIORITY_APPS = 5
     private val BRIDGE_CONFIRM_TIMEOUT_MS = 250L
     private val BRIDGE_CONFIRM_POLL_MS = 50L
     private val MIN_VISIBLE_MS = 2500L
@@ -181,7 +198,26 @@ class NotificationReaderService : NotificationListenerService() {
         // Observe settings
         serviceScope.launch { preferences.allowedPackagesFlow.collectLatest { allowedPackageSet = it } }
         serviceScope.launch { preferences.limitModeFlow.collectLatest { currentMode = it } }
-        serviceScope.launch { preferences.appPriorityListFlow.collectLatest { appPriorityList = it } }
+        serviceScope.launch {
+            preferences.appPriorityListFlow.collectLatest { list ->
+                if (list.size > MAX_PRIORITY_APPS) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=LIMIT EVT=APP_PRIORITY_TRIM size=${list.size} max=$MAX_PRIORITY_APPS"
+                    )
+                }
+                appPriorityList = list.take(MAX_PRIORITY_APPS)
+            }
+        }
+        serviceScope.launch {
+            preferences.typePriorityOrderFlow.collectLatest { order ->
+                typePriorityOrder = order
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=TYPE_ORDER EVT=TYPE_ORDER_UPDATE order=${order.joinToString("|")}"
+                )
+            }
+        }
 
         // NEW: Observe Global Blocklist
         serviceScope.launch { preferences.globalBlockedTermsFlow.collectLatest { globalBlockedTerms = it } }
@@ -770,21 +806,6 @@ class NotificationReaderService : NotificationListenerService() {
                     sbn.notification.category == Notification.CATEGORY_STOPWATCH) && chronometerBase > 0
             val isMedia = extras.getStringCompatOrEmpty(Notification.EXTRA_TEMPLATE).contains("MediaStyle")
 
-            // --- MUSIC ISLAND MODE HANDLING (unchanged) ---
-            if (isMedia) {
-                when (musicIslandMode) {
-                    MusicIslandMode.SYSTEM_ONLY -> return
-                    MusicIslandMode.BLOCK_SYSTEM -> {
-                        if (musicBlockApps.contains(sbn.packageName)) {
-                            try { cancelNotification(sbn.key) } catch (e: Exception) {
-                                Log.w(TAG, "Failed to cancel media notification: ${e.message}")
-                            }
-                        }
-                        return
-                    }
-                }
-            }
-
             val type = when {
                 isCall -> NotificationType.CALL
                 isNavigation -> NotificationType.NAVIGATION
@@ -829,6 +850,23 @@ class NotificationReaderService : NotificationListenerService() {
                     insertDigestItem(sbn.packageName, title, text, type.name, "COOLDOWN_DENY", keyHash)
                 }
                 return
+            }
+
+            if (isMedia) {
+                emitMediaOverlayEvent(sbn, title, text, subText)
+                when (musicIslandMode) {
+                    MusicIslandMode.SYSTEM_ONLY -> return
+                    MusicIslandMode.BLOCK_SYSTEM -> {
+                        if (musicBlockApps.contains(sbn.packageName)) {
+                            try { cancelNotification(sbn.key) } catch (e: Exception) {
+                                Log.w(TAG, "Failed to cancel media notification: ${e.message}")
+                            }
+                        }
+                        return
+                    }
+                }
+            } else if (isTimer) {
+                emitTimerOverlayEvent(sbn, title)
             }
 
             // --- SMART PRIORITY CHECK ---
@@ -1680,13 +1718,29 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             }
             IslandLimitMode.PRIORITY -> {
-                val newPriority = appPriorityList.indexOf(newPkg).takeIf { it != -1 } ?: 9999
-                val lowestActiveEntry = activeIslands.maxByOrNull { entry ->
-                    appPriorityList.indexOf(entry.value.packageName).takeIf { it != -1 } ?: 9999
+                val newTypeRank = typePriorityRank(newType)
+                val newAppRank = appPriorityRank(newPkg)
+                val entryComparator = Comparator<Map.Entry<String, ActiveIsland>> { a, b ->
+                    val typeDiff = typePriorityRank(a.value.type) - typePriorityRank(b.value.type)
+                    if (typeDiff != 0) return@Comparator typeDiff
+                    val appDiff = appPriorityRank(a.value.packageName) - appPriorityRank(b.value.packageName)
+                    if (appDiff != 0) return@Comparator appDiff
+                    a.value.postTime.compareTo(b.value.postTime)
                 }
+                val lowestActiveEntry = activeIslands.maxWithOrNull(entryComparator)
                 if (lowestActiveEntry != null) {
-                    val lowestPriority = appPriorityList.indexOf(lowestActiveEntry.value.packageName).takeIf { it != -1 } ?: 9999
-                    if (newPriority < lowestPriority) {
+                    val lowestTypeRank = typePriorityRank(lowestActiveEntry.value.type)
+                    val lowestAppRank = appPriorityRank(lowestActiveEntry.value.packageName)
+                    val shouldReplace = when {
+                        newTypeRank != lowestTypeRank -> newTypeRank < lowestTypeRank
+                        newAppRank != lowestAppRank -> newAppRank < lowestAppRank
+                        else -> false
+                    }
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=LIMIT EVT=PRIORITY_EVAL newType=${newType.name} newTypeRank=$newTypeRank newAppRank=$newAppRank lowestType=${lowestActiveEntry.value.type.name} lowestTypeRank=$lowestTypeRank lowestAppRank=$lowestAppRank decision=${if (shouldReplace) "REPLACE" else "KEEP"}"
+                    )
+                    if (shouldReplace) {
                         if (activeRoutes[lowestActiveEntry.key] == IslandRoute.MIUI_BRIDGE) {
                             NotificationManagerCompat.from(this).cancel(lowestActiveEntry.value.id)
                         }
@@ -1696,6 +1750,15 @@ class NotificationReaderService : NotificationListenerService() {
             }
         }
 
+    }
+
+    private fun typePriorityRank(type: NotificationType): Int {
+        val index = typePriorityOrder.indexOf(type.name)
+        return if (index != -1) index else Int.MAX_VALUE
+    }
+
+    private fun appPriorityRank(packageName: String): Int {
+        return appPriorityList.indexOf(packageName).takeIf { it != -1 } ?: Int.MAX_VALUE
     }
 
     private fun maybeShowNotClearableHint(pkg: String, keyHash: Int) {
@@ -1953,6 +2016,50 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
+    private fun emitMediaOverlayEvent(
+        sbn: StatusBarNotification,
+        title: String,
+        text: String,
+        subText: String
+    ): Boolean {
+        if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) {
+            return false
+        }
+        if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) {
+            return false
+        }
+        val model = buildMediaOverlayModel(sbn, title, text, subText) ?: return false
+        val emitted = OverlayEventBus.emitMedia(model)
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${sbn.key.hashCode()} EVT=OVERLAY_ACTIVITY_EMIT type=MEDIA pkg=${sbn.packageName} titleLen=${model.title.length} subtitleLen=${model.subtitle.length} actions=${model.actions.size} hasArt=${model.albumArt != null} result=${if (emitted) "OK" else "DROP"}"
+            )
+        }
+        return emitted
+    }
+
+    private fun emitTimerOverlayEvent(
+        sbn: StatusBarNotification,
+        title: String
+    ): Boolean {
+        if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) {
+            return false
+        }
+        if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) {
+            return false
+        }
+        val model = buildTimerOverlayModel(sbn, title) ?: return false
+        val emitted = OverlayEventBus.emitTimer(model)
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${sbn.key.hashCode()} EVT=OVERLAY_ACTIVITY_EMIT type=TIMER pkg=${sbn.packageName} labelLen=${model.label.length} countdown=${model.isCountdown} result=${if (emitted) "OK" else "DROP"}"
+            )
+        }
+        return emitted
+    }
+
     private fun emitCallOverlay(
         sbn: StatusBarNotification,
         title: String,
@@ -2011,8 +2118,7 @@ class NotificationReaderService : NotificationListenerService() {
                     "RID=${sbn.key.hashCode()} EVT=OVERLAY_SKIP reason=CALL_UI_FOREGROUND pkg=${sbn.packageName}"
                 )
             }
-            callOverlayVisibility[groupKey] = false
-            return false
+            callOverlayVisibility[groupKey] = true
         }
         return true
     }
@@ -2139,6 +2245,7 @@ class NotificationReaderService : NotificationListenerService() {
             title = if (isOngoingCall) getString(R.string.call_ongoing) else getString(R.string.call_incoming),
             callerName = callerName,
             avatarBitmap = null, // Could extract from notification largeIcon if needed
+            contentIntent = sbn.notification.contentIntent,
             acceptIntent = acceptIntent,
             declineIntent = declineIntent,
             hangUpIntent = hangUpIntent,
@@ -2149,6 +2256,107 @@ class NotificationReaderService : NotificationListenerService() {
             packageName = sbn.packageName,
             notificationKey = sbn.key
         )
+    }
+
+    private fun buildMediaOverlayModel(
+        sbn: StatusBarNotification,
+        title: String,
+        text: String,
+        subText: String
+    ): MediaOverlayModel? {
+        val displayTitle = title.ifBlank { sbn.packageName.substringAfterLast('.') }
+        val displaySubtitle = when {
+            text.isNotEmpty() && subText.isNotEmpty() -> "$text - $subText"
+            text.isNotEmpty() -> text
+            subText.isNotEmpty() -> subText
+            else -> getString(R.string.status_now_playing)
+        }
+        val art = resolveOverlayBitmap(sbn)
+        val actions = extractMediaActions(sbn)
+        return MediaOverlayModel(
+            title = displayTitle,
+            subtitle = displaySubtitle,
+            albumArt = art,
+            actions = actions,
+            contentIntent = sbn.notification.contentIntent,
+            packageName = sbn.packageName,
+            notificationKey = sbn.key
+        )
+    }
+
+    private fun buildTimerOverlayModel(
+        sbn: StatusBarNotification,
+        title: String
+    ): TimerOverlayModel? {
+        val baseTime = sbn.notification.`when`
+        if (baseTime <= 0L) return null
+        val extras = sbn.notification.extras
+        val isCountdown = extras.getBoolean(EXTRA_CHRONOMETER_COUNTDOWN) ||
+            baseTime > System.currentTimeMillis()
+        val label = title.ifBlank { getString(R.string.fallback_timer) }
+        return TimerOverlayModel(
+            label = label,
+            baseTimeMs = baseTime,
+            isCountdown = isCountdown,
+            contentIntent = sbn.notification.contentIntent,
+            packageName = sbn.packageName,
+            notificationKey = sbn.key
+        )
+    }
+
+    private fun extractMediaActions(sbn: StatusBarNotification): List<MediaAction> {
+        val actions = sbn.notification.actions ?: return emptyList()
+        return actions.mapNotNull { action ->
+            val intent = action.actionIntent ?: return@mapNotNull null
+            val label = action.title?.toString()?.trim().orEmpty()
+            val iconBitmap = action.getIcon()?.let { loadIconBitmap(it, sbn.packageName) }
+            MediaAction(label = label, iconBitmap = iconBitmap, actionIntent = intent)
+        }.take(3)
+    }
+
+    private fun resolveOverlayBitmap(sbn: StatusBarNotification): Bitmap? {
+        val extras = sbn.notification.extras
+        val picture = extras.getParcelable<Bitmap>(Notification.EXTRA_PICTURE)
+        if (picture != null) return picture
+        val largeIconBitmap = extras.getParcelable<Bitmap>(Notification.EXTRA_LARGE_ICON)
+        if (largeIconBitmap != null) return largeIconBitmap
+        val largeIcon = sbn.notification.getLargeIcon()
+        if (largeIcon != null) {
+            val bitmap = loadIconBitmap(largeIcon, sbn.packageName)
+            if (bitmap != null) return bitmap
+        }
+        val smallIcon = sbn.notification.smallIcon
+        if (smallIcon != null) {
+            val bitmap = loadIconBitmap(smallIcon, sbn.packageName)
+            if (bitmap != null) return bitmap
+        }
+        return getAppIconBitmap(sbn.packageName)
+    }
+
+    private fun loadIconBitmap(icon: Icon, packageName: String): Bitmap? {
+        return try {
+            val drawable = if (icon.type == Icon.TYPE_RESOURCE) {
+                try {
+                    val targetContext = createPackageContext(packageName, 0)
+                    icon.loadDrawable(targetContext)
+                } catch (e: Exception) {
+                    icon.loadDrawable(this)
+                }
+            } else {
+                icon.loadDrawable(this)
+            }
+            drawable?.toBitmap()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun getAppIconBitmap(packageName: String): Bitmap? {
+        return try {
+            packageManager.getApplicationIcon(packageName).toBitmap()
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**

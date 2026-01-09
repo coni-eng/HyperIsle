@@ -16,6 +16,7 @@ data class IosCallOverlayModel(
     val title: String,
     val callerName: String,
     val avatarBitmap: Bitmap? = null,
+    val contentIntent: PendingIntent? = null,
     val acceptIntent: PendingIntent? = null,
     val declineIntent: PendingIntent? = null,
     val hangUpIntent: PendingIntent? = null,
@@ -23,6 +24,40 @@ data class IosCallOverlayModel(
     val muteIntent: PendingIntent? = null,
     val durationText: String = "",
     val state: CallOverlayState = CallOverlayState.INCOMING,
+    val packageName: String,
+    val notificationKey: String
+)
+
+/**
+ * Action model for media overlay controls.
+ */
+data class MediaAction(
+    val label: String,
+    val iconBitmap: Bitmap? = null,
+    val actionIntent: PendingIntent
+)
+
+/**
+ * Data model for media overlay.
+ */
+data class MediaOverlayModel(
+    val title: String,
+    val subtitle: String,
+    val albumArt: Bitmap? = null,
+    val actions: List<MediaAction> = emptyList(),
+    val contentIntent: PendingIntent? = null,
+    val packageName: String,
+    val notificationKey: String
+)
+
+/**
+ * Data model for timer/chronometer overlay.
+ */
+data class TimerOverlayModel(
+    val label: String,
+    val baseTimeMs: Long,
+    val isCountdown: Boolean,
+    val contentIntent: PendingIntent? = null,
     val packageName: String,
     val notificationKey: String
 )
@@ -59,6 +94,16 @@ sealed class OverlayEvent {
      * Event to show an incoming call pill overlay.
      */
     data class CallEvent(val model: IosCallOverlayModel) : OverlayEvent()
+
+    /**
+     * Event to show a media pill overlay.
+     */
+    data class MediaEvent(val model: MediaOverlayModel) : OverlayEvent()
+
+    /**
+     * Event to show a timer/chronometer overlay.
+     */
+    data class TimerEvent(val model: TimerOverlayModel) : OverlayEvent()
 
     /**
      * Event to show a notification pill overlay.

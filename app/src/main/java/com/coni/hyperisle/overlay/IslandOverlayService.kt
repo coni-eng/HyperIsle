@@ -15,10 +15,13 @@ import android.util.Log
 import android.view.MotionEvent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,8 +33,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,9 +61,16 @@ import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.ui.components.ActiveCallCompactPill
 import com.coni.hyperisle.ui.components.ActiveCallExpandedPill
 import com.coni.hyperisle.ui.components.IncomingCallPill
+import com.coni.hyperisle.ui.components.MediaDot
+import com.coni.hyperisle.ui.components.MediaExpandedPill
+import com.coni.hyperisle.ui.components.MediaPill
 import com.coni.hyperisle.ui.components.MiniNotificationPill
 import com.coni.hyperisle.ui.components.NotificationPill
 import com.coni.hyperisle.ui.components.NotificationReplyPill
+import com.coni.hyperisle.ui.components.TimerDot
+import com.coni.hyperisle.ui.components.TimerPill
+import com.coni.hyperisle.util.AccessibilityContextSignals
+import com.coni.hyperisle.util.AccessibilityContextState
 import com.coni.hyperisle.util.ContextStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +95,11 @@ class IslandOverlayService : Service() {
 
         const val ACTION_START = "com.coni.hyperisle.overlay.START"
         const val ACTION_STOP = "com.coni.hyperisle.overlay.STOP"
+
+        private val CALL_FOREGROUND_PACKAGES = setOf(
+            "com.google.android.dialer",
+            "com.android.incallui"
+        )
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
@@ -91,10 +108,13 @@ class IslandOverlayService : Service() {
     // Current overlay state
     private var currentCallModel: IosCallOverlayModel? by mutableStateOf(null)
     private var currentNotificationModel: IosNotificationOverlayModel? by mutableStateOf(null)
+    private var currentMediaModel: MediaOverlayModel? by mutableStateOf(null)
+    private var currentTimerModel: TimerOverlayModel? by mutableStateOf(null)
     private var isNotificationCollapsed: Boolean by mutableStateOf(false)
     private var autoCollapseJob: Job? = null
     private var stopForegroundJob: Job? = null
     private var isForegroundActive = false
+    private var deferCallOverlay: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
@@ -190,7 +210,12 @@ class IslandOverlayService : Service() {
         stopForegroundJob?.cancel()
         stopForegroundJob = serviceScope.launch {
             delay(3000L)
-            if (!overlayController.isShowing() && currentCallModel == null && currentNotificationModel == null) {
+            if (!overlayController.isShowing() &&
+                currentCallModel == null &&
+                currentNotificationModel == null &&
+                currentMediaModel == null &&
+                currentTimerModel == null
+            ) {
                 Log.d("HyperIsleIsland", "RID=OVL_STOP EVT=OVERLAY_SVC_STOP reason=$reason")
                 stopForeground(true)
                 isForegroundActive = false
@@ -243,11 +268,25 @@ class IslandOverlayService : Service() {
                     return
                 }
             }
+            is OverlayEvent.MediaEvent -> {
+                if (!canRenderOverlay(event.model.notificationKey.hashCode(), allowOnKeyguard = false)) {
+                    scheduleStopIfIdle("RENDER_BLOCKED")
+                    return
+                }
+            }
+            is OverlayEvent.TimerEvent -> {
+                if (!canRenderOverlay(event.model.notificationKey.hashCode(), allowOnKeyguard = false)) {
+                    scheduleStopIfIdle("RENDER_BLOCKED")
+                    return
+                }
+            }
             else -> Unit
         }
 
         when (event) {
             is OverlayEvent.CallEvent -> showCallOverlay(event.model)
+            is OverlayEvent.MediaEvent -> showMediaOverlay(event.model)
+            is OverlayEvent.TimerEvent -> showTimerOverlay(event.model)
             is OverlayEvent.NotificationEvent -> showNotificationOverlay(event.model)
             is OverlayEvent.DismissEvent -> dismissOverlay(event.notificationKey, "NOTIF_REMOVED")
             is OverlayEvent.DismissAllEvent -> dismissAllOverlays("DISMISS_ALL_EVENT")
@@ -277,6 +316,16 @@ class IslandOverlayService : Service() {
         val hasTimer = model.durationText.isNotEmpty()
         val wasCallOverlay =
             overlayController.currentEvent is OverlayEvent.CallEvent && overlayController.isShowing()
+
+        if (deferCallOverlay && currentNotificationModel != null && isOngoing) {
+            currentCallModel = model
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${model.notificationKey.hashCode()} EVT=CALL_DEFERRED reason=NOTIF_PEEK state=${model.state.name}"
+            )
+            return
+        }
+        deferCallOverlay = false
 
         // Cancel any auto-dismiss job (calls don't auto-dismiss)
         autoCollapseJob?.cancel()
@@ -341,31 +390,123 @@ class IslandOverlayService : Service() {
             val activeModel = currentCallModel ?: return@showOverlay
             val activeIsOngoing = activeModel.state == CallOverlayState.ONGOING
             var isExpanded by remember(activeModel.notificationKey) { mutableStateOf(false) }
+            val contextSignals by AccessibilityContextState.signals.collectAsState()
+            val suppressOverlay = shouldSuppressOverlay(
+                contextSignals = contextSignals,
+                overlayPackage = activeModel.packageName,
+                isCall = true
+            )
+            LaunchedEffect(suppressOverlay, contextSignals.foregroundPackage) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=${activeModel.notificationKey.hashCode()} EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=CALL fg=${contextSignals.foregroundPackage ?: "unknown"} pkg=${activeModel.packageName}"
+                    )
+                }
+            }
+            if (suppressOverlay) {
+                Spacer(modifier = Modifier.height(0.dp))
+                return@showOverlay
+            }
 
-            SwipeDismissContainer(
-                rid = activeModel.notificationKey.hashCode(),
-                stateLabel = if (activeIsOngoing) {
-                    if (isExpanded) "expanded" else "compact"
-                } else {
-                    "expanded"
-                },
-                onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
-                onTap = if (activeIsOngoing && isExpanded) {
+            val rid = activeModel.notificationKey.hashCode()
+            val mediaModel = currentMediaModel
+            var isMediaExpanded by remember(activeModel.notificationKey, mediaModel?.notificationKey) {
+                mutableStateOf(false)
+            }
+            LaunchedEffect(mediaModel?.notificationKey) {
+                if (mediaModel == null) {
+                    isMediaExpanded = false
+                }
+            }
+            val showSplit = activeIsOngoing && mediaModel != null && !isExpanded && !isMediaExpanded
+            val layoutState = when {
+                !activeIsOngoing -> "call_incoming"
+                isExpanded -> "call_expanded"
+                isMediaExpanded -> "media_expanded"
+                showSplit -> "call_media_split"
+                else -> "call_compact"
+            }
+            LaunchedEffect(layoutState) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$rid EVT=OVERLAY_LAYOUT type=CALL state=$layoutState"
+                    )
+                }
+            }
+            val containerTap: (() -> Unit)? = when {
+                activeIsOngoing && isExpanded -> {
                     { isExpanded = false }
-                } else {
-                    null
-                },
-                onLongPress = if (activeIsOngoing) {
+                }
+                isMediaExpanded -> {
+                    { isMediaExpanded = false }
+                }
+                else -> null
+            }
+            val containerLongPress: (() -> Unit)? =
+                if (activeIsOngoing && !showSplit && !isMediaExpanded) {
                     { isExpanded = true }
                 } else {
                     null
-                },
+                }
+
+            SwipeDismissContainer(
+                rid = rid,
+                stateLabel = layoutState,
+                onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
+                onTap = containerTap,
+                onLongPress = containerLongPress,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                if (activeIsOngoing) {
-                    if (isExpanded) {
+                when {
+                    !activeIsOngoing -> {
+                        IncomingCallPill(
+                            title = activeModel.title,
+                            name = activeModel.callerName,
+                            avatarBitmap = activeModel.avatarBitmap,
+                            onDecline = {
+                                Log.d(
+                                    "HyperIsleIsland",
+                                    "RID=$rid EVT=BTN_CALL_DECLINE_CLICK pkg=${activeModel.packageName}"
+                                )
+                                val result = handleCallAction(
+                                    pendingIntent = activeModel.declineIntent,
+                                    actionType = "decline",
+                                    rid = rid,
+                                    pkg = activeModel.packageName
+                                )
+                                val resultLabel = if (result) "OK" else "FAIL"
+                                Log.d(
+                                    "HyperIsleIsland",
+                                    "RID=$rid EVT=BTN_CALL_DECLINE_RESULT result=$resultLabel pkg=${activeModel.packageName}"
+                                )
+                                dismissAllOverlays("CALL_DECLINE")
+                            },
+                            onAccept = {
+                                Log.d(
+                                    "HyperIsleIsland",
+                                    "RID=$rid EVT=BTN_CALL_ACCEPT_CLICK pkg=${activeModel.packageName}"
+                                )
+                                val result = handleCallAction(
+                                    pendingIntent = activeModel.acceptIntent,
+                                    actionType = "accept",
+                                    rid = rid,
+                                    pkg = activeModel.packageName
+                                )
+                                val resultLabel = if (result) "OK" else "FAIL"
+                                Log.d(
+                                    "HyperIsleIsland",
+                                    "RID=$rid EVT=BTN_CALL_ACCEPT_RESULT result=$resultLabel pkg=${activeModel.packageName}"
+                                )
+                                dismissAllOverlays("CALL_ACCEPT")
+                            },
+                            debugRid = rid
+                        )
+                    }
+                    isExpanded -> {
                         ActiveCallExpandedPill(
                             callerLabel = activeModel.callerName,
                             durationText = activeModel.durationText,
@@ -374,7 +515,7 @@ class IslandOverlayService : Service() {
                                     handleCallAction(
                                         pendingIntent = it,
                                         actionType = "hangup",
-                                        rid = activeModel.notificationKey.hashCode(),
+                                        rid = rid,
                                         pkg = activeModel.packageName
                                     )
                                 }
@@ -384,7 +525,7 @@ class IslandOverlayService : Service() {
                                     handleCallAction(
                                         pendingIntent = it,
                                         actionType = "speaker",
-                                        rid = activeModel.notificationKey.hashCode(),
+                                        rid = rid,
                                         pkg = activeModel.packageName
                                     )
                                 }
@@ -394,71 +535,186 @@ class IslandOverlayService : Service() {
                                     handleCallAction(
                                         pendingIntent = it,
                                         actionType = "mute",
-                                        rid = activeModel.notificationKey.hashCode(),
+                                        rid = rid,
                                         pkg = activeModel.packageName
                                     )
                                 }
                             },
-                            debugRid = activeModel.notificationKey.hashCode()
+                            debugRid = rid
                         )
-                    } else {
+                    }
+                    isMediaExpanded && mediaModel != null -> {
+                        MediaExpandedPill(
+                            title = mediaModel.title,
+                            subtitle = mediaModel.subtitle,
+                            albumArt = mediaModel.albumArt,
+                            actions = mediaModel.actions,
+                            modifier = Modifier.fillMaxWidth(),
+                            debugRid = rid
+                        )
+                    }
+                    showSplit -> {
+                        val media = mediaModel ?: return@SwipeDismissContainer
+                        val gapWidth by animateDpAsState(
+                            targetValue = 10.dp,
+                            label = "call_media_gap"
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            ActiveCallCompactPill(
+                                callerLabel = activeModel.callerName,
+                                durationText = activeModel.durationText,
+                                modifier = Modifier
+                                    .widthIn(min = 180.dp, max = 240.dp)
+                                    .combinedClickable(
+                                        onClick = {
+                                            Log.d(
+                                                "HyperIsleIsland",
+                                                "RID=$rid EVT=SPLIT_TAP target=CALL pkg=${activeModel.packageName}"
+                                            )
+                                            handleNotificationTap(
+                                                contentIntent = activeModel.contentIntent,
+                                                rid = rid,
+                                                pkg = activeModel.packageName
+                                            )
+                                        },
+                                        onLongClick = {
+                                            isMediaExpanded = false
+                                            isExpanded = true
+                                        }
+                                    ),
+                                fillMaxWidth = false,
+                                debugRid = rid
+                            )
+                            Spacer(modifier = Modifier.width(gapWidth))
+                            MediaDot(
+                                albumArt = media.albumArt,
+                                modifier = Modifier.combinedClickable(
+                                    onClick = {
+                                        val mediaRid = media.notificationKey.hashCode()
+                                        Log.d(
+                                            "HyperIsleIsland",
+                                            "RID=$mediaRid EVT=SPLIT_TAP target=MEDIA pkg=${media.packageName}"
+                                        )
+                                        handleNotificationTap(
+                                            contentIntent = media.contentIntent,
+                                            rid = mediaRid,
+                                            pkg = media.packageName
+                                        )
+                                    },
+                                    onLongClick = {
+                                        isExpanded = false
+                                        isMediaExpanded = true
+                                    }
+                                ),
+                                debugRid = rid
+                            )
+                        }
+                    }
+                    else -> {
                         ActiveCallCompactPill(
                             callerLabel = activeModel.callerName,
                             durationText = activeModel.durationText,
-                            debugRid = activeModel.notificationKey.hashCode()
+                            debugRid = rid
                         )
                     }
-                } else {
-                    IncomingCallPill(
-                        title = activeModel.title,
-                        name = activeModel.callerName,
-                        avatarBitmap = activeModel.avatarBitmap,
-                        onDecline = {
-                            Log.d(
-                                "HyperIsleIsland",
-                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_CLICK pkg=${activeModel.packageName}"
-                            )
-                            val result = handleCallAction(
-                                pendingIntent = activeModel.declineIntent,
-                                actionType = "decline",
-                                rid = activeModel.notificationKey.hashCode(),
-                                pkg = activeModel.packageName
-                            )
-                            val resultLabel = if (result) "OK" else "FAIL"
-                            Log.d(
-                                "HyperIsleIsland",
-                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_DECLINE_RESULT result=$resultLabel pkg=${activeModel.packageName}"
-                            )
-                            dismissAllOverlays("CALL_DECLINE")
-                        },
-                        onAccept = {
-                            Log.d(
-                                "HyperIsleIsland",
-                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_CLICK pkg=${activeModel.packageName}"
-                            )
-                            val result = handleCallAction(
-                                pendingIntent = activeModel.acceptIntent,
-                                actionType = "accept",
-                                rid = activeModel.notificationKey.hashCode(),
-                                pkg = activeModel.packageName
-                            )
-                            val resultLabel = if (result) "OK" else "FAIL"
-                            Log.d(
-                                "HyperIsleIsland",
-                                "RID=${activeModel.notificationKey.hashCode()} EVT=BTN_CALL_ACCEPT_RESULT result=$resultLabel pkg=${activeModel.packageName}"
-                            )
-                            dismissAllOverlays("CALL_ACCEPT")
-                        },
-                        debugRid = activeModel.notificationKey.hashCode()
-                    )
                 }
             }
         }
     }
 
+    private fun showMediaOverlay(model: MediaOverlayModel) {
+        currentMediaModel = model
+        if (currentCallModel != null || currentNotificationModel != null) {
+            return
+        }
+        showActivityOverlay(OverlayEvent.MediaEvent(model))
+    }
+
+    private fun showTimerOverlay(model: TimerOverlayModel) {
+        currentTimerModel = model
+        if (currentCallModel != null || currentNotificationModel != null) {
+            return
+        }
+        showActivityOverlay(OverlayEvent.TimerEvent(model))
+    }
+
+    private fun showActivityOverlay(event: OverlayEvent) {
+        if (currentMediaModel == null && currentTimerModel == null) {
+            scheduleStopIfIdle("ACTIVITY_EMPTY")
+            return
+        }
+        val isActivityOverlay =
+            overlayController.currentEvent is OverlayEvent.MediaEvent ||
+                overlayController.currentEvent is OverlayEvent.TimerEvent
+        if (isActivityOverlay && overlayController.isShowing()) {
+            return
+        }
+
+        autoCollapseJob?.cancel()
+        stopForegroundJob?.cancel()
+        isNotificationCollapsed = false
+        currentNotificationModel = null
+        deferCallOverlay = false
+
+        val rid = when (event) {
+            is OverlayEvent.MediaEvent -> event.model.notificationKey.hashCode()
+            is OverlayEvent.TimerEvent -> event.model.notificationKey.hashCode()
+            else -> 0
+        }
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=OVERLAY_ACTIVITY_SHOW media=${currentMediaModel != null} timer=${currentTimerModel != null}"
+            )
+        }
+
+        overlayController.showOverlay(event) {
+            ActivityOverlayContent()
+        }
+    }
+
+    private fun showActivityOverlayFromState() {
+        val media = currentMediaModel
+        val timer = currentTimerModel
+        val event = when {
+            media != null -> OverlayEvent.MediaEvent(media)
+            timer != null -> OverlayEvent.TimerEvent(timer)
+            else -> null
+        } ?: return
+        showActivityOverlay(event)
+    }
+
     private fun showNotificationOverlay(model: IosNotificationOverlayModel) {
         Log.d(TAG, "Showing notification overlay from: ${model.sender}")
         val rid = model.notificationKey.hashCode()
+        val contextSignals = AccessibilityContextState.snapshot()
+        val contextRestricted = contextSignals.isFullscreen || contextSignals.isImeVisible
+        val callState = currentCallModel?.state
+        if (callState == CallOverlayState.INCOMING) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=OVERLAY_SKIP reason=CALL_INCOMING pkg=${model.packageName}"
+            )
+            return
+        }
+        val restoreCallAfterDismiss = callState == CallOverlayState.ONGOING
+        deferCallOverlay = restoreCallAfterDismiss
+        if (contextRestricted) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=OVERLAY_CONTEXT fullscreen=${contextSignals.isFullscreen} ime=${contextSignals.isImeVisible} fg=${contextSignals.foregroundPackage ?: "unknown"}"
+            )
+        }
+        if (restoreCallAfterDismiss) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=OVERLAY_PEEK reason=CALL_ONGOING pkg=${model.packageName}"
+            )
+        }
         Log.d(
             "HyperIsleIsland",
             "RID=$rid EVT=OVERLAY_META type=NOTIFICATION pkg=${model.packageName} senderLen=${model.sender.length} messageLen=${model.message.length} timeLen=${model.timeLabel.length} hasAvatar=${model.avatarBitmap != null} hasReplyAction=${model.replyAction != null}"
@@ -492,15 +748,37 @@ class IslandOverlayService : Service() {
         // Cancel previous auto-collapse job
         autoCollapseJob?.cancel()
         stopForegroundJob?.cancel()
-        currentCallModel = null
+        if (!restoreCallAfterDismiss) {
+            currentCallModel = null
+        }
         currentNotificationModel = model
-        isNotificationCollapsed = false
-        scheduleAutoCollapse(model)
+        isNotificationCollapsed = contextRestricted
+        scheduleAutoCollapse(model, restoreCallAfterDismiss)
 
         overlayController.showOverlay(OverlayEvent.NotificationEvent(model)) {
             var isReplying by remember(model.notificationKey) { mutableStateOf(false) }
             var replyText by remember(model.notificationKey) { mutableStateOf("") }
             val replyAction = model.replyAction
+            val allowExpand = !contextRestricted
+            val allowReply = replyAction != null && !contextRestricted
+            val contextState by AccessibilityContextState.signals.collectAsState()
+            val suppressOverlay = shouldSuppressOverlay(
+                contextSignals = contextState,
+                overlayPackage = model.packageName,
+                isCall = false
+            )
+            LaunchedEffect(suppressOverlay, contextState.foregroundPackage) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$rid EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=NOTIFICATION fg=${contextState.foregroundPackage ?: "unknown"} pkg=${model.packageName}"
+                    )
+                }
+            }
+            if (suppressOverlay) {
+                Spacer(modifier = Modifier.height(0.dp))
+                return@showOverlay
+            }
 
             Box(
                 modifier = Modifier
@@ -518,9 +796,20 @@ class IslandOverlayService : Service() {
                             return@SwipeDismissContainer
                         }
                         if (isNotificationCollapsed) {
-                            isNotificationCollapsed = false
-                            scheduleAutoCollapse(model)
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
+                            if (allowExpand) {
+                                isNotificationCollapsed = false
+                                scheduleAutoCollapse(model, restoreCallAfterDismiss)
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
+                            } else {
+                                Log.d(
+                                    "HyperIsleIsland",
+                                    "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY_CONTEXT pkg=${model.packageName}"
+                                )
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                                handleNotificationTap(model.contentIntent, rid, model.packageName)
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                                dismissFromUser("TAP_OPEN")
+                            }
                         } else {
                             Log.d(
                                 "HyperIsleIsland",
@@ -529,14 +818,14 @@ class IslandOverlayService : Service() {
                             Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
                             handleNotificationTap(model.contentIntent, rid, model.packageName)
                             Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
-                            dismissAllOverlays("TAP_OPEN")
+                            dismissFromUser("TAP_OPEN")
                         }
                     },
-                    onLongPress = if (replyAction != null) {
+                    onLongPress = if (allowReply) {
                         {
                             if (isNotificationCollapsed) {
                                 isNotificationCollapsed = false
-                                scheduleAutoCollapse(model)
+                                scheduleAutoCollapse(model, restoreCallAfterDismiss)
                             }
                             isReplying = true
                             Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
@@ -591,16 +880,16 @@ class IslandOverlayService : Service() {
                                     }
                                     Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
                                     val result = sendInlineReply(replyAction, trimmed, rid)
-                                    if (result) {
-                                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
-                                        isReplying = false
-                                        replyText = ""
-                                        dismissAllOverlays("REPLY_SENT")
-                                    }
-                                },
-                                sendLabel = getString(R.string.overlay_send),
-                                debugRid = rid
-                            )
+                                        if (result) {
+                                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
+                                            isReplying = false
+                                            replyText = ""
+                                            dismissFromUser("REPLY_SENT")
+                                        }
+                                    },
+                                    sendLabel = getString(R.string.overlay_send),   
+                                    debugRid = rid
+                                )
                         } else {
                             NotificationPill(
                                 sender = model.sender,
@@ -620,16 +909,195 @@ class IslandOverlayService : Service() {
         }
     }
 
-    private fun scheduleAutoCollapse(model: IosNotificationOverlayModel) {
+    @Composable
+    private fun ActivityOverlayContent() {
+        val mediaModel = currentMediaModel
+        val timerModel = currentTimerModel
+        val layoutState = when {
+            mediaModel != null && timerModel != null -> "media_timer_split"
+            mediaModel != null -> "media_only"
+            timerModel != null -> "timer_only"
+            else -> "idle"
+        }
+        val contextSignals by AccessibilityContextState.signals.collectAsState()
+        val suppressOverlay = contextSignals.foregroundPackage?.let { fg ->
+            (mediaModel?.packageName == fg) || (timerModel?.packageName == fg)
+        } ?: false
+        val rid = mediaModel?.notificationKey?.hashCode()
+            ?: timerModel?.notificationKey?.hashCode()
+            ?: 0
+        LaunchedEffect(layoutState) {
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$rid EVT=OVERLAY_LAYOUT type=ACTIVITY state=$layoutState"
+                )
+            }
+        }
+        LaunchedEffect(suppressOverlay, contextSignals.foregroundPackage) {
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$rid EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=ACTIVITY fg=${contextSignals.foregroundPackage ?: "unknown"}"
+                )
+            }
+        }
+        if (suppressOverlay || layoutState == "idle") {
+            Spacer(modifier = Modifier.height(0.dp))
+            return
+        }
+        var isMediaExpanded by remember(mediaModel?.notificationKey) { mutableStateOf(false) }
+        LaunchedEffect(mediaModel?.notificationKey) {
+            if (mediaModel == null) {
+                isMediaExpanded = false
+            }
+        }
+        val containerTap: (() -> Unit)? = if (isMediaExpanded) {
+            { isMediaExpanded = false }
+        } else {
+            null
+        }
+
+        SwipeDismissContainer(
+            rid = rid,
+            stateLabel = layoutState,
+            onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
+            onTap = containerTap,
+            onLongPress = null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            when {
+                isMediaExpanded && mediaModel != null -> {
+                    MediaExpandedPill(
+                        title = mediaModel.title,
+                        subtitle = mediaModel.subtitle,
+                        albumArt = mediaModel.albumArt,
+                        actions = mediaModel.actions,
+                        modifier = Modifier.fillMaxWidth(),
+                        debugRid = rid
+                    )
+                }
+                mediaModel != null && timerModel != null -> {
+                    val gapWidth by animateDpAsState(
+                        targetValue = 10.dp,
+                        label = "media_timer_gap"
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        MediaPill(
+                            title = mediaModel.title,
+                            subtitle = mediaModel.subtitle,
+                            albumArt = mediaModel.albumArt,
+                            modifier = Modifier
+                                .widthIn(min = 200.dp, max = 260.dp)
+                                .combinedClickable(
+                                    onClick = {
+                                        Log.d(
+                                            "HyperIsleIsland",
+                                            "RID=$rid EVT=SPLIT_TAP target=MEDIA pkg=${mediaModel.packageName}"
+                                        )
+                                        handleNotificationTap(
+                                            contentIntent = mediaModel.contentIntent,
+                                            rid = rid,
+                                            pkg = mediaModel.packageName
+                                        )
+                                    },
+                                    onLongClick = { isMediaExpanded = true }
+                                ),
+                            debugRid = rid
+                        )
+                        Spacer(modifier = Modifier.width(gapWidth))
+                        TimerDot(
+                            baseTimeMs = timerModel.baseTimeMs,
+                            isCountdown = timerModel.isCountdown,
+                            modifier = Modifier.combinedClickable(
+                                onClick = {
+                                    val timerRid = timerModel.notificationKey.hashCode()
+                                    Log.d(
+                                        "HyperIsleIsland",
+                                        "RID=$timerRid EVT=SPLIT_TAP target=TIMER pkg=${timerModel.packageName}"
+                                    )
+                                    handleNotificationTap(
+                                        contentIntent = timerModel.contentIntent,
+                                        rid = timerRid,
+                                        pkg = timerModel.packageName
+                                    )
+                                }
+                            ),
+                            debugRid = rid
+                        )
+                    }
+                }
+                mediaModel != null -> {
+                    MediaPill(
+                        title = mediaModel.title,
+                        subtitle = mediaModel.subtitle,
+                        albumArt = mediaModel.albumArt,
+                        modifier = Modifier
+                            .widthIn(min = 220.dp, max = 280.dp)
+                            .combinedClickable(
+                                onClick = {
+                                    handleNotificationTap(
+                                        contentIntent = mediaModel.contentIntent,
+                                        rid = rid,
+                                        pkg = mediaModel.packageName
+                                    )
+                                },
+                                onLongClick = { isMediaExpanded = true }
+                            ),
+                        debugRid = rid
+                    )
+                }
+                timerModel != null -> {
+                    TimerPill(
+                        label = timerModel.label,
+                        baseTimeMs = timerModel.baseTimeMs,
+                        isCountdown = timerModel.isCountdown,
+                        modifier = Modifier
+                            .widthIn(min = 160.dp, max = 220.dp)
+                            .combinedClickable(
+                                onClick = {
+                                    val timerRid = timerModel.notificationKey.hashCode()
+                                    handleNotificationTap(
+                                        contentIntent = timerModel.contentIntent,
+                                        rid = timerRid,
+                                        pkg = timerModel.packageName
+                                    )
+                                }
+                            ),
+                        debugRid = rid
+                    )
+                }
+            }
+        }
+    }
+
+    private fun scheduleAutoCollapse(
+        model: IosNotificationOverlayModel,
+        restoreCallAfterDismiss: Boolean
+    ) {
         autoCollapseJob?.cancel()
         val collapseAfterMs = model.collapseAfterMs
         if (collapseAfterMs == null || collapseAfterMs <= 0L) return
 
         autoCollapseJob = serviceScope.launch {
             delay(collapseAfterMs)
-            if (currentNotificationModel?.notificationKey == model.notificationKey && !isNotificationCollapsed) {
-                isNotificationCollapsed = true
-                Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_COLLAPSE reason=TIMEOUT")
+            if (currentNotificationModel?.notificationKey == model.notificationKey) {
+                if (restoreCallAfterDismiss) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_DISMISS reason=TIMEOUT"
+                    )
+                    dismissNotificationOverlay("TIMEOUT", restoreCall = true)
+                } else if (!isNotificationCollapsed) {
+                    isNotificationCollapsed = true
+                    Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_COLLAPSE reason=TIMEOUT")
+                }
             }
         }
     }
@@ -701,21 +1169,113 @@ class IslandOverlayService : Service() {
         }
     }
 
-    private fun dismissOverlay(notificationKey: String?, reason: String) {
+    private fun dismissOverlay(notificationKey: String?, reason: String) {      
         if (notificationKey == null) {
             dismissAllOverlays(reason)
             return
         }
 
         // Only dismiss if the key matches current overlay
-        val shouldDismiss = when {
-            currentCallModel?.notificationKey == notificationKey -> true
-            currentNotificationModel?.notificationKey == notificationKey -> true
-            else -> false
+        val matchesCall = currentCallModel?.notificationKey == notificationKey
+        val matchesNotification = currentNotificationModel?.notificationKey == notificationKey
+        val matchesMedia = currentMediaModel?.notificationKey == notificationKey
+        val matchesTimer = currentTimerModel?.notificationKey == notificationKey
+
+        if (matchesCall && currentNotificationModel != null) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${notificationKey.hashCode()} EVT=CALL_CLEARED reason=$reason"
+            )
+            currentCallModel = null
+            deferCallOverlay = false
+            return
         }
 
-        if (shouldDismiss) {
-            dismissAllOverlays(reason)
+        if (matchesMedia) {
+            currentMediaModel = null
+            if (currentCallModel == null && currentNotificationModel == null) {
+                if (currentTimerModel != null) {
+                    showActivityOverlayFromState()
+                } else {
+                    dismissAllOverlays(reason)
+                }
+            }
+            return
+        }
+
+        if (matchesTimer) {
+            currentTimerModel = null
+            if (currentCallModel == null && currentNotificationModel == null) {
+                if (currentMediaModel != null) {
+                    showActivityOverlayFromState()
+                } else {
+                    dismissAllOverlays(reason)
+                }
+            }
+            return
+        }
+
+        if (matchesNotification) {
+            val restoreCall = currentCallModel?.state == CallOverlayState.ONGOING
+            dismissNotificationOverlay(reason, restoreCall)
+            return
+        }
+
+        if (matchesCall) {
+            currentCallModel = null
+            if (currentMediaModel != null || currentTimerModel != null) {
+                showActivityOverlayFromState()
+            } else {
+                dismissAllOverlays(reason)
+            }
+        }
+    }
+
+    private fun dismissNotificationOverlay(reason: String, restoreCall: Boolean) {
+        val rid = currentNotificationModel?.notificationKey?.hashCode() ?: 0
+        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=$reason")
+        if (BuildConfig.DEBUG) {
+            val pkg = currentNotificationModel?.packageName
+            Log.d("HyperIsleIsland", "RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=NOTIFICATION pkg=$pkg")
+            IslandRuntimeDump.recordOverlay(
+                null,
+                "OVERLAY_DISMISS",
+                reason = "dismissNotification",
+                pkg = pkg,
+                overlayType = "NOTIFICATION"
+            )
+            val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
+                rid = IslandUiSnapshotLogger.rid(),
+                pkg = pkg,
+                type = "NOTIFICATION"
+            )
+            IslandUiSnapshotLogger.logEvent(
+                ctx = snapshotCtx,
+                evt = "OVERLAY_DISMISS",
+                route = IslandUiSnapshotLogger.Route.APP_OVERLAY,
+                reason = reason
+            )
+        }
+        autoCollapseJob?.cancel()
+        currentNotificationModel = null
+        isNotificationCollapsed = false
+        deferCallOverlay = false
+        overlayController.removeOverlay()
+        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
+        if (restoreCall && currentCallModel != null) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=OVERLAY_RESTORE reason=$reason type=CALL"
+            )
+            showCallOverlay(currentCallModel ?: return)
+        } else if (currentMediaModel != null || currentTimerModel != null) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=OVERLAY_RESTORE reason=$reason type=ACTIVITY"
+            )
+            showActivityOverlayFromState()
+        } else {
+            scheduleStopIfIdle(reason)
         }
     }
 
@@ -728,9 +1288,13 @@ class IslandOverlayService : Service() {
             val overlayType = when {
                 currentCallModel != null -> "CALL"
                 currentNotificationModel != null -> "NOTIFICATION"
+                currentMediaModel != null || currentTimerModel != null -> "ACTIVITY"
                 else -> "NONE"
             }
-            val pkg = currentCallModel?.packageName ?: currentNotificationModel?.packageName
+            val pkg = currentCallModel?.packageName
+                ?: currentNotificationModel?.packageName
+                ?: currentMediaModel?.packageName
+                ?: currentTimerModel?.packageName
             Log.d("HyperIsleIsland", "RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=$overlayType pkg=$pkg")
             IslandRuntimeDump.recordOverlay(null, "OVERLAY_DISMISS", reason = "dismissAllOverlays", pkg = pkg, overlayType = overlayType)
             // UI Snapshot: OVERLAY_DISMISS
@@ -749,15 +1313,38 @@ class IslandOverlayService : Service() {
         autoCollapseJob?.cancel()
         currentCallModel = null
         currentNotificationModel = null
+        currentMediaModel = null
+        currentTimerModel = null
         isNotificationCollapsed = false
+        deferCallOverlay = false
         overlayController.removeOverlay()
         Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
         Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
         scheduleStopIfIdle(reason)
     }
 
+    private fun shouldSuppressOverlay(
+        contextSignals: AccessibilityContextSignals,
+        overlayPackage: String,
+        isCall: Boolean
+    ): Boolean {
+        val foregroundPackage = contextSignals.foregroundPackage ?: return false
+        val isForegroundTarget = if (isCall) {
+            foregroundPackage == overlayPackage || CALL_FOREGROUND_PACKAGES.contains(foregroundPackage)
+        } else {
+            foregroundPackage == overlayPackage
+        }
+        return isForegroundTarget
+    }
+
     private fun dismissFromUser(reason: String) {
-        dismissAllOverlays(reason)
+        val restoreCall = currentNotificationModel != null &&
+            currentCallModel?.state == CallOverlayState.ONGOING
+        if (currentNotificationModel != null) {
+            dismissNotificationOverlay(reason, restoreCall)
+        } else {
+            dismissAllOverlays(reason)
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
