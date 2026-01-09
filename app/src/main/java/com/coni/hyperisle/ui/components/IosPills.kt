@@ -665,7 +665,7 @@ private fun PreviewNotificationPillWithReply() {
             replyText = replyText,
             onReplyChange = { replyText = it },
             onSend = { replyText = "" },
-            sendLabel = stringResource(R.string.overlay_send)
+            sendLabel = "Gönder"
         )
     }
 }
