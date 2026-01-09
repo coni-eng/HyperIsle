@@ -1,6 +1,5 @@
 package com.coni.hyperisle.ui.components
 
-import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -21,24 +20,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.Category
-import androidx.compose.material.icons.outlined.Chat
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Place
-import androidx.compose.material.icons.outlined.SportsEsports
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -56,7 +41,6 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -66,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.R
 import com.coni.hyperisle.ui.AppCategory
 import com.coni.hyperisle.ui.SortOption
+import com.coni.hyperisle.ui.appCategoryIcon
+import com.coni.hyperisle.ui.appCategoryLabelRes
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -173,7 +159,7 @@ fun AppListFilterSection(
                             label = "IconTransition"
                         ) { selected ->
                             Icon(
-                                imageVector = getCategoryIcon(category, selected),
+                                imageVector = appCategoryIcon(category, selected),
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -181,7 +167,7 @@ fun AppListFilterSection(
 
                         Spacer(Modifier.width(8.dp))
                         // Localized Text
-                        Text(stringResource(getCategoryLabelRes(category)))
+                        Text(stringResource(appCategoryLabelRes(category)))
                     }
                 }
             }
@@ -194,41 +180,3 @@ fun AppListFilterSection(
     }
 }
 
-// Helper: Map Category to Resource ID
-@StringRes
-private fun getCategoryLabelRes(category: AppCategory): Int {
-    return when (category) {
-        AppCategory.ALL -> R.string.cat_all
-        AppCategory.GAMES -> R.string.cat_games
-        AppCategory.MESSAGING -> R.string.cat_messaging
-        AppCategory.MUSIC -> R.string.cat_music
-        AppCategory.MAPS -> R.string.cat_nav
-        AppCategory.TIMER -> R.string.cat_timer
-        AppCategory.OTHER -> R.string.cat_other
-    }
-}
-
-// Helper: Map Category to Icons
-private fun getCategoryIcon(category: AppCategory, isSelected: Boolean): ImageVector {
-    return if (isSelected) {
-        when (category) {
-            AppCategory.ALL -> Icons.Filled.Apps
-            AppCategory.GAMES -> Icons.Filled.SportsEsports
-            AppCategory.MESSAGING -> Icons.Filled.Chat
-            AppCategory.MUSIC -> Icons.Filled.MusicNote
-            AppCategory.MAPS -> Icons.Filled.Place
-            AppCategory.TIMER -> Icons.Filled.Timer
-            AppCategory.OTHER -> Icons.Filled.Category
-        }
-    } else {
-        when (category) {
-            AppCategory.ALL -> Icons.Outlined.Apps
-            AppCategory.GAMES -> Icons.Outlined.SportsEsports
-            AppCategory.MESSAGING -> Icons.Outlined.Chat
-            AppCategory.MUSIC -> Icons.Outlined.MusicNote
-            AppCategory.MAPS -> Icons.Outlined.Place
-            AppCategory.TIMER -> Icons.Outlined.Timer
-            AppCategory.OTHER -> Icons.Outlined.Category
-        }
-    }
-}

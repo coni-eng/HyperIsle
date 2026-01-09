@@ -665,6 +665,14 @@ class AppPreferences(context: Context) {
         return dao.getSettingFlow(key).map { it.toBoolean(false) }
     }
 
+    val shadeCancelEnabledPackagesFlow: Flow<Set<String>> =
+        dao.getByPrefixFlow("shade_cancel_").map { entries ->
+            entries
+                .filter { !it.key.contains("_mode_") && it.value.toBoolean(false) }
+                .map { it.key.removePrefix("shade_cancel_") }
+                .toSet()
+        }
+
     /**
      * Sets whether to cancel notifications from system shade for a specific app.
      * Setting to false removes the key (default behavior).
@@ -675,6 +683,12 @@ class AppPreferences(context: Context) {
             remove(key)
         } else {
             save(key, enabled.toString())
+        }
+    }
+
+    suspend fun setShadeCancelForPackages(packageNames: Collection<String>, enabled: Boolean) {
+        packageNames.forEach { packageName ->
+            setShadeCancel(packageName, enabled)
         }
     }
 

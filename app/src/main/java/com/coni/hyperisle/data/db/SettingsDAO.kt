@@ -32,6 +32,9 @@ interface SettingsDao {
     @Query("SELECT * FROM settings WHERE `key` LIKE :prefix || '%'")
     suspend fun getByPrefix(prefix: String): List<AppSetting>
 
+    @Query("SELECT * FROM settings WHERE `key` LIKE :prefix || '%'")
+    fun getByPrefixFlow(prefix: String): Flow<List<AppSetting>>
+
     @Query("DELETE FROM settings WHERE `key` LIKE :prefix || '%'")
     suspend fun deleteByPrefix(prefix: String)
 }

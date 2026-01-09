@@ -96,6 +96,7 @@
     <string name="cat_timer">Verimlilik</string>
     <string name="cat_other">Diğer</string>
     <string name="select_all_apps">Tümünü seç</string>
+    <string name="deselect_all_apps">Tümünü kaldır</string>
 
     <string name="select_active_notifs">Aktif bildirimleri seç</string>
     <string name="type_standard">Mesajlar ve Genel</string>

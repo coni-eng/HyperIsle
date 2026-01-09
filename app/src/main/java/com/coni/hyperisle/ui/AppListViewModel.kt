@@ -73,6 +73,11 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         applyFilters(apps.filter { it.isBridged }, query, category, sort)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val activeAppsRawState: StateFlow<List<AppInfo>> =
+        baseAppsFlow
+            .map { apps -> apps.filter { it.isBridged } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val libraryAppsState: StateFlow<List<AppInfo>> = combine(
         baseAppsFlow, librarySearch, libraryCategory, librarySort
     ) { apps, query, category, sort ->
@@ -164,6 +169,12 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
 
     fun setShadeCancel(packageName: String, enabled: Boolean) {
         viewModelScope.launch { preferences.setShadeCancel(packageName, enabled) }
+    }
+
+    val shadeCancelEnabledPackagesFlow = preferences.shadeCancelEnabledPackagesFlow
+
+    fun setShadeCancelForPackages(packageNames: Collection<String>, enabled: Boolean) {
+        viewModelScope.launch { preferences.setShadeCancelForPackages(packageNames, enabled) }
     }
 
     // --- PER-APP SHADE CANCEL MODE (v0.9.8) ---
