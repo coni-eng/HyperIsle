@@ -31,6 +31,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.util.NotificationChannels
@@ -59,10 +63,25 @@ fun NotificationManagementScreen(
         hasAnyShadeCancel = preferences.hasAnyAppWithShadeCancel()
     }
 
-    // Check if Island channel is enabled (for warning banner)
-    val notificationsEnabled = remember { NotificationChannels.areNotificationsEnabled(context) }
-    val islandChannelEnabled = remember { NotificationChannels.isIslandChannelEnabled(context) }
+    // Check if Island channel is enabled (for warning banner) - reactive state
+    var notificationsEnabled by remember { mutableStateOf(NotificationChannels.areNotificationsEnabled(context)) }
+    var islandChannelEnabled by remember { mutableStateOf(NotificationChannels.isIslandChannelEnabled(context)) }
     val showWarningBanner = (hasAnyShadeCancel || callsOnlyIslandEnabled) && (!notificationsEnabled || !islandChannelEnabled)
+
+    // Lifecycle observer to update notification state when screen resumes
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsEnabled = NotificationChannels.areNotificationsEnabled(context)
+                islandChannelEnabled = NotificationChannels.isIslandChannelEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // Confirmation dialog state
     var showCallsConfirmDialog by remember { mutableStateOf(false) }

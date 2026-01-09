@@ -799,7 +799,11 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             }
 
-            val isCall = sbn.notification.category == Notification.CATEGORY_CALL
+            // Check if notification is ONGOING (Music, Calls, etc.) - these are preserved
+            val isOngoing = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
+            
+            val isCall = sbn.notification.category == Notification.CATEGORY_CALL ||
+                    isDialerPackage(sbn.packageName)
             val isNavigation = sbn.notification.category == Notification.CATEGORY_NAVIGATION ||
                     sbn.packageName.contains("maps") || sbn.packageName.contains("waze")
             val progressMax = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
@@ -861,7 +865,8 @@ class NotificationReaderService : NotificationListenerService() {
                 when (musicIslandMode) {
                     MusicIslandMode.SYSTEM_ONLY -> return
                     MusicIslandMode.BLOCK_SYSTEM -> {
-                        if (musicBlockApps.contains(sbn.packageName)) {
+                        // Only cancel if NOT ongoing (preserve music player notifications)
+                        if (musicBlockApps.contains(sbn.packageName) && !isOngoing) {
                             try { cancelNotification(sbn.key) } catch (e: Exception) {
                                 Log.w(TAG, "Failed to cancel media notification: ${e.message}")
                             }
@@ -1036,6 +1041,108 @@ class NotificationReaderService : NotificationListenerService() {
             // --- INSERT DIGEST ITEM (for summary) ---
             if (summaryEnabled) {
                 insertDigestItem(sbn.packageName, title, text, type.name)
+            }
+
+            // --- EARLY INTERCEPTION: Cancel clearable STANDARD notifications immediately ---
+            // This "steals" the notification: shows it in Dynamic Island, cancels system popup
+            // Scope: Only STANDARD type (messages, alerts). Does NOT affect PROGRESS, NAVIGATION, MEDIA, TIMER.
+            if (type == NotificationType.STANDARD && sbn.isClearable && !isOngoing) {
+                val contentIntent = sbn.notification.contentIntent
+                if (contentIntent != null) {
+                    val bridgeIdForIntent = groupKey.hashCode()
+                    IslandCooldownManager.setContentIntent(bridgeIdForIntent, contentIntent)
+                }
+                
+                // Cancel notification immediately to prevent system heads-up popup
+                try {
+                    cancelNotification(sbn.key)
+                    markSelfCancel(sbn.key, sbn.key.hashCode())
+                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_CANCEL_OK", kv = mapOf(
+                        "pkg" to sbn.packageName,
+                        "isClearable" to sbn.isClearable,
+                        "isOngoing" to isOngoing
+                    ))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to cancel clearable notification: ${e.message}")
+                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_CANCEL_FAIL", kv = mapOf(
+                        "pkg" to sbn.packageName,
+                        "error" to (e.message ?: "unknown")
+                    ))
+                }
+                // Continue processing to show in Dynamic Island (don't return)
+            }
+
+            // --- CALL INTERCEPTION: Suppress system heads-up for ALL calls (incoming + ongoing) ---
+            // Shows call UI only in Dynamic Island, cancels/snoozes system popup
+            // - Incoming calls: Full-screen island with accept/decline buttons
+            // - Ongoing calls: Collapsed (small) island with timer
+            // WARNING: On some devices, cancelling call notification may affect ringtone.
+            // If ringtone stops during incoming calls, consider using snoozeNotification instead.
+            if (type == NotificationType.CALL) {
+                val contentIntent = sbn.notification.contentIntent
+                if (contentIntent != null) {
+                    val bridgeIdForIntent = groupKey.hashCode()
+                    IslandCooldownManager.setContentIntent(bridgeIdForIntent, contentIntent)
+                }
+                
+                val callState = if (isOngoing) "ONGOING" else "INCOMING"
+                
+                // Try to suppress system call popup
+                // Using snooze as primary method for incoming (safer, preserves ringtone)
+                // Using cancel for ongoing (no ringtone concern)
+                if (isOngoing) {
+                    // Ongoing call: safe to cancel directly
+                    try {
+                        cancelNotification(sbn.key)
+                        markSelfCancel(sbn.key, sbn.key.hashCode())
+                        DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_ONGOING_CANCEL_OK", kv = mapOf(
+                            "pkg" to sbn.packageName,
+                            "callState" to callState,
+                            "method" to "cancel"
+                        ))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to cancel ongoing call notification: ${e.message}")
+                        DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_ONGOING_CANCEL_FAIL", kv = mapOf(
+                            "pkg" to sbn.packageName,
+                            "callState" to callState,
+                            "error" to (e.message ?: "unknown")
+                        ))
+                    }
+                } else {
+                    // Incoming call: use snooze first (preserves ringtone)
+                    try {
+                        // Snooze for 60 seconds - call will either be answered/declined by then
+                        snoozeNotification(sbn.key, 60_000L)
+                        markSelfCancel(sbn.key, sbn.key.hashCode())
+                        DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_INCOMING_SNOOZE_OK", kv = mapOf(
+                            "pkg" to sbn.packageName,
+                            "callState" to callState,
+                            "method" to "snooze",
+                            "durationMs" to 60_000L
+                        ))
+                    } catch (e: Exception) {
+                        // Fallback: try cancelNotification if snooze fails
+                        // NOTE: This may stop ringtone on some devices - test carefully!
+                        Log.w(TAG, "Snooze failed for incoming call, trying cancel: ${e.message}")
+                        try {
+                            cancelNotification(sbn.key)
+                            markSelfCancel(sbn.key, sbn.key.hashCode())
+                            DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_INCOMING_CANCEL_FALLBACK", kv = mapOf(
+                                "pkg" to sbn.packageName,
+                                "callState" to callState,
+                                "method" to "cancel"
+                            ))
+                        } catch (e2: Exception) {
+                            Log.w(TAG, "Failed to suppress incoming call notification: ${e2.message}")
+                            DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_INCOMING_SUPPRESS_FAIL", kv = mapOf(
+                                "pkg" to sbn.packageName,
+                                "callState" to callState,
+                                "error" to (e2.message ?: "unknown")
+                            ))
+                        }
+                    }
+                }
+                // Continue processing to show call UI in Dynamic Island (don't return)
             }
 
             // --- MAX_ISLANDS check with replacement ---
@@ -1483,11 +1590,14 @@ class NotificationReaderService : NotificationListenerService() {
         val keyHash = sbn.key.hashCode()
         val clearable = sbn.isClearable
         
-        // For call notifications, check calls-only-island setting
-        val shadeCancelEnabled = if (type == NotificationType.CALL) {
-            preferences.isCallsOnlyIslandEnabled()
-        } else {
-            preferences.isShadeCancel(pkg)
+        // v1.0.0: Always intercept STANDARD and CALL notifications
+        // STANDARD: Always cancel clearable notifications (messages, alerts)
+        // CALL: Always suppress incoming call popups (handled via snooze/cancel earlier)
+        // Other types (MEDIA, PROGRESS, NAVIGATION, TIMER): Preserve existing behavior
+        val shadeCancelEnabled = when (type) {
+            NotificationType.STANDARD -> true  // Always intercept messages
+            NotificationType.CALL -> true      // Always intercept calls
+            else -> preferences.isShadeCancel(pkg)  // Legacy behavior for other types
         }
         
         val shadeCancelMode = preferences.getShadeCancelMode(pkg)
@@ -1954,6 +2064,23 @@ class NotificationReaderService : NotificationListenerService() {
                 packageName == "com.android.systemui" ||
                 packageName.contains("miui.notification")
     }
+
+    /**
+     * Checks if the package is a known dialer/incallui package.
+     * Used to detect call notifications that may not have CATEGORY_CALL set.
+     */
+    private fun isDialerPackage(packageName: String): Boolean {
+        return packageName in DIALER_PACKAGES
+    }
+
+    private val DIALER_PACKAGES = setOf(
+        "com.google.android.dialer",
+        "com.android.incallui",
+        "com.android.dialer",
+        "com.samsung.android.incallui",
+        "com.miui.incallui",
+        "com.android.phone"
+    )
 
     private fun createIslandChannel() {
         val name = getString(R.string.channel_active_islands)
