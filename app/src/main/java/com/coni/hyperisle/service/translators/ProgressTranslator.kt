@@ -8,6 +8,7 @@ import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.util.AccentColorResolver
 import com.coni.hyperisle.util.IslandActivityStateMachine
+import com.coni.hyperisle.util.getStringCompatOrEmpty
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
@@ -52,7 +53,7 @@ class ProgressTranslator(context: Context) : BaseTranslator(context) {
         val max = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
         val current = extras.getInt(Notification.EXTRA_PROGRESS, 0)
         val indeterminate = extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE)
-        val textContent = (extras.getString(Notification.EXTRA_TEXT) ?: "")
+        val textContent = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim()
 
         val rawPercent = if (max > 0) ((current.toFloat() / max.toFloat()) * 100).toInt() else 0
 
@@ -145,7 +146,7 @@ class ProgressTranslator(context: Context) : BaseTranslator(context) {
         val extras = sbn.notification.extras
         val max = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
         val current = extras.getInt(Notification.EXTRA_PROGRESS, 0)
-        val textContent = extras.getString(Notification.EXTRA_TEXT) ?: ""
+        val textContent = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim()
 
         val percent = if (max > 0) ((current.toFloat() / max.toFloat()) * 100).toInt() else 0
         val isTextFinished = finishKeywords.any { textContent.contains(it, ignoreCase = true) }

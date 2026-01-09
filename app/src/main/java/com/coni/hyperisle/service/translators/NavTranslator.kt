@@ -7,6 +7,7 @@ import com.coni.hyperisle.R
 import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.models.NavContent
+import com.coni.hyperisle.util.getStringCompatOrEmpty
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
@@ -28,9 +29,9 @@ class NavTranslator(context: Context) : BaseTranslator(context) {
 
         val extras = sbn.notification.extras
 
-        val title = (extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "").replace("\n", " ").trim()
-        val text = (extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: "").replace("\n", " ").trim()
-        val subText = (extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: "").replace("\n", " ").trim()
+        val title = extras.getStringCompatOrEmpty(Notification.EXTRA_TITLE).replace("\n", " ").trim()
+        val text = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).replace("\n", " ").trim()
+        val subText = extras.getStringCompatOrEmpty(Notification.EXTRA_SUB_TEXT).replace("\n", " ").trim()
 
         val max = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
         val current = extras.getInt(Notification.EXTRA_PROGRESS, 0)

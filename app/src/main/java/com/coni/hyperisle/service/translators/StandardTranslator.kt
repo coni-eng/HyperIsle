@@ -15,6 +15,8 @@ import com.coni.hyperisle.receiver.IslandActionReceiver
 import com.coni.hyperisle.util.AccentColorResolver
 import com.coni.hyperisle.util.FocusActionHelper
 import com.coni.hyperisle.util.IslandStyleContract
+import com.coni.hyperisle.util.getStringCompat
+import com.coni.hyperisle.util.getStringCompatOrEmpty
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
@@ -26,10 +28,10 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
 
     fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig, notificationId: Int = 0, styleResult: IslandStyleContract.StyleResult? = null): HyperIslandData {
         val extras = sbn.notification.extras
-        val rawTitle = extras.getString(Notification.EXTRA_TITLE)
-        val rawText = extras.getString(Notification.EXTRA_TEXT) ?: ""
-        val template = extras.getString(Notification.EXTRA_TEMPLATE) ?: ""
-        val subText = extras.getString(Notification.EXTRA_SUB_TEXT) ?: ""
+        val rawTitle = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null }
+        val rawText = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim()
+        val template = extras.getStringCompatOrEmpty(Notification.EXTRA_TEMPLATE)
+        val subText = extras.getStringCompatOrEmpty(Notification.EXTRA_SUB_TEXT).trim()
 
         val isMedia = template.contains("MediaStyle")
         val isCall = sbn.notification.category == Notification.CATEGORY_CALL

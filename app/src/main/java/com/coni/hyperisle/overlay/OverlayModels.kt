@@ -1,6 +1,7 @@
 package com.coni.hyperisle.overlay
 
 import android.app.PendingIntent
+import android.app.RemoteInput
 import android.graphics.Bitmap
 
 /**
@@ -17,6 +18,15 @@ data class IosCallOverlayModel(
 )
 
 /**
+ * Inline reply action info for notification overlay.
+ */
+data class IosNotificationReplyAction(
+    val title: String,
+    val pendingIntent: PendingIntent,
+    val remoteInputs: Array<RemoteInput>
+)
+
+/**
  * Data model for iOS-style notification overlay.
  */
 data class IosNotificationOverlayModel(
@@ -26,7 +36,9 @@ data class IosNotificationOverlayModel(
     val avatarBitmap: Bitmap? = null,
     val contentIntent: PendingIntent? = null,
     val packageName: String,
-    val notificationKey: String
+    val notificationKey: String,
+    val collapseAfterMs: Long? = null,
+    val replyAction: IosNotificationReplyAction? = null
 )
 
 /**

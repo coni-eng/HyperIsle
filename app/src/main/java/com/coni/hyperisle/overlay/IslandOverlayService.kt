@@ -1,12 +1,15 @@
 package com.coni.hyperisle.overlay
 
 import android.annotation.SuppressLint
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.RemoteInput
 import android.app.Service
 import android.content.Intent
+import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import android.view.MotionEvent
@@ -16,9 +19,24 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,19 +46,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.ui.components.IncomingCallPill
+import com.coni.hyperisle.ui.components.MiniNotificationPill
 import com.coni.hyperisle.ui.components.NotificationPill
+import com.coni.hyperisle.util.ContextStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -61,7 +84,6 @@ class IslandOverlayService : Service() {
         private const val TAG = "IslandOverlayService"
         private const val CHANNEL_ID = "ios_pill_overlay_channel"
         private const val NOTIFICATION_ID = 9999
-        private const val NOTIFICATION_AUTO_DISMISS_MS = 4000L
 
         const val ACTION_START = "com.coni.hyperisle.overlay.START"
         const val ACTION_STOP = "com.coni.hyperisle.overlay.STOP"
@@ -73,7 +95,10 @@ class IslandOverlayService : Service() {
     // Current overlay state
     private var currentCallModel: IosCallOverlayModel? by mutableStateOf(null)
     private var currentNotificationModel: IosNotificationOverlayModel? by mutableStateOf(null)
-    private var autoDismissJob: Job? = null
+    private var isNotificationCollapsed: Boolean by mutableStateOf(false)
+    private var autoCollapseJob: Job? = null
+    private var stopForegroundJob: Job? = null
+    private var isForegroundActive = false
 
     override fun onCreate() {
         super.onCreate()
@@ -98,6 +123,8 @@ class IslandOverlayService : Service() {
                     Log.d("HyperIsleIsland", "RID=OVL_STOP STAGE=LIFECYCLE ACTION=OVERLAY_SVC_STOP")
                     IslandRuntimeDump.recordOverlay(null, "SERVICE_STOP", reason = "ACTION_STOP")
                 }
+                stopForeground(true)
+                isForegroundActive = false
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -108,7 +135,7 @@ class IslandOverlayService : Service() {
                     Log.d("HyperIsleIsland", "RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START")
                     IslandRuntimeDump.recordOverlay(null, "SERVICE_START", reason = "ACTION_START")
                 }
-                startForeground(NOTIFICATION_ID, createForegroundNotification())
+                ensureForeground()
             }
         }
         return START_STICKY
@@ -124,9 +151,11 @@ class IslandOverlayService : Service() {
             Log.d("HyperIsleIsland", "RID=OVL_DEST STAGE=LIFECYCLE ACTION=OVERLAY_SVC_DESTROYED")
             IslandRuntimeDump.recordOverlay(null, "SERVICE_DESTROYED", reason = "onDestroy")
         }
-        autoDismissJob?.cancel()
+        autoCollapseJob?.cancel()
+        stopForegroundJob?.cancel()
         overlayController.removeOverlay()
         serviceScope.cancel()
+        isForegroundActive = false
     }
 
     private fun createNotificationChannel() {
@@ -149,7 +178,29 @@ class IslandOverlayService : Service() {
             .setContentText(getString(R.string.overlay_service_active))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setOnlyAlertOnce(true)
             .build()
+    }
+
+    private fun ensureForeground() {
+        if (isForegroundActive) return
+        startForeground(NOTIFICATION_ID, createForegroundNotification())
+        isForegroundActive = true
+    }
+
+    private fun scheduleStopIfIdle(reason: String) {
+        stopForegroundJob?.cancel()
+        stopForegroundJob = serviceScope.launch {
+            delay(3000L)
+            if (!overlayController.isShowing() && currentCallModel == null && currentNotificationModel == null) {
+                Log.d("HyperIsleIsland", "RID=OVL_STOP EVT=OVERLAY_SVC_STOP reason=$reason")
+                stopForeground(true)
+                isForegroundActive = false
+                stopSelf()
+            }
+        }
     }
 
     private fun startEventCollection() {
@@ -184,11 +235,44 @@ class IslandOverlayService : Service() {
         }
 
         when (event) {
+            is OverlayEvent.CallEvent -> {
+                if (!canRenderOverlay(event.model.notificationKey.hashCode(), allowOnKeyguard = true)) {
+                    scheduleStopIfIdle("RENDER_BLOCKED")
+                    return
+                }
+            }
+            is OverlayEvent.NotificationEvent -> {
+                if (!canRenderOverlay(event.model.notificationKey.hashCode(), allowOnKeyguard = false)) {
+                    scheduleStopIfIdle("RENDER_BLOCKED")
+                    return
+                }
+            }
+            else -> Unit
+        }
+
+        when (event) {
             is OverlayEvent.CallEvent -> showCallOverlay(event.model)
             is OverlayEvent.NotificationEvent -> showNotificationOverlay(event.model)
             is OverlayEvent.DismissEvent -> dismissOverlay(event.notificationKey, "NOTIF_REMOVED")
             is OverlayEvent.DismissAllEvent -> dismissAllOverlays("DISMISS_ALL_EVENT")
         }
+    }
+
+    private fun canRenderOverlay(rid: Int, allowOnKeyguard: Boolean): Boolean {
+        val screenOn = ContextStateManager.getEffectiveScreenOn(applicationContext)
+        if (!screenOn) {
+            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=SCREEN_OFF")
+            return false
+        }
+
+        val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true
+        if (isKeyguardLocked && !allowOnKeyguard) {
+            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=KEYGUARD_LOCKED")
+            return false
+        }
+
+        return true
     }
 
     private fun showCallOverlay(model: IosCallOverlayModel) {
@@ -221,7 +305,9 @@ class IslandOverlayService : Service() {
         }
 
         // Cancel any auto-dismiss job (calls don't auto-dismiss)
-        autoDismissJob?.cancel()
+        autoCollapseJob?.cancel()
+        stopForegroundJob?.cancel()
+        isNotificationCollapsed = false
         currentNotificationModel = null
         currentCallModel = model
 
@@ -289,57 +375,202 @@ class IslandOverlayService : Service() {
             )
         }
 
-        // Cancel previous auto-dismiss job
-        autoDismissJob?.cancel()
+        // Cancel previous auto-collapse job
+        autoCollapseJob?.cancel()
+        stopForegroundJob?.cancel()
         currentCallModel = null
         currentNotificationModel = model
+        isNotificationCollapsed = false
+        scheduleAutoCollapse(model)
 
         overlayController.showOverlay(OverlayEvent.NotificationEvent(model)) {
             SwipeDismissContainer(
                 rid = rid,
-                stateLabel = "compact",
+                stateLabel = if (isNotificationCollapsed) "collapsed" else "expanded",
                 onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
                 onTap = {
-                    Log.d(
-                        "HyperIsleIsland",
-                        "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
-                    )
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
-                    handleNotificationTap(model.contentIntent)
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
-                    dismissAllOverlays("TAP_OPEN")
+                    if (isNotificationCollapsed) {
+                        isNotificationCollapsed = false
+                        scheduleAutoCollapse(model)
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
+                    } else {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
+                        )
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                        handleNotificationTap(model.contentIntent)
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                        dismissAllOverlays("TAP_OPEN")
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                NotificationPill(
-                    sender = model.sender,
-                    timeLabel = model.timeLabel,
-                    message = model.message,
-                    avatarBitmap = model.avatarBitmap,
-                    onDismiss = {
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
-                        dismissFromUser("BTN_RED_X")
-                    },
-                    debugRid = rid
-                )
+                var isReplying by remember(model.notificationKey) { mutableStateOf(false) }
+                var replyText by remember(model.notificationKey) { mutableStateOf("") }
+                val replyAction = model.replyAction
 
-                // Auto-dismiss after 4 seconds
-                LaunchedEffect(model.notificationKey) {
-                    delay(NOTIFICATION_AUTO_DISMISS_MS)
-                    if (currentNotificationModel?.notificationKey == model.notificationKey) {
-                        dismissAllOverlays("AUTO_TIMEOUT")
+                LaunchedEffect(isNotificationCollapsed) {
+                    if (isNotificationCollapsed) {
+                        isReplying = false
+                        replyText = ""
+                    }
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (isNotificationCollapsed) {
+                        MiniNotificationPill(
+                            sender = model.sender,
+                            avatarBitmap = model.avatarBitmap,
+                            onDismiss = {
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                dismissFromUser("BTN_RED_X")
+                            },
+                            debugRid = rid
+                        )
+                    } else {
+                        NotificationPill(
+                            sender = model.sender,
+                            timeLabel = model.timeLabel,
+                            message = model.message,
+                            avatarBitmap = model.avatarBitmap,
+                            replyLabel = replyAction?.title,
+                            onReply = if (replyAction != null) {
+                                {
+                                    isReplying = !isReplying
+                                    if (isReplying) {
+                                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN")
+                                    }
+                                }
+                            } else {
+                                null
+                            },
+                            onDismiss = {
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                dismissFromUser("BTN_RED_X")
+                            },
+                            debugRid = rid
+                        )
+                    }
+
+                    if (!isNotificationCollapsed && replyAction != null && isReplying) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        InlineReplyComposer(
+                            text = replyText,
+                            onTextChange = { replyText = it },
+                            onSend = send@{
+                                val trimmed = replyText.trim()
+                                if (trimmed.isEmpty()) {
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
+                                    return@send
+                                }
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
+                                val result = sendInlineReply(replyAction, trimmed, rid)
+                                if (result) {
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
+                                    isReplying = false
+                                    replyText = ""
+                                    isNotificationCollapsed = true
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_COLLAPSE reason=REPLY_SENT")
+                                }
+                            },
+                            onCancel = {
+                                isReplying = false
+                                replyText = ""
+                            }
+                        )
                     }
                 }
             }
         }
+    }
 
-        // Backup auto-dismiss using coroutine (in case LaunchedEffect doesn't trigger)
-        autoDismissJob = serviceScope.launch {
-            delay(NOTIFICATION_AUTO_DISMISS_MS)
-            if (currentNotificationModel?.notificationKey == model.notificationKey) {
-                dismissAllOverlays("AUTO_TIMEOUT")
+    private fun scheduleAutoCollapse(model: IosNotificationOverlayModel) {
+        autoCollapseJob?.cancel()
+        val collapseAfterMs = model.collapseAfterMs
+        if (collapseAfterMs == null || collapseAfterMs <= 0L) return
+
+        autoCollapseJob = serviceScope.launch {
+            delay(collapseAfterMs)
+            if (currentNotificationModel?.notificationKey == model.notificationKey && !isNotificationCollapsed) {
+                isNotificationCollapsed = true
+                Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_COLLAPSE reason=TIMEOUT")
+            }
+        }
+    }
+
+    private fun sendInlineReply(action: IosNotificationReplyAction, message: String, rid: Int): Boolean {
+        return try {
+            val intent = Intent()
+            val results = Bundle()
+            action.remoteInputs.forEach { input ->
+                results.putCharSequence(input.resultKey, message)
+            }
+            RemoteInput.addResultsToIntent(action.remoteInputs, intent, results)
+            action.pendingIntent.send(this, 0, intent)
+            true
+        } catch (e: PendingIntent.CanceledException) {
+            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=CANCELED")
+            false
+        } catch (e: Exception) {
+            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=${e.javaClass.simpleName}")
+            false
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun InlineReplyComposer(
+        text: String,
+        onTextChange: (String) -> Unit,
+        onSend: () -> Unit,
+        onCancel: () -> Unit
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+        ) {
+            Text(
+                text = getString(R.string.overlay_reply),
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = text,
+                    onValueChange = onTextChange,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFF1C1C1E),
+                        unfocusedContainerColor = Color(0xFF1C1C1E),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedIndicatorColor = Color(0xFF2C2C2E),
+                        unfocusedIndicatorColor = Color(0xFF2C2C2E),
+                        cursorColor = Color.White
+                    )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = onSend) {
+                    Icon(
+                        imageVector = Icons.Filled.Send,
+                        contentDescription = "Send reply",
+                        tint = Color.White
+                    )
+                }
+                IconButton(onClick = onCancel) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Cancel reply",
+                        tint = Color(0xFF8E8E93)
+                    )
+                }
             }
         }
     }
@@ -421,12 +652,14 @@ class IslandOverlayService : Service() {
                 reason = reason
             )
         }
-        autoDismissJob?.cancel()
+        autoCollapseJob?.cancel()
         currentCallModel = null
         currentNotificationModel = null
+        isNotificationCollapsed = false
         overlayController.removeOverlay()
         Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
         Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
+        scheduleStopIfIdle(reason)
     }
 
     private fun dismissFromUser(reason: String) {
@@ -474,7 +707,7 @@ class IslandOverlayService : Service() {
                 .pointerInput(rid, onTap) {
                     awaitPointerEventScope {
                         while (true) {
-                            val down = awaitFirstDown(requireUnconsumed = true)
+                            val down = awaitFirstDown(requireUnconsumed = false)
                             val pointerId = down.id
                             var dragTotal = 0f
                             var hasStarted = false

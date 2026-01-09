@@ -6,6 +6,7 @@ import android.service.notification.StatusBarNotification
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
+import com.coni.hyperisle.util.getStringCompat
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
@@ -17,7 +18,7 @@ class TimerTranslator(context: Context) : BaseTranslator(context) {
 
     fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig): HyperIslandData {
         val extras = sbn.notification.extras
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        val title = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null }
             ?: context.getString(R.string.fallback_timer)
 
         val baseTime = sbn.notification.`when`

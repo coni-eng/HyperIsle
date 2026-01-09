@@ -1,6 +1,7 @@
 package com.coni.hyperisle.service
 
 import android.Manifest
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -57,8 +58,12 @@ import com.coni.hyperisle.service.IslandDecisionEngine
 import com.coni.hyperisle.service.IslandKeyManager
 import com.coni.hyperisle.overlay.IosCallOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationOverlayModel
+import com.coni.hyperisle.overlay.IosNotificationReplyAction
 import com.coni.hyperisle.overlay.OverlayEventBus
 import com.coni.hyperisle.util.OverlayPermissionHelper
+import com.coni.hyperisle.util.SystemHyperIslandPoster
+import com.coni.hyperisle.util.getStringCompat
+import com.coni.hyperisle.util.getStringCompatOrEmpty
 import com.coni.hyperisle.debug.DebugLog
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
@@ -147,6 +152,10 @@ class NotificationReaderService : NotificationListenerService() {
     private val MIN_VISIBLE_MS = 2500L
     private val SELF_CANCEL_WINDOW_MS = 5000L
     private val SYS_CANCEL_POST_DELAY_MS = 200L
+    private val OVERLAY_DEFAULT_COLLAPSE_MS = 4000L
+    private val SHADE_CANCEL_HINT_NOTIFICATION_ID = 9105
+    private val SHADE_CANCEL_HINT_COOLDOWN_MS = 24 * 60 * 60 * 1000L
+    private val SHADE_CANCEL_HINT_PREFS = "shade_cancel_hint"
 
     private lateinit var preferences: AppPreferences
     private lateinit var callTranslator: CallTranslator
@@ -616,9 +625,9 @@ class NotificationReaderService : NotificationListenerService() {
         }
 
         val extras = sbn.notification.extras
-        val currTitle = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-        val currText = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-        val currSub = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
+        val currTitle = extras.getStringCompatOrEmpty(Notification.EXTRA_TITLE)
+        val currText = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT)
+        val currSub = extras.getStringCompatOrEmpty(Notification.EXTRA_SUB_TEXT)
 
         if (currTitle != previousIsland.title || currText != previousIsland.text || currSub != previousIsland.subText) {
             lastUpdateMap[key] = now
@@ -637,9 +646,9 @@ class NotificationReaderService : NotificationListenerService() {
         val pkg = sbn.packageName
         val rid = ctx?.rid ?: "N/A"
 
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim() ?: ""
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim() ?: ""
-        val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.trim() ?: ""
+        val title = extras.getStringCompatOrEmpty(Notification.EXTRA_TITLE).trim()
+        val text = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim()
+        val subText = extras.getStringCompatOrEmpty(Notification.EXTRA_SUB_TEXT).trim()
 
         // --- 1. CONTENT CHECKS ---
         if (title.isEmpty() && text.isEmpty() && subText.isEmpty()) {
@@ -700,7 +709,7 @@ class NotificationReaderService : NotificationListenerService() {
         val isSpecial = notification.category == Notification.CATEGORY_TRANSPORT ||
                 notification.category == Notification.CATEGORY_CALL ||
                 notification.category == Notification.CATEGORY_NAVIGATION ||
-                extras.getString(Notification.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
+                extras.getStringCompatOrEmpty(Notification.EXTRA_TEMPLATE).contains("MediaStyle")
 
         if (hasProgress || isSpecial) return false
 
@@ -727,9 +736,9 @@ class NotificationReaderService : NotificationListenerService() {
                 )
             )
 
-            val title = extras.getString(Notification.EXTRA_TITLE) ?: sbn.packageName
-            val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
-            val subText = extras.getString(Notification.EXTRA_SUB_TEXT) ?: ""
+            val title = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null } ?: sbn.packageName
+            val text = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim()
+            val subText = extras.getStringCompatOrEmpty(Notification.EXTRA_SUB_TEXT).trim()
 
             // *** APP-SPECIFIC BLOCKLIST CHECK ***
             val appBlockedTerms = preferences.getAppBlockedTerms(sbn.packageName).first()
@@ -755,7 +764,7 @@ class NotificationReaderService : NotificationListenerService() {
             val isTimer = (extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER) ||
                     sbn.notification.category == Notification.CATEGORY_ALARM ||
                     sbn.notification.category == Notification.CATEGORY_STOPWATCH) && chronometerBase > 0
-            val isMedia = extras.getString(Notification.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
+            val isMedia = extras.getStringCompatOrEmpty(Notification.EXTRA_TEMPLATE).contains("MediaStyle")
 
             // --- MUSIC ISLAND MODE HANDLING (unchanged) ---
             if (isMedia) {
@@ -1189,10 +1198,10 @@ class NotificationReaderService : NotificationListenerService() {
                     activeRoutes[groupKey] = IslandRoute.MIUI_BRIDGE
 
                     // Emit overlay event in addition to MIUI island (both systems work together)
-                    emitOverlayEvent(sbn, type, title, text, isOngoingCall)
+                    emitOverlayEvent(sbn, type, title, text, isOngoingCall, finalConfig)
                 }
                 IslandRoute.APP_OVERLAY -> {
-                    val overlayDelivered = emitOverlayEvent(sbn, type, title, text, isOngoingCall)
+                    val overlayDelivered = emitOverlayEvent(sbn, type, title, text, isOngoingCall, finalConfig)
                     if (overlayDelivered) {
                         startMinVisibleTimer(groupKey, sbn.key.hashCode())
                     }
@@ -1444,6 +1453,10 @@ class NotificationReaderService : NotificationListenerService() {
             !routeConfirmed -> if (route == IslandRoute.MIUI_BRIDGE) "BRIDGE_NOT_CONFIRMED" else "OVERLAY_NOT_CONFIRMED"
             else -> "OK"
         }
+
+        if (!decision.cancelShadeEligible && decision.ineligibilityReason == "NOT_CLEARABLE" && shadeCancelEnabled) {
+            maybeShowNotClearableHint(pkg, keyHash)
+        }
         
         // INSTRUMENTATION: Shade cancel decision
         if (BuildConfig.DEBUG) {
@@ -1648,6 +1661,69 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             }
         }
+
+        if (!cancelReady &&
+            decision.cancelShadeAllowed &&
+            decision.cancelShadeSafe &&
+            routeConfirmed &&
+            decision.ineligibilityReason == "NOT_CLEARABLE" &&
+            shadeCancelMode == ShadeCancelMode.AGGRESSIVE &&
+            type != NotificationType.CALL
+        ) {
+            attemptAggressiveShadeCancel(sbn, type, keyHash)
+        }
+    }
+
+    private fun maybeShowNotClearableHint(pkg: String, keyHash: Int) {
+        val prefs = getSharedPreferences(SHADE_CANCEL_HINT_PREFS, MODE_PRIVATE)
+        val lastShown = prefs.getLong("not_clearable_last_shown_ms", 0L)
+        val now = System.currentTimeMillis()
+        if (now - lastShown < SHADE_CANCEL_HINT_COOLDOWN_MS) return
+
+        prefs.edit().putLong("not_clearable_last_shown_ms", now).apply()
+
+        val poster = SystemHyperIslandPoster(this)
+        if (!poster.hasNotificationPermission()) return
+
+        poster.postSystemNotification(
+            SHADE_CANCEL_HINT_NOTIFICATION_ID,
+            getString(R.string.app_name),
+            getString(R.string.shade_cancel_not_clearable_banner)
+        )
+        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SHADE_CANCEL_HINT_SHOWN reason=NOT_CLEARABLE pkg=$pkg")
+    }
+
+    private suspend fun attemptAggressiveShadeCancel(
+        sbn: StatusBarNotification,
+        type: NotificationType,
+        keyHash: Int
+    ) {
+        val pkg = sbn.packageName
+        val groupKey = sbnKeyToGroupKey[sbn.key]
+        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_TRY mode=AGGRESSIVE_TRY")
+
+        try {
+            delay(SYS_CANCEL_POST_DELAY_MS)
+            cancelNotification(sbn.key)
+            markSelfCancel(sbn.key, keyHash)
+            if (groupKey != null) {
+                startMinVisibleTimer(groupKey, keyHash)
+            }
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK mode=AGGRESSIVE_TRY")
+        } catch (e: Exception) {
+            selfCancelKeys.remove(sbn.key)
+            Log.w(TAG, "Aggressive cancel failed: ${e.message}")
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_FAIL mode=AGGRESSIVE_TRY reason=${e.javaClass.simpleName}")
+            if (BuildConfig.DEBUG) {
+                IslandRuntimeDump.recordEvent(
+                    ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
+                    stage = "HIDE_SYS_NOTIF",
+                    action = "CANCEL_FAIL",
+                    reason = e.message ?: "EXCEPTION",
+                    flags = mapOf("exceptionType" to e.javaClass.simpleName, "mode" to "AGGRESSIVE_TRY", "type" to type.name)
+                )
+            }
+        }
     }
 
     private fun createLaunchIntent(packageName: String): android.app.PendingIntent? {
@@ -1804,8 +1880,18 @@ class NotificationReaderService : NotificationListenerService() {
         type: NotificationType,
         title: String,
         text: String,
-        isOngoingCall: Boolean
+        isOngoingCall: Boolean,
+        config: IslandConfig
     ): Boolean {
+        val rid = sbn.key.hashCode()
+        if (!isOverlaySupported(type, isOngoingCall)) {
+            return false
+        }
+
+        if (!shouldRenderOverlay(type, rid)) {
+            return false
+        }
+
         // Skip if overlay permission not granted
         if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) {
             if (BuildConfig.DEBUG) {
@@ -1827,7 +1913,9 @@ class NotificationReaderService : NotificationListenerService() {
                     OverlayEventBus.emitCall(callModel)
                 }
                 NotificationType.STANDARD -> {
-                    val notifModel = buildNotificationOverlayModel(sbn, title, text)
+                    val replyAction = extractReplyAction(sbn)
+                    val collapseAfterMs = resolveOverlayCollapseMs(config)
+                    val notifModel = buildNotificationOverlayModel(sbn, title, text, collapseAfterMs, replyAction)
                     OverlayEventBus.emitNotification(notifModel)
                 }
                 else -> false
@@ -1838,13 +1926,60 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
+    private fun shouldRenderOverlay(type: NotificationType, rid: Int): Boolean {
+        val screenOn = ContextStateManager.getEffectiveScreenOn(applicationContext)
+        if (!screenOn) {
+            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=SCREEN_OFF")
+            return false
+        }
+
+        val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true
+        if (isKeyguardLocked && type != NotificationType.CALL) {
+            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=KEYGUARD_LOCKED")
+            return false
+        }
+
+        return true
+    }
+
+    private fun resolveOverlayCollapseMs(config: IslandConfig): Long? {
+        val rawTimeout = config.timeout
+        if (rawTimeout == null) return OVERLAY_DEFAULT_COLLAPSE_MS
+        if (rawTimeout <= 0L) return null
+        return if (rawTimeout <= 60L) rawTimeout * 1000L else rawTimeout
+    }
+
+    private fun extractReplyAction(sbn: StatusBarNotification): IosNotificationReplyAction? {
+        val actions = sbn.notification.actions ?: return null
+        val candidates = actions.filter { action ->
+            val inputs = action.remoteInputs
+            inputs != null && inputs.isNotEmpty() && action.actionIntent != null
+        }
+        if (candidates.isEmpty()) return null
+
+        val replyAction = candidates.firstOrNull { action ->
+            action.semanticAction == Notification.Action.SEMANTIC_ACTION_REPLY
+        } ?: candidates.first()
+
+        val remoteInputs = replyAction.remoteInputs ?: return null
+        val pendingIntent = replyAction.actionIntent ?: return null
+        val label = replyAction.title?.toString()?.trim()?.ifBlank { null }
+            ?: getString(R.string.overlay_reply)
+        return IosNotificationReplyAction(
+            title = label,
+            pendingIntent = pendingIntent,
+            remoteInputs = remoteInputs
+        )
+    }
+
     /**
      * Build IosCallOverlayModel from StatusBarNotification.
      * Extracts caller name and accept/decline PendingIntents from notification actions.
      */
     private fun buildCallOverlayModel(sbn: StatusBarNotification, title: String): IosCallOverlayModel? {
         val extras = sbn.notification.extras
-        val callerName = extras.getString(Notification.EXTRA_TITLE) ?: title
+        val callerName = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null } ?: title
 
         val actions = sbn.notification.actions ?: return null
         
@@ -1880,7 +2015,9 @@ class NotificationReaderService : NotificationListenerService() {
     private fun buildNotificationOverlayModel(
         sbn: StatusBarNotification,
         title: String,
-        text: String
+        text: String,
+        collapseAfterMs: Long?,
+        replyAction: IosNotificationReplyAction?
     ): IosNotificationOverlayModel {
         // Get app name as sender
         val appName = try {
@@ -1898,7 +2035,9 @@ class NotificationReaderService : NotificationListenerService() {
             avatarBitmap = null, // Could extract from notification largeIcon if needed
             contentIntent = sbn.notification.contentIntent,
             packageName = sbn.packageName,
-            notificationKey = sbn.key
+            notificationKey = sbn.key,
+            collapseAfterMs = collapseAfterMs,
+            replyAction = replyAction
         )
     }
 
@@ -1917,7 +2056,7 @@ class NotificationReaderService : NotificationListenerService() {
         val isTimer = (extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER) ||
                 sbn.notification.category == Notification.CATEGORY_ALARM ||
                 sbn.notification.category == Notification.CATEGORY_STOPWATCH) && chronometerBase > 0
-        val isMedia = extras.getString(Notification.EXTRA_TEMPLATE)?.contains("MediaStyle") == true
+        val isMedia = extras.getStringCompatOrEmpty(Notification.EXTRA_TEMPLATE).contains("MediaStyle")
 
         return when {
             isCall -> NotificationType.CALL
@@ -1928,4 +2067,10 @@ class NotificationReaderService : NotificationListenerService() {
             else -> NotificationType.STANDARD
         }
     }
+
+    // Regression checklist:
+    // - Telegram notification (spannable title/text): no crash; overlay expands then collapses to mini.
+    // - Swipe dismiss works; tap expands first, then opens content.
+    // - WhatsApp: clearable=true cancels system notif; clearable=false shows hint banner.
+    // - Overlay service stops after overlays are dismissed.
 }

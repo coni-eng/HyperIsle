@@ -43,6 +43,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.coni.hyperisle.BuildConfig
@@ -84,6 +85,7 @@ private fun debugLayoutModifier(rid: Int?, element: String): Modifier {
 @Composable
 fun PillContainer(
     modifier: Modifier = Modifier,
+    height: Dp = 72.dp,
     debugRid: Int? = null,
     debugName: String = "pill",
     content: @Composable () -> Unit
@@ -91,7 +93,7 @@ fun PillContainer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(72.dp)
+            .height(height)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(50.dp))
             .then(debugLayoutModifier(debugRid, "${debugName}_root")),
         shape = RoundedCornerShape(50.dp),
@@ -257,6 +259,8 @@ fun NotificationPill(
     timeLabel: String,
     message: String,
     avatarBitmap: Bitmap? = null,
+    replyLabel: String? = null,
+    onReply: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
     debugRid: Int? = null
@@ -265,10 +269,11 @@ fun NotificationPill(
         val hasAvatar = avatarBitmap != null
         val hasDismiss = onDismiss != null
         val hasClick = onClick != null
-        LaunchedEffect(sender, timeLabel, message, hasAvatar, hasDismiss, hasClick) {
+        val hasReply = onReply != null && !replyLabel.isNullOrBlank()
+        LaunchedEffect(sender, timeLabel, message, hasAvatar, hasDismiss, hasClick, hasReply) {
             Log.d(
                 "HyperIsleIsland",
-                "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION senderLen=${sender.length} timeLen=${timeLabel.length} messageLen=${message.length} hasAvatar=$hasAvatar hasDismiss=$hasDismiss hasClick=$hasClick"
+                "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION senderLen=${sender.length} timeLen=${timeLabel.length} messageLen=${message.length} hasAvatar=$hasAvatar hasDismiss=$hasDismiss hasClick=$hasClick hasReply=$hasReply"
             )
         }
     }
@@ -383,8 +388,28 @@ fun NotificationPill(
                 )
             }
 
+            if (!replyLabel.isNullOrBlank() && onReply != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF2C2C2E))
+                        .then(debugLayoutModifier(debugRid, "notif_reply_btn"))
+                        .clickable { onReply() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = replyLabel,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
             if (onDismiss != null) {
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -398,6 +423,111 @@ fun NotificationPill(
                         contentDescription = "Dismiss notification",
                         tint = Color(0xFF8E8E93),
                         modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Compact notification pill used for collapsed overlay state.
+ */
+@Composable
+fun MiniNotificationPill(
+    sender: String,
+    avatarBitmap: Bitmap? = null,
+    onDismiss: (() -> Unit)? = null,
+    debugRid: Int? = null
+) {
+    PillContainer(
+        height = 48.dp,
+        debugRid = debugRid,
+        debugName = "notif_mini"
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(debugLayoutModifier(debugRid, "notif_mini_row")),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .then(debugLayoutModifier(debugRid, "notif_mini_avatar_stack"))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF3A3A3C))
+                        .then(debugLayoutModifier(debugRid, "notif_mini_avatar")),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (avatarBitmap != null) {
+                        Image(
+                            bitmap = avatarBitmap.asImageBitmap(),
+                            contentDescription = "App icon",
+                            modifier = Modifier.size(32.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Default icon",
+                            tint = Color(0xFF8E8E93),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .offset(x = 0.dp, y = 22.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1B1B1B))
+                        .padding(2.dp)
+                        .then(debugLayoutModifier(debugRid, "notif_mini_indicator_border"))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF34C759))
+                            .then(debugLayoutModifier(debugRid, "notif_mini_indicator_dot"))
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = sender,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .then(debugLayoutModifier(debugRid, "notif_mini_sender"))
+            )
+
+            if (onDismiss != null) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .then(debugLayoutModifier(debugRid, "notif_mini_dismiss_btn"))
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss notification",
+                        tint = Color(0xFF8E8E93),
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }

@@ -3,6 +3,7 @@ package com.coni.hyperisle.util
 import android.service.notification.StatusBarNotification
 import com.coni.hyperisle.models.IslandStyle
 import com.coni.hyperisle.models.NotificationType
+import com.coni.hyperisle.util.getStringCompatOrEmpty
 
 /**
  * Island UI Style Contract.
@@ -146,7 +147,7 @@ object IslandStyleContract {
 
         // Check 3: Check for legacy templates that force action row
         val extras = notification.extras
-        val template = extras.getString(android.app.Notification.EXTRA_TEMPLATE) ?: ""
+        val template = extras.getStringCompatOrEmpty(android.app.Notification.EXTRA_TEMPLATE)
         
         // BigTextStyle and InboxStyle with multiple actions tend to use legacy row
         val isLegacyTemplate = template.contains("BigTextStyle") || 

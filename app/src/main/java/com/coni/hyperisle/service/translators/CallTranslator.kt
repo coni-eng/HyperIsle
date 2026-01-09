@@ -19,6 +19,8 @@ import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.util.PendingIntentHelper
+import com.coni.hyperisle.util.getStringCompat
+import com.coni.hyperisle.util.getStringCompatOrEmpty
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.HyperPicture
@@ -44,7 +46,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
 
     fun translate(sbn: StatusBarNotification, picKey: String, config: IslandConfig, durationSeconds: Long? = null): HyperIslandData {
         val extras = sbn.notification.extras
-        val title = extras.getString(Notification.EXTRA_TITLE) ?: "Call"
+        val title = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim()?.ifBlank { null } ?: "Call"
 
         val isChronometerShown = extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)
 
@@ -121,7 +123,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
         if (isIncoming) {
             rightText = context.getString(R.string.call_incoming)
         } else {
-            val subText = extras.getString(Notification.EXTRA_TEXT)
+            val subText = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim().ifBlank { null }
             // Priority: 1. System-provided time (subText with ":"), 2. Our timer, 3. Fallback label
             rightText = when {
                 !subText.isNullOrEmpty() && subText.contains(":") -> subText

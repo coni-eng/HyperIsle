@@ -682,4 +682,6 @@
     <string name="overlay_permission_required">Overlay izni gerekli</string>
     <string name="overlay_permission_desc">iOS tarzı pill\'leri göstermek için diğer uygulamaların üzerinde görüntüleme izni gerekli</string>
     <string name="grant_overlay_permission">İzin Ver</string>
+    <string name="overlay_reply">Reply</string>
+    <string name="shade_cancel_not_clearable_banner">Some lock screen or persistent notifications (e.g. WhatsApp) cannot be removed by Android/MIUI. The island still shows, but the system notification may remain.</string>
 </resources>
