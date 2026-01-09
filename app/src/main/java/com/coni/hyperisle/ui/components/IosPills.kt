@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,8 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
@@ -38,8 +37,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -47,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.R
 import kotlin.math.roundToInt
 
 private data class LayoutSnapshot(
@@ -203,39 +206,35 @@ fun IncomingCallPill(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Decline button (red)
+                // Decline button
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFE53935))
                         .then(debugLayoutModifier(debugRid, "call_decline_btn"))
                         .clickable { onDecline() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallEnd,
+                        painter = painterResource(id = R.drawable.call_end),
                         contentDescription = "Decline call",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
 
-                // Accept button (green)
+                // Accept button
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF43A047))
                         .then(debugLayoutModifier(debugRid, "call_accept_btn"))
                         .clickable { onAccept() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Call,
+                        painter = painterResource(id = R.drawable.call),
                         contentDescription = "Accept call",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
@@ -250,6 +249,7 @@ fun IncomingCallPill(
  * @param timeLabel Grey text showing time (e.g., "now", "2m ago")
  * @param message Single-line message preview with reduced opacity
  * @param avatarBitmap Optional avatar/app icon bitmap
+ * @param onLongPress Optional callback when pill is long-pressed
  * @param onClick Optional callback when pill is tapped
  * @param onDismiss Optional callback when close button is tapped
  */
@@ -261,6 +261,7 @@ fun NotificationPill(
     avatarBitmap: Bitmap? = null,
     replyLabel: String? = null,
     onReply: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
     debugRid: Int? = null
@@ -277,8 +278,18 @@ fun NotificationPill(
             )
         }
     }
+    val tapModifier = if (onClick != null || onLongPress != null) {
+        Modifier.pointerInput(onClick, onLongPress) {
+            detectTapGestures(
+                onTap = { onClick?.invoke() },
+                onLongPress = { onLongPress?.invoke() }
+            )
+        }
+    } else {
+        Modifier
+    }
     PillContainer(
-        modifier = if (onClick != null) Modifier.clickable { onClick() } else Modifier,
+        modifier = tapModifier,
         debugRid = debugRid,
         debugName = "notif"
     ) {
@@ -573,5 +584,38 @@ private fun PreviewNotificationPill() {
             onClick = {},
             onDismiss = {}
         )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1C1E)
+@Composable
+private fun PreviewNotificationPillWithReply() {
+    var isReplying by remember { mutableStateOf(false) }
+    var replyText by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        NotificationPill(
+            sender = "WhatsApp",
+            timeLabel = "now",
+            message = "Long-press to reply",
+            replyLabel = "Reply",
+            onReply = { isReplying = !isReplying },
+            onLongPress = { isReplying = true },
+            onClick = {},
+            onDismiss = {}
+        )
+        if (isReplying) {
+            Spacer(modifier = Modifier.height(8.dp))
+            InlineReplyComposer(
+                label = stringResource(R.string.overlay_reply),
+                text = replyText,
+                onTextChange = { replyText = it },
+                onSend = { replyText = "" },
+                onCancel = {
+                    isReplying = false
+                    replyText = ""
+                }
+            )
+        }
     }
 }

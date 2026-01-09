@@ -28,15 +28,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,6 +52,7 @@ import com.coni.hyperisle.R
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.ui.components.IncomingCallPill
+import com.coni.hyperisle.ui.components.InlineReplyComposer
 import com.coni.hyperisle.ui.components.MiniNotificationPill
 import com.coni.hyperisle.ui.components.NotificationPill
 import com.coni.hyperisle.util.ContextStateManager
@@ -384,6 +376,10 @@ class IslandOverlayService : Service() {
         scheduleAutoCollapse(model)
 
         overlayController.showOverlay(OverlayEvent.NotificationEvent(model)) {
+            var isReplying by remember(model.notificationKey) { mutableStateOf(false) }
+            var replyText by remember(model.notificationKey) { mutableStateOf("") }
+            val replyAction = model.replyAction
+
             SwipeDismissContainer(
                 rid = rid,
                 stateLabel = if (isNotificationCollapsed) "collapsed" else "expanded",
@@ -404,14 +400,22 @@ class IslandOverlayService : Service() {
                         dismissAllOverlays("TAP_OPEN")
                     }
                 },
+                onLongPress = if (replyAction != null) {
+                    {
+                        if (isNotificationCollapsed) {
+                            isNotificationCollapsed = false
+                            scheduleAutoCollapse(model)
+                        }
+                        isReplying = true
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
+                    }
+                } else {
+                    null
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                var isReplying by remember(model.notificationKey) { mutableStateOf(false) }
-                var replyText by remember(model.notificationKey) { mutableStateOf("") }
-                val replyAction = model.replyAction
-
                 LaunchedEffect(isNotificationCollapsed) {
                     if (isNotificationCollapsed) {
                         isReplying = false
@@ -458,6 +462,7 @@ class IslandOverlayService : Service() {
                     if (!isNotificationCollapsed && replyAction != null && isReplying) {
                         Spacer(modifier = Modifier.height(8.dp))
                         InlineReplyComposer(
+                            label = getString(R.string.overlay_reply),
                             text = replyText,
                             onTextChange = { replyText = it },
                             onSend = send@{
@@ -517,61 +522,6 @@ class IslandOverlayService : Service() {
         } catch (e: Exception) {
             Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=${e.javaClass.simpleName}")
             false
-        }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun InlineReplyComposer(
-        text: String,
-        onTextChange: (String) -> Unit,
-        onSend: () -> Unit,
-        onCancel: () -> Unit
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-        ) {
-            Text(
-                text = getString(R.string.overlay_reply),
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextField(
-                    value = text,
-                    onValueChange = onTextChange,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF1C1C1E),
-                        unfocusedContainerColor = Color(0xFF1C1C1E),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedIndicatorColor = Color(0xFF2C2C2E),
-                        unfocusedIndicatorColor = Color(0xFF2C2C2E),
-                        cursorColor = Color.White
-                    )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = onSend) {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = "Send reply",
-                        tint = Color.White
-                    )
-                }
-                IconButton(onClick = onCancel) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Cancel reply",
-                        tint = Color(0xFF8E8E93)
-                    )
-                }
-            }
         }
     }
 
@@ -674,6 +624,7 @@ class IslandOverlayService : Service() {
         modifier: Modifier = Modifier,
         onDismiss: () -> Unit,
         onTap: (() -> Unit)? = null,
+        onLongPress: (() -> Unit)? = null,
         content: @Composable () -> Unit
     ) {
         val scope = rememberCoroutineScope()
@@ -704,11 +655,12 @@ class IslandOverlayService : Service() {
                     }
                     false
                 }
-                .pointerInput(rid, onTap) {
+                .pointerInput(rid, onTap, onLongPress) {
                     awaitPointerEventScope {
                         while (true) {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val pointerId = down.id
+                            var longPressTriggered = false
                             var dragTotal = 0f
                             var hasStarted = false
                             var lastPosition = down.position
@@ -717,6 +669,17 @@ class IslandOverlayService : Service() {
                             var endedByUp = false
                             var endedByCancel = false
                             val touchSlop = viewConfiguration.touchSlop
+                            val longPressJob = if (onLongPress != null) {
+                                launch {
+                                    delay(viewConfiguration.longPressTimeoutMillis.toLong())
+                                    if (!hasStarted && totalDx <= touchSlop && totalDy <= touchSlop) {
+                                        longPressTriggered = true
+                                        onLongPress.invoke()
+                                    }
+                                }
+                            } else {
+                                null
+                            }
 
                             while (true) {
                                 val event = awaitPointerEvent()
@@ -730,6 +693,7 @@ class IslandOverlayService : Service() {
                                     if (totalDx > touchSlop && totalDx > totalDy) {
                                         hasStarted = true
                                         isSwiping = true
+                                        longPressJob?.cancel()
                                         Log.d(
                                             "HyperIsleIsland",
                                             "RID=$rid EVT=SWIPE_START x=${down.position.x} y=${down.position.y} state=$state"
@@ -754,9 +718,12 @@ class IslandOverlayService : Service() {
                                 lastPosition = change.position
                             }
 
+                            longPressJob?.cancel()
                             if (!hasStarted) {
                                 isSwiping = false
-                                if (endedByUp && !endedByCancel && totalDx <= touchSlop && totalDy <= touchSlop) {
+                                if (endedByUp && !endedByCancel && !longPressTriggered &&
+                                    totalDx <= touchSlop && totalDy <= touchSlop
+                                ) {
                                     onTap?.invoke()
                                 }
                                 continue
