@@ -551,7 +551,7 @@ fun NotificationPill(
 }
 
 /**
- * Expanded notification pill with inline reply field.
+ * Inline reply pill showing only the reply composer.
  */
 @Composable
 fun NotificationReplyPill(
@@ -574,102 +574,17 @@ fun NotificationReplyPill(
         }
     }
     PillContainer(
-        height = 120.dp,
+        height = 80.dp,
         debugRid = debugRid,
         debugName = "notif_reply"
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(debugLayoutModifier(debugRid, "notif_reply_row")),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .then(debugLayoutModifier(debugRid, "notif_reply_avatar_stack"))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF3A3A3C))
-                            .then(debugLayoutModifier(debugRid, "notif_reply_avatar")),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (avatarBitmap != null) {
-                            Image(
-                                bitmap = avatarBitmap.asImageBitmap(),
-                                contentDescription = "App icon",
-                                modifier = Modifier.size(44.dp)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Default icon",
-                                tint = Color(0xFF8E8E93),
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .offset(x = 0.dp, y = 32.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF1B1B1B))
-                            .padding(2.dp)
-                            .then(debugLayoutModifier(debugRid, "notif_reply_indicator_border"))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF34C759))
-                                .then(debugLayoutModifier(debugRid, "notif_reply_indicator_dot"))
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .then(debugLayoutModifier(debugRid, "notif_reply_text_column"))
-                ) {
-                    Text(
-                        text = sender,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = debugLayoutModifier(debugRid, "notif_reply_sender")
-                    )
-                    Text(
-                        text = message,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = debugLayoutModifier(debugRid, "notif_reply_message")
-                    )
-                }
-            }
-
-            InlineReplyComposer(
-                label = sendLabel,
-                text = replyText,
-                onTextChange = onReplyChange,
-                onSend = onSend
-            )
-        }
+        InlineReplyComposer(
+            label = sendLabel,
+            text = replyText,
+            onTextChange = onReplyChange,
+            onSend = onSend,
+            modifier = debugLayoutModifier(debugRid, "notif_reply_composer")
+        )
     }
 }
 
