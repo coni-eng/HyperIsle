@@ -218,7 +218,7 @@ fun IncomingCallPill(
                         painter = painterResource(id = R.drawable.call_end),
                         contentDescription = "Decline call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(65.dp)
                     )
                 }
 
@@ -234,7 +234,7 @@ fun IncomingCallPill(
                         painter = painterResource(id = R.drawable.call),
                         contentDescription = "Accept call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(65.dp)
                     )
                 }
             }
@@ -246,7 +246,6 @@ fun IncomingCallPill(
  * iOS-style notification pill with avatar (+ indicator dot), sender info, and message preview.
  * 
  * @param sender Bold white text showing sender/app name
- * @param timeLabel Grey text showing time (e.g., "now", "2m ago")
  * @param message Single-line message preview with reduced opacity
  * @param avatarBitmap Optional avatar/app icon bitmap
  * @param onLongPress Optional callback when pill is long-pressed
@@ -359,34 +358,15 @@ fun NotificationPill(
                     .then(debugLayoutModifier(debugRid, "notif_text_column")),
                 verticalArrangement = Arrangement.Center
             ) {
-                // Top row: Sender + Time
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(debugLayoutModifier(debugRid, "notif_header_row")),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = sender,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .then(debugLayoutModifier(debugRid, "notif_sender"))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = timeLabel,
-                        color = Color(0xFF8E8E93),
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        modifier = debugLayoutModifier(debugRid, "notif_time")
-                    )
-                }
+                Text(
+                    text = sender,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = debugLayoutModifier(debugRid, "notif_sender")
+                )
 
                 // Message preview
                 Text(
@@ -578,7 +558,7 @@ private fun PreviewNotificationPill() {
     Box(modifier = Modifier.padding(16.dp)) {
         NotificationPill(
             sender = "WhatsApp",
-            timeLabel = "now",
+            timeLabel = "",
             message = "Hey! Are you coming to the party tonight?",
             avatarBitmap = null,
             onClick = {},
@@ -596,9 +576,9 @@ private fun PreviewNotificationPillWithReply() {
     Column(modifier = Modifier.padding(16.dp)) {
         NotificationPill(
             sender = "WhatsApp",
-            timeLabel = "now",
+            timeLabel = "",
             message = "Long-press to reply",
-            replyLabel = "Reply",
+            replyLabel = stringResource(R.string.overlay_reply),
             onReply = { isReplying = !isReplying },
             onLongPress = { isReplying = true },
             onClick = {},
@@ -610,11 +590,7 @@ private fun PreviewNotificationPillWithReply() {
                 label = stringResource(R.string.overlay_reply),
                 text = replyText,
                 onTextChange = { replyText = it },
-                onSend = { replyText = "" },
-                onCancel = {
-                    isReplying = false
-                    replyText = ""
-                }
+                onSend = { replyText = "" }
             )
         }
     }

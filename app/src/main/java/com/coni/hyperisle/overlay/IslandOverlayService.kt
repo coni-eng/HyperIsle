@@ -440,7 +440,7 @@ class IslandOverlayService : Service() {
                             timeLabel = model.timeLabel,
                             message = model.message,
                             avatarBitmap = model.avatarBitmap,
-                            replyLabel = replyAction?.title,
+                            replyLabel = if (replyAction != null) getString(R.string.overlay_reply) else null,
                             onReply = if (replyAction != null) {
                                 {
                                     isReplying = !isReplying
@@ -477,13 +477,8 @@ class IslandOverlayService : Service() {
                                     Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
                                     isReplying = false
                                     replyText = ""
-                                    isNotificationCollapsed = true
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_COLLAPSE reason=REPLY_SENT")
+                                    dismissAllOverlays("REPLY_SENT")
                                 }
-                            },
-                            onCancel = {
-                                isReplying = false
-                                replyText = ""
                             }
                         )
                     }

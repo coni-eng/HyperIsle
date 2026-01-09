@@ -14,6 +14,7 @@
 - `./gradlew connectedAndroidTest`: run instrumentation tests on a device or emulator.
 - `./gradlew lint`: run Android lint checks.
 - always run build and test commands after finishing code edits
+- always run `.\gradlew :app:compileDebugKotlin` at the end of every response unless the user explicitly says not to
 
 ## Coding Style and Naming Conventions
 - Kotlin only; UI is Jetpack Compose with Material 3.
