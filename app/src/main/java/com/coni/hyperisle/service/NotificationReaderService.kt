@@ -69,6 +69,7 @@ import com.coni.hyperisle.overlay.MediaAction
 import com.coni.hyperisle.overlay.MediaOverlayModel
 import com.coni.hyperisle.overlay.OverlayEventBus
 import com.coni.hyperisle.overlay.TimerOverlayModel
+import com.coni.hyperisle.util.AccessibilityContextState
 import com.coni.hyperisle.util.ForegroundAppDetector
 import com.coni.hyperisle.util.OverlayPermissionHelper
 import com.coni.hyperisle.util.SystemHyperIslandPoster
@@ -684,6 +685,39 @@ class NotificationReaderService : NotificationListenerService() {
         return false
     }
 
+    private fun shouldForceShadeCancel(type: NotificationType): Boolean {
+        return type == NotificationType.STANDARD || type == NotificationType.NAVIGATION
+    }
+
+    private fun cancelGroupSummaryIfNeeded(
+        sbn: StatusBarNotification,
+        type: NotificationType,
+        keyHash: Int
+    ) {
+        if (!shouldForceShadeCancel(type)) return
+        if (!NotificationChannels.isSafeToCancel(applicationContext)) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=GROUP_SUMMARY_CANCEL_SKIP reason=ISLAND_CHANNEL_DISABLED pkg=${sbn.packageName}"
+            )
+            return
+        }
+        try {
+            cancelNotification(sbn.key)
+            markSelfCancel(sbn.key, keyHash)
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=GROUP_SUMMARY_CANCEL_OK type=${type.name} pkg=${sbn.packageName}"
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cancel group summary: ${e.message}")
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=GROUP_SUMMARY_CANCEL_FAIL reason=${e.javaClass.simpleName} pkg=${sbn.packageName}"
+            )
+        }
+    }
+
     private fun isJunkNotification(sbn: StatusBarNotification, ctx: ProcCtx? = null): Boolean {
         val notification = sbn.notification
         val extras = notification.extras
@@ -743,6 +777,11 @@ class NotificationReaderService : NotificationListenerService() {
 
         // --- 2. GROUP SUMMARIES ---
         if ((notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+            if (isAppAllowed(pkg)) {
+                val type = inferNotificationType(sbn)
+                val keyHash = ctx?.keyHash ?: sbn.key.hashCode()
+                cancelGroupSummaryIfNeeded(sbn, type, keyHash)
+            }
             DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "GROUP_SUMMARY", kv = mapOf("pkg" to pkg))
             return true
         }
@@ -1309,12 +1348,68 @@ class NotificationReaderService : NotificationListenerService() {
 
             val overlaySupported = isOverlaySupported(type, isOngoingCall)
             val canUseOverlay = overlaySupported && OverlayPermissionHelper.hasOverlayPermission(applicationContext)
-            val route = if (useMiuiBridgeIsland) {
-                IslandRoute.MIUI_BRIDGE
-            } else if (canUseOverlay) {
-                IslandRoute.APP_OVERLAY
-            } else {
-                null
+            val forceOverlayRoute = type == NotificationType.STANDARD || type == NotificationType.NAVIGATION
+            val preferOverlay = forceOverlayRoute && canUseOverlay
+            if (preferOverlay) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$rid EVT=ROUTE_SELECTED route=APP_OVERLAY reason=FORCE_OVERLAY type=${type.name}"
+                    )
+                }
+                if (useMiuiBridgeIsland) {
+                    try {
+                        NotificationManagerCompat.from(this).cancel(bridgeId)
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=$rid EVT=MIUI_BRIDGE_CANCEL_OK reason=FORCE_OVERLAY type=${type.name}"
+                        )
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to cancel MIUI bridge notification: ${e.message}")
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=$rid EVT=MIUI_BRIDGE_CANCEL_FAIL reason=FORCE_OVERLAY type=${type.name}"
+                        )
+                    }
+                }
+                val overlayDelivered = emitOverlayEvent(
+                    sbn,
+                    type,
+                    title,
+                    text,
+                    isOngoingCall,
+                    callDurationSeconds,
+                    finalConfig
+                )
+                if (overlayDelivered) {
+                    startMinVisibleTimer(groupKey, sbn.key.hashCode())
+                }
+                attemptShadeCancel(
+                    sbn = sbn,
+                    type = type,
+                    isOngoingCall = isOngoingCall,
+                    route = IslandRoute.APP_OVERLAY,
+                    deliveryConfirmed = overlayDelivered
+                )
+                if (overlayDelivered) {
+                    activeIslands[groupKey] = ActiveIsland(
+                        id = bridgeId,
+                        type = type,
+                        postTime = System.currentTimeMillis(),
+                        packageName = sbn.packageName,
+                        title = title,
+                        text = text,
+                        subText = subText,
+                        lastContentHash = newContentHash
+                    )
+                    activeRoutes[groupKey] = IslandRoute.APP_OVERLAY
+                }
+                return
+            }
+            val route = when {
+                useMiuiBridgeIsland -> IslandRoute.MIUI_BRIDGE
+                canUseOverlay -> IslandRoute.APP_OVERLAY
+                else -> null
             }
 
             when (route) {
@@ -1593,10 +1688,12 @@ class NotificationReaderService : NotificationListenerService() {
         // v1.0.0: Always intercept STANDARD and CALL notifications
         // STANDARD: Always cancel clearable notifications (messages, alerts)
         // CALL: Always suppress incoming call popups (handled via snooze/cancel earlier)
-        // Other types (MEDIA, PROGRESS, NAVIGATION, TIMER): Preserve existing behavior
+        // NAVIGATION: Always suppress to avoid system islands
+        // Other types (MEDIA, PROGRESS, TIMER): Preserve existing behavior
         val shadeCancelEnabled = when (type) {
-            NotificationType.STANDARD -> true  // Always intercept messages
-            NotificationType.CALL -> true      // Always intercept calls
+            NotificationType.STANDARD -> true  // Always intercept messages     
+            NotificationType.CALL -> true      // Always intercept calls        
+            NotificationType.NAVIGATION -> true // Always intercept navigation
             else -> preferences.isShadeCancel(pkg)  // Legacy behavior for other types
         }
         
@@ -1620,7 +1717,17 @@ class NotificationReaderService : NotificationListenerService() {
             }
             IslandRoute.APP_OVERLAY -> deliveryConfirmed
         }
+        val forceNavigationCancel = type == NotificationType.NAVIGATION
+        val forceCancelReady = forceNavigationCancel &&
+            decision.cancelShadeAllowed &&
+            decision.cancelShadeSafe &&
+            routeConfirmed
         val cancelReady = decision.cancelShade && routeConfirmed
+        val guardResult = when {
+            forceCancelReady -> "FORCE"
+            cancelReady -> "TRY"
+            else -> "SKIP"
+        }
         val guardReason = when {
             !decision.cancelShadeAllowed -> "SHADE_CANCEL_OFF"
             !decision.cancelShadeEligible -> decision.ineligibilityReason ?: "NOT_ELIGIBLE"
@@ -1652,8 +1759,47 @@ class NotificationReaderService : NotificationListenerService() {
 
         Log.d(
             "HyperIsleIsland",
-            "RID=$keyHash EVT=CANCEL_GUARD reason=$guardReason decision={clearable=$clearable,eligible=${decision.cancelShadeEligible},safe=${decision.cancelShadeSafe},routeConfirmed=$routeConfirmed} result=${if (cancelReady) "TRY" else "SKIP"} pkg=$pkg"
+            "RID=$keyHash EVT=CANCEL_GUARD reason=$guardReason decision={clearable=$clearable,eligible=${decision.cancelShadeEligible},safe=${decision.cancelShadeSafe},routeConfirmed=$routeConfirmed} result=$guardResult pkg=$pkg"
         )
+
+        // v1.0.0: SHADE_CANCEL_GUARD - Log when shade cancel is enabled but cannot be performed
+        // This helps identify apps where users should disable notifications in system settings
+        // to avoid duplicate islands (MIUI/HyperOS often forces system notifications to show)
+        if (decision.cancelShadeAllowed && !decision.cancelShade && type != NotificationType.MEDIA) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$keyHash EVT=SHADE_CANCEL_GUARD reason=$guardReason type=${type.name} pkg=$pkg"
+            )
+        }
+
+        if (forceNavigationCancel) {
+            if (!forceCancelReady) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$keyHash EVT=SYS_NOTIF_CANCEL_SKIP reason=FORCE_NAV_GUARD pkg=$pkg"
+                )
+                return
+            }
+            val groupKey = sbnKeyToGroupKey[sbn.key]
+            Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_TRY mode=FORCE_NAV")
+            try {
+                delay(SYS_CANCEL_POST_DELAY_MS)
+                cancelNotification(sbn.key)
+                markSelfCancel(sbn.key, keyHash)
+                if (groupKey != null) {
+                    startMinVisibleTimer(groupKey, keyHash)
+                }
+                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK mode=FORCE_NAV")
+            } catch (e: Exception) {
+                selfCancelKeys.remove(sbn.key)
+                Log.w(TAG, "Force navigation cancel failed: ${e.message}")
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$keyHash EVT=SYS_NOTIF_CANCEL_FAIL mode=FORCE_NAV reason=${e.javaClass.simpleName}"
+                )
+            }
+            return
+        }
 
         if (decision.cancelShade && !routeConfirmed) {
             val skipReason = if (route == IslandRoute.MIUI_BRIDGE) "BRIDGE_NOT_CONFIRMED" else "OVERLAY_NOT_CONFIRMED"
@@ -2107,6 +2253,7 @@ class NotificationReaderService : NotificationListenerService() {
         return when (type) {
             NotificationType.CALL -> true
             NotificationType.STANDARD -> true
+            NotificationType.NAVIGATION -> true
             else -> false
         }
     }
@@ -2152,6 +2299,18 @@ class NotificationReaderService : NotificationListenerService() {
                     val collapseAfterMs = resolveOverlayCollapseMs(config)
                     val notifModel = buildNotificationOverlayModel(sbn, title, text, collapseAfterMs, replyAction)
                     OverlayEventBus.emitNotification(notifModel)
+                }
+                NotificationType.NAVIGATION -> {
+                    val collapseAfterMs = 0L
+                    val navModel = buildNotificationOverlayModel(sbn, title, text, collapseAfterMs, replyAction = null)
+                    val emitted = OverlayEventBus.emitNotification(navModel)
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${sbn.key.hashCode()} EVT=OVERLAY_NAV_EMIT pkg=${sbn.packageName} result=${if (emitted) "OK" else "DROP"}"
+                        )
+                    }
+                    emitted
                 }
                 else -> false
             }
@@ -2243,7 +2402,27 @@ class NotificationReaderService : NotificationListenerService() {
 
     private fun shouldShowCallOverlay(sbn: StatusBarNotification, groupKey: String): Boolean {
         if (!ForegroundAppDetector.hasUsageAccess(applicationContext)) {
-            if (BuildConfig.DEBUG) {
+            val accForeground = AccessibilityContextState.snapshot().foregroundPackage
+            if (accForeground != null) {
+                val isForeground = accForeground == sbn.packageName
+                val isDialerForeground = accForeground in CALL_FOREGROUND_PACKAGES
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=${sbn.key.hashCode()} EVT=OVERLAY_FG_FALLBACK source=ACCESSIBILITY fg=$accForeground pkg=${sbn.packageName}"
+                    )
+                }
+                if (isForeground || isDialerForeground) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=${sbn.key.hashCode()} EVT=OVERLAY_SKIP reason=CALL_UI_FOREGROUND pkg=${sbn.packageName} fg=$accForeground"
+                        )
+                    }
+                    callOverlayVisibility[groupKey] = false
+                    return false
+                }
+            } else if (BuildConfig.DEBUG) {
                 Log.d(
                     "HyperIsleIsland",
                     "RID=${sbn.key.hashCode()} EVT=OVERLAY_FG_UNKNOWN reason=USAGE_STATS_DENIED pkg=${sbn.packageName}"
@@ -2542,6 +2721,11 @@ class NotificationReaderService : NotificationListenerService() {
             sbn.packageName.substringAfterLast('.')
         }
 
+        val effectiveCollapse = if (sbn.notification.category == Notification.CATEGORY_NAVIGATION) {
+            0L
+        } else {
+            collapseAfterMs
+        }
         return IosNotificationOverlayModel(
             sender = title.ifEmpty { appName },
             timeLabel = "now",
@@ -2550,7 +2734,7 @@ class NotificationReaderService : NotificationListenerService() {
             contentIntent = sbn.notification.contentIntent,
             packageName = sbn.packageName,
             notificationKey = sbn.key,
-            collapseAfterMs = collapseAfterMs,
+            collapseAfterMs = effectiveCollapse,
             replyAction = replyAction
         )
     }

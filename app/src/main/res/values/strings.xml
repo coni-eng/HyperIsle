@@ -720,4 +720,20 @@
     <string name="overlay_reply">Yanıtla</string>
     <string name="overlay_send">Gönder</string>
     <string name="shade_cancel_not_clearable_banner">Some lock screen or persistent notifications (e.g. WhatsApp) cannot be removed by Android/MIUI. The island still shows, but the system notification may remain.</string>
+
+    <!-- Shade Cancel Screen UX (v1.0.0) -->
+    <string name="shade_cancel_screen_info_title">Neden bu ayar gerekli?</string>
+    <string name="shade_cancel_screen_info_desc">MIUI/HyperOS bazen sistem bildirimlerini zorla gosterir. Cift ada olusmasini onlemek icin bu uygulamalarin bildirimlerini sistem ayarlarindan kapatmaniz gerekebilir.</string>
+    <string name="shade_cancel_status_disabled">Bildirim kapali</string>
+    <string name="shade_cancel_status_enabled">Bildirim kapali degil</string>
+    <string name="shade_cancel_status_unknown">Durum bilinmiyor</string>
+    <string name="shade_cancel_tap_to_settings">Bildirim ayarlarini acmak icin dokun</string>
+    <string name="shade_cancel_confirm_dialog_title">Bildirim durumu</string>
+    <string name="shade_cancel_confirm_dialog_message">%s icin bildirimleri kapattiniz mi?</string>
+    <string name="shade_cancel_confirm_yes">Evet, kapattim</string>
+    <string name="shade_cancel_confirm_no">Hayir, acik</string>
+    <string name="shade_cancel_confirm_skip">Atla</string>
+    <string name="shade_cancel_empty_list">Gizlenecek uygulama yok</string>
+    <string name="shade_cancel_empty_list_desc">Once Uygulama Listesi ekranindan uygulamalari ekleyin</string>
+    <string name="shade_cancel_guard_skip_reason">SHADE_CANCEL_GUARD</string>
 </resources>

@@ -1,38 +1,44 @@
 package com.coni.hyperisle.ui.screens.settings
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.coni.hyperisle.R
-import com.coni.hyperisle.ui.AppCategory
+import com.coni.hyperisle.models.NotificationStatus
 import com.coni.hyperisle.ui.AppListViewModel
-import com.coni.hyperisle.ui.appCategoryIcon
-import com.coni.hyperisle.ui.appCategoryLabelRes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,21 +46,73 @@ fun NotificationManagementAppsScreen(
     onBack: () -> Unit,
     viewModel: AppListViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val activeApps by viewModel.activeAppsRawState.collectAsState()
     val shadeCancelEnabledPackages by viewModel.shadeCancelEnabledPackagesFlow.collectAsState(
         initial = emptySet()
     )
-    var selectedCategory by remember { mutableStateOf(AppCategory.ALL) }
 
-    val filteredApps = remember(activeApps, selectedCategory) {
-        if (selectedCategory == AppCategory.ALL) {
-            activeApps
-        } else {
-            activeApps.filter { it.category == selectedCategory }
-        }
+    // v1.0.0: Show only apps that have shade cancel enabled (the user's "hide system notifications" list)
+    val shadeCancelApps = remember(activeApps, shadeCancelEnabledPackages) {
+        activeApps.filter { shadeCancelEnabledPackages.contains(it.packageName) }
     }
-    val allSelected = filteredApps.isNotEmpty() &&
-        filteredApps.all { shadeCancelEnabledPackages.contains(it.packageName) }
+
+    // v1.0.0: Track which app user navigated to settings for (self-reported status)
+    var pendingConfirmationApp by remember { mutableStateOf<com.coni.hyperisle.ui.AppInfo?>(null) }
+    var showConfirmationDialog by remember { mutableStateOf(false) }
+
+    // Track when user returns from settings
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && pendingConfirmationApp != null) {
+                showConfirmationDialog = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Confirmation dialog
+    if (showConfirmationDialog && pendingConfirmationApp != null) {
+        val app = pendingConfirmationApp!!
+        AlertDialog(
+            onDismissRequest = {
+                showConfirmationDialog = false
+                pendingConfirmationApp = null
+            },
+            title = { Text(stringResource(R.string.shade_cancel_confirm_dialog_title)) },
+            text = { Text(stringResource(R.string.shade_cancel_confirm_dialog_message, app.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setNotificationStatus(app.packageName, NotificationStatus.DISABLED)
+                    Log.d("HyperIsleIsland", "EVT=SHADE_CANCEL_STATUS_SET status=DISABLED pkg=${app.packageName}")
+                    showConfirmationDialog = false
+                    pendingConfirmationApp = null
+                }) {
+                    Text(stringResource(R.string.shade_cancel_confirm_yes))
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        viewModel.setNotificationStatus(app.packageName, NotificationStatus.ENABLED)
+                        Log.d("HyperIsleIsland", "EVT=SHADE_CANCEL_STATUS_SET status=ENABLED pkg=${app.packageName}")
+                        showConfirmationDialog = false
+                        pendingConfirmationApp = null
+                    }) {
+                        Text(stringResource(R.string.shade_cancel_confirm_no))
+                    }
+                    TextButton(onClick = {
+                        showConfirmationDialog = false
+                        pendingConfirmationApp = null
+                    }) {
+                        Text(stringResource(R.string.shade_cancel_confirm_skip))
+                    }
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -68,7 +126,7 @@ fun NotificationManagementAppsScreen(
             )
         }
     ) { padding ->
-        if (activeApps.isEmpty()) {
+        if (shadeCancelApps.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -80,157 +138,143 @@ fun NotificationManagementAppsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        stringResource(R.string.notification_management_apps_empty),
+                        stringResource(R.string.shade_cancel_empty_list),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        stringResource(R.string.notification_management_apps_empty_desc),
+                        stringResource(R.string.shade_cancel_empty_list_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         } else {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.shade_cancel_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-
-                AppCategoryFilterRow(
-                    selectedCategory = selectedCategory,
-                    onCategoryChange = { selectedCategory = it }
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilledTonalButton(
-                        onClick = {
-                            viewModel.setShadeCancelForPackages(
-                                filteredApps.map { it.packageName },
-                                !allSelected
-                            )
-                        },
-                        enabled = filteredApps.isNotEmpty()
-                    ) {
-                        Icon(Icons.Default.DoneAll, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            stringResource(
-                                if (allSelected) R.string.deselect_all_apps else R.string.select_all_apps
-                            )
-                        )
-                    }
+                // Info card explaining why this setting is needed
+                item {
+                    ShadeCancelInfoCard()
                 }
 
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp)
-                ) {
-                    items(filteredApps, key = { it.packageName }) { appInfo ->
-                        ShadeCancelAppItem(
-                            appInfo = appInfo,
-                            viewModel = viewModel
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun AppCategoryFilterRow(
-    selectedCategory: AppCategory,
-    onCategoryChange: (AppCategory) -> Unit
-) {
-    val scrollState = rememberScrollState()
-    val categories = AppCategory.entries.toTypedArray()
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
-    ) {
-        categories.forEachIndexed { index, category ->
-            val isSelected = selectedCategory == category
-            val shape = when (index) {
-                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                categories.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-            }
-
-            ToggleButton(
-                checked = isSelected,
-                onCheckedChange = { onCategoryChange(category) },
-                shapes = shape,
-                modifier = Modifier.semantics { role = Role.RadioButton },
-                colors = ToggleButtonDefaults.toggleButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                AnimatedContent(
-                    targetState = isSelected,
-                    transitionSpec = {
-                        (fadeIn(animationSpec = tween(200))).togetherWith(
-                            fadeOut(animationSpec = tween(200))
-                        )
-                    },
-                    label = "IconTransition"
-                ) { selected ->
-                    Icon(
-                        imageVector = appCategoryIcon(category, selected),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                // List of shade cancel enabled apps
+                items(shadeCancelApps, key = { it.packageName }) { appInfo ->
+                    ShadeCancelAppItem(
+                        appInfo = appInfo,
+                        viewModel = viewModel,
+                        onTap = {
+                            // v1.0.0: Track app and open notification settings
+                            pendingConfirmationApp = appInfo
+                            Log.d("HyperIsleIsland", "EVT=SHADE_CANCEL_SETTINGS_TAP pkg=${appInfo.packageName}")
+                            openAppNotificationSettings(context, appInfo.packageName)
+                        }
                     )
                 }
-
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(appCategoryLabelRes(category)))
             }
         }
     }
-
-    HorizontalDivider(
-        modifier = Modifier.padding(vertical = 8.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-    )
 }
 
+/**
+ * Info card explaining why users need to disable notifications for apps in this list.
+ * Rationale: MIUI/HyperOS often forces system notifications to show, causing duplicate islands.
+ */
+@Composable
+private fun ShadeCancelInfoCard() {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f),
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                        )
+                    )
+                )
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        stringResource(R.string.shade_cancel_screen_info_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        stringResource(R.string.shade_cancel_screen_info_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * App item that shows notification status and opens system notification settings on tap.
+ * 
+ * v1.0.0: Uses self-reported status since Android doesn't provide API to check other apps.
+ * User confirms status after returning from system notification settings.
+ */
 @Composable
 private fun ShadeCancelAppItem(
     appInfo: com.coni.hyperisle.ui.AppInfo,
-    viewModel: AppListViewModel
+    viewModel: AppListViewModel,
+    onTap: () -> Unit
 ) {
-    val shadeCancelEnabled by viewModel.isShadeCancelFlow(appInfo.packageName).collectAsState(initial = false)
+    val notificationStatus by viewModel.getNotificationStatusFlow(appInfo.packageName)
+        .collectAsState(initial = NotificationStatus.UNKNOWN)
+
+    // Status indicator styling based on self-reported status
+    val (statusIcon, statusText, statusColor) = when (notificationStatus) {
+        NotificationStatus.DISABLED -> Triple(
+            Icons.Default.Check,
+            stringResource(R.string.shade_cancel_status_disabled),
+            MaterialTheme.colorScheme.primary
+        )
+        NotificationStatus.ENABLED -> Triple(
+            Icons.Default.Close,
+            stringResource(R.string.shade_cancel_status_enabled),
+            MaterialTheme.colorScheme.error
+        )
+        NotificationStatus.UNKNOWN -> Triple(
+            Icons.Default.QuestionMark,
+            stringResource(R.string.shade_cancel_status_unknown),
+            MaterialTheme.colorScheme.outline
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+        ),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.clickable(onClick = onTap)
     ) {
         Row(
             modifier = Modifier
@@ -243,7 +287,7 @@ private fun ShadeCancelAppItem(
                 bitmap = appInfo.icon.asImageBitmap(),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
             )
 
@@ -253,14 +297,62 @@ private fun ShadeCancelAppItem(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
+                Spacer(modifier = Modifier.height(2.dp))
+                // Self-reported status indicator
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        statusIcon,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = statusColor
+                    )
+                }
             }
 
-            Switch(
-                checked = shadeCancelEnabled,
-                onCheckedChange = { checked ->
-                    viewModel.setShadeCancel(appInfo.packageName, checked)
-                }
+            // Chevron to indicate tappable
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.shade_cancel_tap_to_settings),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer { rotationZ = 180f }
             )
+        }
+    }
+}
+
+/**
+ * Opens the system notification settings for a specific app.
+ * Uses ACTION_APP_NOTIFICATION_SETTINGS as primary intent with fallback to app details page.
+ */
+private fun openAppNotificationSettings(context: Context, packageName: String) {
+    try {
+        // Primary: Direct notification settings (API 26+)
+        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Log.w("HyperIsleIsland", "EVT=SHADE_CANCEL_SETTINGS_FALLBACK pkg=$packageName reason=${e.message}")
+        try {
+            // Fallback: App details page
+            val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallbackIntent)
+        } catch (e2: Exception) {
+            Log.e("HyperIsleIsland", "EVT=SHADE_CANCEL_SETTINGS_FAIL pkg=$packageName reason=${e2.message}")
         }
     }
 }

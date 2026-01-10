@@ -12,6 +12,7 @@ import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.models.IslandLimitMode
 import com.coni.hyperisle.models.MusicIslandMode
 import com.coni.hyperisle.models.NavContent
+import com.coni.hyperisle.models.NotificationStatus
 import com.coni.hyperisle.models.NotificationType
 import com.coni.hyperisle.models.DEFAULT_CONFIG_IDS
 import com.coni.hyperisle.models.DEFAULT_QUICK_ACTION_IDS
@@ -887,6 +888,49 @@ class AppPreferences(context: Context) {
     suspend fun hasAnyAppWithShadeCancel(): Boolean {
         val entries = dao.getByPrefix("shade_cancel_")
         return entries.any { !it.key.contains("_mode_") && it.value.toBoolean(false) }
+    }
+
+    // --- SELF-REPORTED NOTIFICATION STATUS (v1.0.0) ---
+    // Dynamic keys: notif_status_<packageName> -> DISABLED/ENABLED/UNKNOWN
+    // User reports whether they disabled notifications for an app in system settings
+    // This is needed because Android doesn't provide API to check other apps' notification status
+
+    /**
+     * Gets the self-reported notification status for a specific app.
+     * Returns UNKNOWN by default.
+     */
+    fun getNotificationStatusFlow(packageName: String): Flow<NotificationStatus> {
+        val key = "notif_status_$packageName"
+        return dao.getSettingFlow(key).map { value ->
+            try {
+                if (value != null) NotificationStatus.valueOf(value)
+                else NotificationStatus.UNKNOWN
+            } catch (e: Exception) {
+                NotificationStatus.UNKNOWN
+            }
+        }
+    }
+
+    /**
+     * Sets the self-reported notification status for a specific app.
+     * Setting to UNKNOWN removes the key (default behavior).
+     */
+    suspend fun setNotificationStatus(packageName: String, status: NotificationStatus) {
+        val key = "notif_status_$packageName"
+        if (status == NotificationStatus.UNKNOWN) {
+            remove(key)
+        } else {
+            save(key, status.name)
+        }
+    }
+
+    /**
+     * Checks if notification is reported as disabled for a specific app.
+     */
+    suspend fun isNotificationDisabled(packageName: String): Boolean {
+        val key = "notif_status_$packageName"
+        val value = dao.getSetting(key)
+        return value == NotificationStatus.DISABLED.name
     }
 
     // --- DEV ISLAND STYLE PREVIEW (debug builds only) ---

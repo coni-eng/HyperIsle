@@ -697,7 +697,7 @@ class IslandOverlayService : Service() {
         Log.d(TAG, "Showing notification overlay from: ${model.sender}")
         val rid = model.notificationKey.hashCode()
         val contextSignals = AccessibilityContextState.snapshot()
-        val contextRestricted = contextSignals.isFullscreen || contextSignals.isImeVisible
+        val contextRestricted = contextSignals.isImeVisible
         val callState = currentCallModel?.state
         if (callState == CallOverlayState.INCOMING) {
             Log.d(
@@ -853,6 +853,11 @@ class IslandOverlayService : Service() {
                         }
                     }
                     LaunchedEffect(isReplying) {
+                        overlayController.setFocusable(
+                            isFocusable = isReplying,
+                            reason = if (isReplying) "REPLY_OPEN" else "REPLY_CLOSE",
+                            rid = rid
+                        )
                         Log.d(
                             "HyperIsleIsland",
                             "RID=$rid EVT=REPLY_STATE state=${if (isReplying) "OPEN" else "CLOSED"}"
@@ -1088,7 +1093,16 @@ class IslandOverlayService : Service() {
     ) {
         autoCollapseJob?.cancel()
         val collapseAfterMs = model.collapseAfterMs
-        if (collapseAfterMs == null || collapseAfterMs <= 0L) {
+        if (collapseAfterMs == 0L) {
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_AUTOCOLLAPSE_SKIP reason=STICKY"
+                )
+            }
+            return
+        }
+        if (collapseAfterMs == null || collapseAfterMs < 0L) {
             // Default auto-dismiss after 5 seconds if no collapse time specified
             autoCollapseJob = serviceScope.launch {
                 delay(5000L)
@@ -1537,6 +1551,3 @@ class IslandOverlayService : Service() {
         }
     }
 }
-
-
-

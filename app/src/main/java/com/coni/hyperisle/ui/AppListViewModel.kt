@@ -184,7 +184,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     fun setShadeCancelMode(packageName: String, mode: ShadeCancelMode) {
         viewModelScope.launch { preferences.setShadeCancelMode(packageName, mode) }
     }
-    // ----------------------------------------
+
+    // --- SELF-REPORTED NOTIFICATION STATUS (v1.0.0) ---
+    fun getNotificationStatusFlow(packageName: String) = preferences.getNotificationStatusFlow(packageName)
+
+    fun setNotificationStatus(packageName: String, status: com.coni.hyperisle.models.NotificationStatus) {
+        viewModelScope.launch { preferences.setNotificationStatus(packageName, status) }
+    }
 
     // UI State Setters
     fun setCategory(cat: AppCategory) { }

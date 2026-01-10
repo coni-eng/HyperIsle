@@ -21,6 +21,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.coni.hyperisle.BuildConfig
 
 /**
  * Controller for managing overlay windows using WindowManager.
@@ -36,6 +37,7 @@ class OverlayWindowController(private val context: Context) {
 
     private var overlayView: ComposeView? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
+    private var overlayParams: WindowManager.LayoutParams? = null
     private var hasLoggedWindowFlags = false
 
     // Current overlay state
@@ -92,6 +94,7 @@ class OverlayWindowController(private val context: Context) {
                 // Add top margin for status bar
                 y = getStatusBarHeight()
             }
+            overlayParams = params
             if (!hasLoggedWindowFlags) {
                 val touchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) == 0
                 val focusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
@@ -133,6 +136,7 @@ class OverlayWindowController(private val context: Context) {
             overlayView = null
             lifecycleOwner = null
             currentEvent = null
+            overlayParams = null
         }
     }
 
@@ -141,6 +145,31 @@ class OverlayWindowController(private val context: Context) {
      */
     fun isShowing(): Boolean {
         return overlayView != null && overlayView?.isAttachedToWindow == true
+    }
+
+    fun setFocusable(isFocusable: Boolean, reason: String? = null, rid: Int? = null) {
+        val view = overlayView ?: return
+        val params = overlayParams ?: return
+        val wasFocusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
+        if (wasFocusable == isFocusable) return
+        params.flags = if (isFocusable) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        try {
+            windowManager.updateViewLayout(view, params)
+            if (BuildConfig.DEBUG) {
+                val focusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
+                val logRid = rid ?: currentEvent?.let { overlayRid(it) } ?: 0
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$logRid EVT=OVL_FLAGS_UPDATE focusable=$focusable reason=${reason ?: "unknown"} flags=${params.flags}"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update overlay focusable: ${e.message}", e)
+        }
     }
 
     private fun overlayRid(event: OverlayEvent): Int {
