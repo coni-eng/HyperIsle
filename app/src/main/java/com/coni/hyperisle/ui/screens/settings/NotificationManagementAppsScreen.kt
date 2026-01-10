@@ -48,14 +48,15 @@ fun NotificationManagementAppsScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val activeApps by viewModel.activeAppsRawState.collectAsState()
+    // v1.0.1: Use all installed apps (library), not just active apps, to show shade cancel enabled apps
+    val allApps by viewModel.libraryAppsState.collectAsState()
     val shadeCancelEnabledPackages by viewModel.shadeCancelEnabledPackagesFlow.collectAsState(
         initial = emptySet()
     )
 
-    // v1.0.0: Show only apps that have shade cancel enabled (the user's "hide system notifications" list)
-    val shadeCancelApps = remember(activeApps, shadeCancelEnabledPackages) {
-        activeApps.filter { shadeCancelEnabledPackages.contains(it.packageName) }
+    // v1.0.1: Show ALL apps that have shade cancel enabled (from library, not just active)
+    val shadeCancelApps = remember(allApps, shadeCancelEnabledPackages) {
+        allApps.filter { shadeCancelEnabledPackages.contains(it.packageName) }
     }
 
     // v1.0.0: Track which app user navigated to settings for (self-reported status)

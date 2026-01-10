@@ -6,7 +6,9 @@
 
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
+    
+    <!-- Required for ending calls via TelecomManager (API 28+) -->
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />

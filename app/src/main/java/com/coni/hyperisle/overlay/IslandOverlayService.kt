@@ -115,6 +115,9 @@ class IslandOverlayService : Service() {
     private var stopForegroundJob: Job? = null
     private var isForegroundActive = false
     private var deferCallOverlay: Boolean = false
+    
+    // Track user-dismissed calls to prevent re-showing after swipe
+    private val userDismissedCallKeys = mutableSetOf<String>()
 
     override fun onCreate() {
         super.onCreate()
@@ -321,6 +324,16 @@ class IslandOverlayService : Service() {
         val hasTimer = model.durationText.isNotEmpty()
         val wasCallOverlay =
             overlayController.currentEvent is OverlayEvent.CallEvent && overlayController.isShowing()
+
+        // Check if user dismissed this call - don't re-show
+        if (isOngoing && userDismissedCallKeys.contains(model.notificationKey)) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${model.notificationKey.hashCode()} EVT=CALL_SKIP reason=USER_DISMISSED state=${model.state.name}"
+            )
+            currentCallModel = model // Keep model for state tracking but don't show
+            return
+        }
 
         if (deferCallOverlay && currentNotificationModel != null && isOngoing) {
             currentCallModel = model
@@ -623,6 +636,20 @@ class IslandOverlayService : Service() {
                         ActiveCallCompactPill(
                             callerLabel = activeModel.callerName,
                             durationText = activeModel.durationText,
+                            modifier = Modifier.combinedClickable(
+                                onClick = {
+                                    Log.d(
+                                        "HyperIsleIsland",
+                                        "RID=$rid EVT=CALL_COMPACT_TAP pkg=${activeModel.packageName}"
+                                    )
+                                    handleNotificationTap(
+                                        contentIntent = activeModel.contentIntent,
+                                        rid = rid,
+                                        pkg = activeModel.packageName
+                                    )
+                                },
+                                onLongClick = { isExpanded = true }
+                            ),
                             debugRid = rid
                         )
                     }
@@ -1170,6 +1197,17 @@ class IslandOverlayService : Service() {
         rid: Int,
         pkg: String?
     ): Boolean {
+        // For hangup/decline actions, try TelecomManager first as it's more reliable on MIUI/HyperOS
+        if (actionType == "hangup" || actionType == "decline") {
+            val telecomResult = com.coni.hyperisle.util.CallManager.endCall(applicationContext)
+            if (telecomResult) {
+                Log.d(TAG, "Call ended via TelecomManager for action: $actionType")
+                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=TELECOM pkg=$pkg")
+                return true
+            }
+            Log.d("HyperIsleIsland", "RID=$rid EVT=TELECOM_FALLBACK action=$actionType reason=TELECOM_FAILED pkg=$pkg")
+        }
+
         if (pendingIntent == null) {
             Log.w(TAG, "No PendingIntent for call action: $actionType")
             Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=NO_INTENT pkg=$pkg")
@@ -1179,7 +1217,7 @@ class IslandOverlayService : Service() {
         return try {
             pendingIntent.send()
             Log.d(TAG, "Call action sent successfully: $actionType")
-            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType pkg=$pkg")
+            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=PENDING_INTENT pkg=$pkg")
             true
         } catch (e: PendingIntent.CanceledException) {
             Log.e(TAG, "PendingIntent was cancelled for action: $actionType", e)
@@ -1265,6 +1303,8 @@ class IslandOverlayService : Service() {
         }
 
         if (matchesCall) {
+            // Clear dismissed tracking when call ends
+            userDismissedCallKeys.remove(notificationKey)
             currentCallModel = null
             if (currentMediaModel != null || currentTimerModel != null) {
                 showActivityOverlayFromState()
@@ -1383,6 +1423,15 @@ class IslandOverlayService : Service() {
     private fun dismissFromUser(reason: String) {
         val restoreCall = currentNotificationModel != null &&
             currentCallModel?.state == CallOverlayState.ONGOING
+        
+        // Track user-dismissed calls to prevent re-showing
+        if (currentCallModel != null && currentNotificationModel == null) {
+            currentCallModel?.notificationKey?.let { key ->
+                userDismissedCallKeys.add(key)
+                Log.d("HyperIsleIsland", "RID=${key.hashCode()} EVT=CALL_USER_DISMISSED reason=$reason")
+            }
+        }
+        
         if (currentNotificationModel != null) {
             dismissNotificationOverlay(reason, restoreCall)
         } else {

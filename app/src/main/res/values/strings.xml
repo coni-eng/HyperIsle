@@ -670,6 +670,10 @@
     <string name="perm_required_section_desc">Bu izinler HyperIsle\'ın çalışması için gereklidir.</string>
     <string name="perm_recommended_section">Önerilen İzinler</string>
     <string name="perm_recommended_section_desc">Daha kararlı bir deneyim için önerilir.</string>
+    
+    <!-- Call Control Permission (v1.0.1) -->
+    <string name="perm_phone_calls_title">Telefon Aramaları</string>
+    <string name="perm_phone_calls_desc">Adadan çağrıları sonlandırmak için gerekli</string>
     <string name="setup_banner_title">Kurulum tamamlanmadı</string>
     <string name="setup_banner_message">%d gerekli izin eksik</string>
     <string name="setup_banner_fix_now">Şimdi Düzelt</string>

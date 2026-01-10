@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Visibility
@@ -63,6 +64,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.coni.hyperisle.R
+import com.coni.hyperisle.util.CallManager
 import com.coni.hyperisle.util.DeviceUtils
 import com.coni.hyperisle.util.isNotificationServiceEnabled
 import com.coni.hyperisle.util.isOverlayPermissionGranted
@@ -89,6 +91,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
     // RECOMMENDED permissions
     var isPostGranted by remember { mutableStateOf(isPostNotificationsEnabled(context)) }
     var isBatteryOptimized by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+    var isPhoneCallsGranted by remember { mutableStateOf(CallManager.hasEndCallPermission(context)) }
 
     // --- LIFECYCLE ---
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -99,6 +102,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                 isOverlayGranted = isOverlayPermissionGranted(context)
                 isPostGranted = isPostNotificationsEnabled(context)
                 isBatteryOptimized = isIgnoringBatteryOptimizations(context)
+                isPhoneCallsGranted = CallManager.hasEndCallPermission(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -253,6 +257,16 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                     icon = Icons.Default.BatteryAlert,
                     isGranted = isBatteryOptimized,
                     onClick = { openBatterySettings(context) }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+
+                // Phone Calls - RECOMMENDED (for ending calls from island)
+                HealthItem(
+                    title = stringResource(R.string.perm_phone_calls_title),
+                    subtitle = stringResource(R.string.perm_phone_calls_desc),
+                    icon = Icons.Default.Phone,
+                    isGranted = isPhoneCallsGranted,
+                    onClick = { openPhoneCallsPermissionSettings(context) }
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -454,4 +468,25 @@ fun HealthItem(
 fun isIgnoringBatteryOptimizations(context: Context): Boolean {
     val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     return pm.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+/**
+ * Opens the app's permission settings page where user can grant ANSWER_PHONE_CALLS permission.
+ */
+fun openPhoneCallsPermissionSettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = "package:${context.packageName}".toUri()
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // Fallback to general settings
+        try {
+            val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallbackIntent)
+        } catch (_: Exception) { }
+    }
 }
