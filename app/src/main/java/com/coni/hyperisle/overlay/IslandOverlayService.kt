@@ -1231,21 +1231,36 @@ class IslandOverlayService : Service() {
     }
 
     private fun handleNotificationTap(contentIntent: PendingIntent?, rid: Int, pkg: String) {
-        if (contentIntent == null) {
-            Log.w(TAG, "No contentIntent for notification tap")
-            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=NO_INTENT pkg=$pkg")
-            return
+        // Try contentIntent first
+        if (contentIntent != null) {
+            try {
+                contentIntent.send()
+                Log.d(TAG, "Notification tap intent sent successfully")
+                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_OK method=CONTENT_INTENT pkg=$pkg")
+                return
+            } catch (e: PendingIntent.CanceledException) {
+                Log.e(TAG, "Notification contentIntent was cancelled", e)
+                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=CANCELED pkg=$pkg")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send notification tap intent", e)
+                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=${e.javaClass.simpleName} pkg=$pkg")
+            }
         }
 
+        // Fallback: Open app using launch intent
         try {
-            contentIntent.send()
-            Log.d(TAG, "Notification tap intent sent successfully")
-            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_OK pkg=$pkg")
-        } catch (e: PendingIntent.CanceledException) {
-            Log.e(TAG, "Notification contentIntent was cancelled", e)
-            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=CANCELED pkg=$pkg")
+            val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Log.d(TAG, "App launched via launch intent")
+                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_OK method=LAUNCH_INTENT pkg=$pkg")
+            } else {
+                Log.w(TAG, "No launch intent found for package: $pkg")
+                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=NO_LAUNCH_INTENT pkg=$pkg")
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to send notification tap intent", e)
+            Log.e(TAG, "Failed to launch app", e)
             Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=${e.javaClass.simpleName} pkg=$pkg")
         }
     }

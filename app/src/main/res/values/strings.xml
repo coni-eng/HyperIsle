@@ -679,6 +679,12 @@
     <string name="setup_banner_fix_now">Şimdi Düzelt</string>
     <string name="setup_banner_later">Sonra</string>
 
+    <!-- Accessibility Service Banner -->
+    <string name="accessibility_banner_title">Akıllı Ada Gizleme</string>
+    <string name="accessibility_banner_message">Çağrı uygulaması açıkken adayı otomatik gizlemek için Erişilebilirlik Servisi\'ni etkinleştirin.</string>
+    <string name="accessibility_banner_enable">Etkinleştir</string>
+    <string name="accessibility_banner_dismiss">Kapat</string>
+
     <!-- Notification Management (v0.9.7) -->
     <string name="notification_management_title">Bildirim Yönetimi</string>
     <string name="notification_management_desc">Sistem paneli gizleme ve arama ayarları</string>

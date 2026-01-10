@@ -42,8 +42,11 @@ import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.PermissionRegistry
 import com.coni.hyperisle.ui.AppListViewModel
+import com.coni.hyperisle.ui.components.AccessibilityBanner
 import com.coni.hyperisle.ui.components.AppConfigBottomSheet
 import com.coni.hyperisle.ui.components.SetupBanner
+import com.coni.hyperisle.util.isContextAccessibilityEnabled
+import com.coni.hyperisle.util.openAccessibilitySettings
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,12 +75,18 @@ fun HomeScreen(
     val snoozeUntil by preferences.permissionBannerSnoozeUntilFlow.collectAsState(initial = 0L)
     var bannerDismissedThisSession by remember { mutableStateOf(false) }
     
+    // --- ACCESSIBILITY BANNER STATE ---
+    var isAccessibilityEnabled by remember { mutableStateOf(isContextAccessibilityEnabled(context)) }
+    val accessibilitySnoozeUntil by preferences.accessibilityBannerSnoozeUntilFlow.collectAsState(initial = 0L)
+    var accessibilityBannerDismissedThisSession by remember { mutableStateOf(false) }
+    
     // Recalculate missing permissions on resume
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 missingRequiredCount = PermissionRegistry.getMissingRequiredCount(context)
+                isAccessibilityEnabled = isContextAccessibilityEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -88,6 +97,14 @@ fun HomeScreen(
     // Show only if: missing required > 0 AND not snoozed AND not dismissed this session
     val isSnoozed = System.currentTimeMillis() < snoozeUntil
     val showBanner = missingRequiredCount > 0 && !isSnoozed && !bannerDismissedThisSession
+    
+    // Accessibility banner visibility:
+    // Show only if: accessibility not enabled AND required permissions are OK AND not snoozed AND not dismissed
+    val isAccessibilitySnoozed = System.currentTimeMillis() < accessibilitySnoozeUntil
+    val showAccessibilityBanner = !isAccessibilityEnabled && 
+        missingRequiredCount == 0 && 
+        !isAccessibilitySnoozed && 
+        !accessibilityBannerDismissedThisSession
     
     // Debug log for missing permissions
     if (BuildConfig.DEBUG && missingRequiredCount > 0) {
@@ -132,6 +149,17 @@ fun HomeScreen(
                     onLater = {
                         scope.launch { preferences.snoozePermissionBanner() }
                         bannerDismissedThisSession = true
+                    }
+                )
+            }
+            
+            // --- ACCESSIBILITY BANNER (recommended for smart overlay hiding) ---
+            if (showAccessibilityBanner) {
+                AccessibilityBanner(
+                    onEnable = { openAccessibilitySettings(context) },
+                    onDismiss = {
+                        scope.launch { preferences.snoozeAccessibilityBanner() }
+                        accessibilityBannerDismissedThisSession = true
                     }
                 )
             }

@@ -48,16 +48,8 @@ fun NotificationManagementAppsScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    // v1.0.1: Use all installed apps (library), not just active apps, to show shade cancel enabled apps
-    val allApps by viewModel.libraryAppsState.collectAsState()
-    val shadeCancelEnabledPackages by viewModel.shadeCancelEnabledPackagesFlow.collectAsState(
-        initial = emptySet()
-    )
-
-    // v1.0.1: Show ALL apps that have shade cancel enabled (from library, not just active)
-    val shadeCancelApps = remember(allApps, shadeCancelEnabledPackages) {
-        allApps.filter { shadeCancelEnabledPackages.contains(it.packageName) }
-    }
+    // v1.0.2: Show ALL active (bridged) apps in this screen for shade cancel management
+    val activeApps by viewModel.activeAppsState.collectAsState()
 
     // v1.0.0: Track which app user navigated to settings for (self-reported status)
     var pendingConfirmationApp by remember { mutableStateOf<com.coni.hyperisle.ui.AppInfo?>(null) }
@@ -127,7 +119,7 @@ fun NotificationManagementAppsScreen(
             )
         }
     ) { padding ->
-        if (shadeCancelApps.isEmpty()) {
+        if (activeApps.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -165,7 +157,7 @@ fun NotificationManagementAppsScreen(
                 }
 
                 // List of shade cancel enabled apps
-                items(shadeCancelApps, key = { it.packageName }) { appInfo ->
+                items(activeApps, key = { it.packageName }) { appInfo ->
                     ShadeCancelAppItem(
                         appInfo = appInfo,
                         viewModel = viewModel,

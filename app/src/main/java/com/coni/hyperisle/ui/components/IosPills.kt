@@ -265,35 +265,34 @@ fun IncomingCallPill(
 /**
  * Compact active call pill showing caller label and duration.
  * Sleek iOS-style mini pill with phone icon indicator.
+ * Tap to open call app, long press to expand.
  */
 @Composable
 fun ActiveCallCompactPill(
     callerLabel: String,
     durationText: String,
     modifier: Modifier = Modifier,
-    fillMaxWidth: Boolean = true,
+    fillMaxWidth: Boolean = false,
     debugRid: Int? = null
 ) {
-    val containerModifier = if (fillMaxWidth) modifier.fillMaxWidth() else modifier
     Surface(
-        modifier = containerModifier
-            .height(52.dp)
-            .shadow(elevation = 8.dp, shape = RoundedCornerShape(26.dp))
+        modifier = modifier
+            .height(36.dp)
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(18.dp))
             .debugLayoutModifier(debugRid, "call_compact_root"),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(18.dp),
         color = Color(0xE6000000)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
                 .debugLayoutModifier(debugRid, "call_compact_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Phone icon indicator
+            // Phone icon indicator (smaller)
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF34C759)),
                 contentAlignment = Alignment.Center
@@ -302,34 +301,19 @@ fun ActiveCallCompactPill(
                     imageVector = Icons.Default.Phone,
                     contentDescription = "Active call",
                     tint = Color.White,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(12.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-            // Caller name
+            // Duration with green color (primary info for compact)
             Text(
-                text = callerLabel,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f)
-                    .debugLayoutModifier(debugRid, "call_compact_name")
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Duration with green color
-            Text(
-                text = durationText,
+                text = durationText.ifEmpty { callerLabel },
                 color = Color(0xFF34C759),
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = if (durationText.isNotEmpty()) FontFamily.Monospace else FontFamily.Default,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.debugLayoutModifier(debugRid, "call_compact_duration")

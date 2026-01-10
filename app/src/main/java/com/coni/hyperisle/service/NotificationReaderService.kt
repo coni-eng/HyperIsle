@@ -2391,7 +2391,14 @@ class NotificationReaderService : NotificationListenerService() {
         val callModel = buildCallOverlayModel(sbn, title, isOngoingCall, durationSeconds)
             ?: return false
         callOverlayVisibility[groupKey] = true
-        return OverlayEventBus.emitCall(callModel)
+        val emitted = OverlayEventBus.emitCall(callModel)
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${sbn.key.hashCode()} EVT=CALL_OVERLAY_EMIT state=${callModel.state.name} pkg=${sbn.packageName} result=${if (emitted) "OK" else "DROP"}"
+            )
+        }
+        return emitted
     }
 
     private fun emitCallOverlayUpdate(

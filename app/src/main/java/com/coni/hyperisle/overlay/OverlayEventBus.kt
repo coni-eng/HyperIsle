@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 object OverlayEventBus {
 
     private val _events = MutableSharedFlow<OverlayEvent>(
-        replay = 0,
+        replay = 1,
         extraBufferCapacity = 10
     )
 

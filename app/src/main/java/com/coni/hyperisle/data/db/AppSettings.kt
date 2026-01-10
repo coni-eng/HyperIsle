@@ -103,6 +103,9 @@ object SettingsKeys {
 
     // Permission banner snooze (v0.9.6)
     const val PERMISSION_BANNER_SNOOZE_UNTIL = "permission_banner_snooze_until"
+    
+    // Accessibility banner snooze
+    const val ACCESSIBILITY_BANNER_SNOOZE_UNTIL = "accessibility_banner_snooze_until"
 
     // Settings layout (v0.9.7)
     const val SETTINGS_QUICK_ACTIONS_ORDER = "settings_quick_actions_order"

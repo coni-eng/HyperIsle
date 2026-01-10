@@ -792,6 +792,14 @@ class AppPreferences(context: Context) {
         return System.currentTimeMillis() < snoozeUntil
     }
 
+    // --- ACCESSIBILITY BANNER SNOOZE ---
+    val accessibilityBannerSnoozeUntilFlow: Flow<Long> = dao.getSettingFlow(SettingsKeys.ACCESSIBILITY_BANNER_SNOOZE_UNTIL).map { it.toLong(0L) }
+
+    suspend fun snoozeAccessibilityBanner() {
+        val snoozeUntil = System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L) // 7 days
+        save(SettingsKeys.ACCESSIBILITY_BANNER_SNOOZE_UNTIL, snoozeUntil.toString())
+    }
+
     // --- CALLS-ONLY-ISLAND (v0.9.7) ---
     // Global boolean: hide ongoing call notifications from system shade
     val callsOnlyIslandEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.CALLS_ONLY_ISLAND_ENABLED).map { it.toBoolean(false) }
