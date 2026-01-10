@@ -84,13 +84,15 @@ class OverlayWindowController(private val context: Context) {
             }
 
             // Create layout params for overlay
+            // Use WRAP_CONTENT for width to allow touch pass-through outside the island
             val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -181,6 +183,7 @@ class OverlayWindowController(private val context: Context) {
             is OverlayEvent.NotificationEvent -> event.model.notificationKey.hashCode()
             is OverlayEvent.MediaEvent -> event.model.notificationKey.hashCode()
             is OverlayEvent.TimerEvent -> event.model.notificationKey.hashCode()
+            is OverlayEvent.NavigationEvent -> event.model.notificationKey.hashCode()
             is OverlayEvent.DismissEvent,
             OverlayEvent.DismissAllEvent -> 0
         }

@@ -66,6 +66,13 @@ object OverlayEventBus {
     }
 
     /**
+     * Emit a navigation event.
+     */
+    fun emitNavigation(model: NavigationOverlayModel): Boolean {
+        return tryEmit(OverlayEvent.NavigationEvent(model))
+    }
+
+    /**
      * Emit a dismiss event for a specific notification.
      */
     fun emitDismiss(notificationKey: String? = null): Boolean {

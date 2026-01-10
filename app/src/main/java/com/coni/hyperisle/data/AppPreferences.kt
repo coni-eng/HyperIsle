@@ -298,6 +298,15 @@ class AppPreferences(context: Context) {
         if (right != null) save(rKey, right.name) else remove(rKey)
     }
 
+    // Navigation Island Size (COMPACT or EXPANDED)
+    val navIslandSizeFlow: Flow<String> = dao.getSettingFlow(SettingsKeys.NAV_ISLAND_SIZE).map {
+        it ?: "COMPACT"
+    }
+
+    suspend fun setNavIslandSize(size: String) {
+        save(SettingsKeys.NAV_ISLAND_SIZE, size)
+    }
+
     // --- MUSIC ISLAND ---
     val musicIslandModeFlow: Flow<MusicIslandMode> = dao.getSettingFlow(SettingsKeys.MUSIC_ISLAND_MODE).map {
         try { MusicIslandMode.valueOf(it ?: MusicIslandMode.SYSTEM_ONLY.name) } catch (e: Exception) { MusicIslandMode.SYSTEM_ONLY }

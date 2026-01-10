@@ -120,6 +120,46 @@ data class TimerOverlayModel(
 )
 
 /**
+ * Navigation island size mode.
+ */
+enum class NavIslandSize {
+    COMPACT,  // Small island with 2 info slots (left/right of camera)
+    EXPANDED  // Large island with 4 info slots
+}
+
+/**
+ * Navigation info slot content type.
+ */
+enum class NavSlotContent {
+    DIRECTION,      // Turn direction icon + text (e.g., "Turn right")
+    DISTANCE,       // Distance to next turn (e.g., "200m")
+    TURN_DISTANCE,  // Distance to turn point
+    ETA,            // Estimated time of arrival
+    REMAINING_TIME, // Remaining travel time
+    TOTAL_DISTANCE, // Total route distance
+    TOTAL_TIME,     // Total estimated time
+    NONE            // Empty slot
+}
+
+/**
+ * Data model for iOS-style navigation overlay.
+ */
+data class NavigationOverlayModel(
+    val instruction: String,           // "Turn right onto Main St"
+    val distance: String,              // "200m"
+    val eta: String,                   // "10:30"
+    val remainingTime: String = "",    // "15 min"
+    val totalDistance: String = "",    // "5.2 km"
+    val turnDistance: String = "",     // "In 200m"
+    val directionIcon: Bitmap? = null, // Turn arrow icon
+    val appIcon: Bitmap? = null,       // Navigation app icon
+    val contentIntent: PendingIntent? = null,
+    val packageName: String,
+    val notificationKey: String,
+    val islandSize: NavIslandSize = NavIslandSize.COMPACT
+)
+
+/**
  * Inline reply action info for notification overlay.
  */
 data class IosNotificationReplyAction(
@@ -161,6 +201,11 @@ sealed class OverlayEvent {
      * Event to show a timer/chronometer overlay.
      */
     data class TimerEvent(val model: TimerOverlayModel) : OverlayEvent()
+
+    /**
+     * Event to show a navigation pill overlay.
+     */
+    data class NavigationEvent(val model: NavigationOverlayModel) : OverlayEvent()
 
     /**
      * Event to show a notification pill overlay.

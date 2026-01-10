@@ -46,9 +46,14 @@ object Haptics {
         vibrator.vibrate(effect)
     }
 
+    @Suppress("DEPRECATION")
     private fun getVibrator(context: Context): Vibrator? {
-        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-        return vibratorManager?.defaultVibrator
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            vibratorManager?.defaultVibrator
+        } else {
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
     }
 
     private fun isHapticsEnabled(context: Context): Boolean {

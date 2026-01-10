@@ -67,6 +67,8 @@ import com.coni.hyperisle.overlay.IosNotificationOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationReplyAction
 import com.coni.hyperisle.overlay.MediaAction
 import com.coni.hyperisle.overlay.MediaOverlayModel
+import com.coni.hyperisle.overlay.NavigationOverlayModel
+import com.coni.hyperisle.overlay.NavIslandSize
 import com.coni.hyperisle.overlay.OverlayEventBus
 import com.coni.hyperisle.overlay.TimerOverlayModel
 import com.coni.hyperisle.util.AccessibilityContextState
@@ -2390,16 +2392,7 @@ class NotificationReaderService : NotificationListenerService() {
                     OverlayEventBus.emitNotification(notifModel)
                 }
                 NotificationType.NAVIGATION -> {
-                    val collapseAfterMs = 0L
-                    val navModel = buildNotificationOverlayModel(sbn, title, text, collapseAfterMs, replyAction = null)
-                    val emitted = OverlayEventBus.emitNotification(navModel)
-                    if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
-                            "RID=${sbn.key.hashCode()} EVT=OVERLAY_NAV_EMIT pkg=${sbn.packageName} result=${if (emitted) "OK" else "DROP"}"
-                        )
-                    }
-                    emitted
+                    emitNavigationOverlay(sbn)
                 }
                 else -> false
             }
@@ -2752,6 +2745,80 @@ class NotificationReaderService : NotificationListenerService() {
             packageName = sbn.packageName,
             notificationKey = sbn.key
         )
+    }
+
+    /**
+     * Build NavigationOverlayModel from StatusBarNotification.
+     */
+    private fun buildNavigationOverlayModel(
+        sbn: StatusBarNotification
+    ): NavigationOverlayModel? {
+        val extras = sbn.notification.extras
+        val title = extras.getStringCompat(Notification.EXTRA_TITLE)?.replace("\n", " ")?.trim() ?: ""
+        val text = extras.getStringCompat(Notification.EXTRA_TEXT)?.replace("\n", " ")?.trim() ?: ""
+        val subText = extras.getStringCompat(Notification.EXTRA_SUB_TEXT)?.replace("\n", " ")?.trim() ?: ""
+        
+        val arrivalKeywords = resources.getStringArray(R.array.nav_arrival_keywords).toList()
+        val timeRegex = Regex("\\d{1,2}:\\d{2}")
+        
+        fun isTimeInfo(s: String): Boolean = timeRegex.containsMatchIn(s) || arrivalKeywords.any { s.contains(it, true) }
+        
+        var instruction = ""
+        var distance = ""
+        var eta = ""
+        
+        if (isTimeInfo(subText)) eta = subText
+        if (text.isNotEmpty() && title.isNotEmpty()) {
+            if (eta.isEmpty()) {
+                if (isTimeInfo(text)) { eta = text; instruction = title }
+                else if (isTimeInfo(title)) { eta = title; instruction = text }
+            }
+            if (instruction.isEmpty()) {
+                if (title.length >= text.length) { instruction = title; distance = text }
+                else { instruction = text; distance = title }
+            }
+        } else {
+            instruction = title.ifEmpty { text }
+        }
+        
+        if (instruction.isEmpty()) instruction = getString(R.string.maps_title)
+        
+        val appIcon = getAppIconBitmap(sbn.packageName)
+        
+        return NavigationOverlayModel(
+            instruction = instruction,
+            distance = distance,
+            eta = eta,
+            remainingTime = "",
+            totalDistance = "",
+            turnDistance = "",
+            directionIcon = null,
+            appIcon = appIcon,
+            contentIntent = sbn.notification.contentIntent,
+            packageName = sbn.packageName,
+            notificationKey = sbn.key,
+            islandSize = NavIslandSize.COMPACT
+        )
+    }
+
+    /**
+     * Emit navigation overlay event.
+     */
+    private fun emitNavigationOverlay(sbn: StatusBarNotification): Boolean {
+        val rid = sbn.key.hashCode()
+        if (!shouldRenderOverlay(NotificationType.NAVIGATION, rid)) return false
+        if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) return false
+        if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) return false
+        
+        val navModel = buildNavigationOverlayModel(sbn) ?: return false
+        val emitted = OverlayEventBus.emitNavigation(navModel)
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid EVT=NAV_OVERLAY_EMIT pkg=${sbn.packageName} result=${if (emitted) "OK" else "DROP"}"
+            )
+        }
+        return emitted
     }
 
     private fun extractMediaActions(sbn: StatusBarNotification): List<MediaAction> {

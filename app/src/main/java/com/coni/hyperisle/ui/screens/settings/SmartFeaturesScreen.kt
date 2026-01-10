@@ -14,9 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BedtimeOff
-import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExpandLess
@@ -88,10 +86,6 @@ fun SmartFeaturesScreen(
     val smartPriorityEnabled by preferences.smartPriorityEnabledFlow.collectAsState(initial = true)
     val smartPriorityAggressiveness by preferences.smartPriorityAggressivenessFlow.collectAsState(initial = 1)
 
-    // System Banners
-    val bannerBtEnabled by preferences.bannerBtConnectedEnabledFlow.collectAsState(initial = false)
-    val bannerBatteryEnabled by preferences.bannerBatteryLowEnabledFlow.collectAsState(initial = false)
-    val bannerCopiedEnabled by preferences.bannerCopiedEnabledFlow.collectAsState(initial = false)
 
     // Context-Aware Islands (v0.7.0)
     val contextAwareEnabled by preferences.contextAwareEnabledFlow.collectAsState(initial = false)
@@ -614,7 +608,10 @@ fun SmartFeaturesScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
                                             Icon(
                                                 Icons.Default.BedtimeOff,
                                                 contentDescription = null,
@@ -634,6 +631,7 @@ fun SmartFeaturesScreen(
                                                 )
                                             }
                                         }
+                                        Spacer(Modifier.width(8.dp))
                                         Switch(
                                             checked = focusEnabled,
                                             onCheckedChange = { scope.launch { preferences.setFocusEnabled(it) } }
@@ -844,60 +842,6 @@ fun SmartFeaturesScreen(
                                 }
                             }
 
-                            // --- SYSTEM BANNERS ---
-                            PremiumSectionCard(containerColor = MaterialTheme.colorScheme.surface) {
-                                Column(Modifier.padding(16.dp)) {
-                                    Text(
-                                        stringResource(R.string.banners_title),
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Text(
-                                        stringResource(R.string.banners_desc),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        stringResource(R.string.banners_warning),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                    Spacer(Modifier.height(12.dp))
-                                    CardDivider()
-                                    Spacer(Modifier.height(12.dp))
-
-                                    // Bluetooth Connected
-                                    SettingsToggleRow(
-                                        title = stringResource(R.string.banner_bt_title),
-                                        subtitle = stringResource(R.string.banner_bt_desc),
-                                        checked = bannerBtEnabled,
-                                        onCheckedChange = { scope.launch { preferences.setBannerBtConnectedEnabled(it) } },
-                                        icon = Icons.Default.Bluetooth
-                                    )
-
-                                    Spacer(Modifier.height(8.dp))
-
-                                    // Battery Low
-                                    SettingsToggleRow(
-                                        title = stringResource(R.string.banner_battery_title),
-                                        subtitle = stringResource(R.string.banner_battery_desc),
-                                        checked = bannerBatteryEnabled,
-                                        onCheckedChange = { scope.launch { preferences.setBannerBatteryLowEnabled(it) } },
-                                        icon = Icons.Default.BatteryAlert
-                                    )
-
-                                    Spacer(Modifier.height(8.dp))
-
-                                    // Copied (placeholder)
-                                    SettingsToggleRow(
-                                        title = stringResource(R.string.banner_copied_title),
-                                        subtitle = stringResource(R.string.banner_copied_desc),
-                                        checked = bannerCopiedEnabled,
-                                        onCheckedChange = { scope.launch { preferences.setBannerCopiedEnabled(it) } },
-                                        enabled = false
-                                    )
-                                }
-                            }
                         }
                     }
                 }
@@ -1316,7 +1260,7 @@ private fun SettingsHeaderRow(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f, fill = false)
         ) {
             Box(
                 modifier = Modifier
@@ -1343,11 +1287,12 @@ private fun SettingsHeaderRow(
                     description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = 3,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
         }
+        Spacer(Modifier.width(8.dp))
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange

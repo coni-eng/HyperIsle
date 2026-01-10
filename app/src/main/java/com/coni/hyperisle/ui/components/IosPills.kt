@@ -107,7 +107,7 @@ private fun Modifier.debugLayoutModifier(rid: Int?, element: String): Modifier {
 @Composable
 fun PillContainer(
     modifier: Modifier = Modifier,
-    height: Dp = 72.dp,
+    height: Dp = 78.dp,
     fillMaxWidth: Boolean = true,
     debugRid: Int? = null,
     debugName: String = "pill",
@@ -171,7 +171,7 @@ fun IncomingCallPill(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF3A3A3C))
+                    .background(Color(0xFF030302))
                     .debugLayoutModifier(debugRid, "call_avatar"),
                 contentAlignment = Alignment.Center
             ) {
@@ -229,7 +229,7 @@ fun IncomingCallPill(
                 // Decline button
                 Box(
                     modifier = Modifier
-                        .size(55.dp)
+                        .size(65.dp)
                         .debugLayoutModifier(debugRid, "call_decline_btn")
                         .clickable { onDecline() },
                     contentAlignment = Alignment.Center
@@ -238,7 +238,7 @@ fun IncomingCallPill(
                         painter = painterResource(id = R.drawable.call_end),
                         contentDescription = "Decline call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(85.dp)
+                        modifier = Modifier.size(95.dp)
                     )
                 }
 
@@ -734,7 +734,7 @@ fun TimerPill(
                 modifier = Modifier
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF3A3A3C))
+                    .background(Color(0xFF030302))
                     .debugLayoutModifier(debugRid, "timer_icon"),
                 contentAlignment = Alignment.Center
             ) {
@@ -787,7 +787,7 @@ private fun MediaArtwork(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color(0xFF3A3A3C))
+            .background(Color(0xFF030302))
             .debugLayoutModifier(debugRid, "media_artwork"),
         contentAlignment = Alignment.Center
     ) {
@@ -872,7 +872,7 @@ private fun MediaActionButton(
         modifier = Modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(Color(0xFF3A3A3C))
+            .background(Color(0xFF030302))
             .clickable {
                 try {
                     action.actionIntent.send()
@@ -973,10 +973,10 @@ fun NotificationPill(
     Surface(
         modifier = tapModifier
             .fillMaxWidth()
-            .shadow(elevation = 12.dp, shape = RoundedCornerShape(24.dp))
+            .shadow(elevation = 14.dp, shape = RoundedCornerShape(24.dp))
             .debugLayoutModifier(debugRid, "notif_root"),
         shape = RoundedCornerShape(24.dp),
-        color = Color(0xE61C1C1E) // Slightly more opaque for better readability
+        color = Color(0xFF030302) // Slightly more opaque for better readability
     ) {
         Row(
             modifier = Modifier
@@ -990,7 +990,7 @@ fun NotificationPill(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF3A3A3C))
+                    .background(Color(0xFF030302))
                     .debugLayoutModifier(debugRid, "notif_avatar"),
                 contentAlignment = Alignment.Center
             ) {
@@ -1140,7 +1140,7 @@ fun MiniNotificationPill(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF3A3A3C))
+                        .background(Color(0xFF030302))
                         .debugLayoutModifier(debugRid, "notif_mini_avatar"),
                     contentAlignment = Alignment.Center
                 ) {

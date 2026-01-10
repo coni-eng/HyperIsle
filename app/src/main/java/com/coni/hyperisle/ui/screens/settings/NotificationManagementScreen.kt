@@ -53,7 +53,6 @@ fun NotificationManagementScreen(
     // Calls-only-island state
     val callsOnlyIslandEnabled by preferences.callsOnlyIslandEnabledFlow.collectAsState(initial = false)
     val callsOnlyIslandConfirmed by preferences.callsOnlyIslandConfirmedFlow.collectAsState(initial = false)
-    val useMiuiBridgeIsland by preferences.useMiuiBridgeIslandFlow.collectAsState(initial = false)
 
     // Status counts
     var shadeCancelCount by remember { mutableIntStateOf(0) }
@@ -305,41 +304,6 @@ fun NotificationManagementScreen(
                             stringResource(R.string.notification_management_apps_safety_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            // --- SECTION: ISLAND ROUTE ---
-            SectionHeader(title = stringResource(R.string.notification_management_section_island))
-
-            PremiumSectionCard {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        IconBadge(
-                            icon = Icons.Default.Info,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.miui_bridge_island_title),
-                                style = MaterialTheme.typography.titleSmall
-                            )
-                            Text(
-                                stringResource(R.string.miui_bridge_island_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = useMiuiBridgeIsland,
-                            onCheckedChange = { checked ->
-                                scope.launch { preferences.setUseMiuiBridgeIsland(checked) }
-                            }
                         )
                     }
                 }

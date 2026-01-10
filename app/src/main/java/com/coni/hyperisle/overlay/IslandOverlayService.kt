@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.RemoteInput
 import android.app.Service
+import android.graphics.Bitmap
 import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
@@ -70,9 +71,11 @@ import com.coni.hyperisle.ui.components.NotificationReplyPill
 import com.coni.hyperisle.ui.components.TimerDot
 import com.coni.hyperisle.ui.components.TimerPill
 import com.coni.hyperisle.util.AccessibilityContextSignals
+import androidx.compose.ui.graphics.asImageBitmap
 import com.coni.hyperisle.util.AccessibilityContextState
 import com.coni.hyperisle.util.CallManager
 import com.coni.hyperisle.util.ContextStateManager
+import com.coni.hyperisle.util.Haptics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -111,6 +114,7 @@ class IslandOverlayService : Service() {
     private var currentNotificationModel: IosNotificationOverlayModel? by mutableStateOf(null)
     private var currentMediaModel: MediaOverlayModel? by mutableStateOf(null)
     private var currentTimerModel: TimerOverlayModel? by mutableStateOf(null)
+    private var currentNavigationModel: NavigationOverlayModel? by mutableStateOf(null)
     private var isNotificationCollapsed: Boolean by mutableStateOf(false)
     private var autoCollapseJob: Job? = null
     private var stopForegroundJob: Job? = null
@@ -289,6 +293,12 @@ class IslandOverlayService : Service() {
                     return
                 }
             }
+            is OverlayEvent.NavigationEvent -> {
+                if (!canRenderOverlay(event.model.notificationKey.hashCode(), allowOnKeyguard = false)) {
+                    scheduleStopIfIdle("RENDER_BLOCKED")
+                    return
+                }
+            }
             else -> Unit
         }
 
@@ -296,6 +306,7 @@ class IslandOverlayService : Service() {
             is OverlayEvent.CallEvent -> showCallOverlay(event.model)
             is OverlayEvent.MediaEvent -> showMediaOverlay(event.model)
             is OverlayEvent.TimerEvent -> showTimerOverlay(event.model)
+            is OverlayEvent.NavigationEvent -> showNavigationOverlay(event.model)
             is OverlayEvent.NotificationEvent -> showNotificationOverlay(event.model)
             is OverlayEvent.DismissEvent -> dismissOverlay(event.notificationKey, "NOTIF_REMOVED")
             is OverlayEvent.DismissAllEvent -> dismissAllOverlays("DISMISS_ALL_EVENT")
@@ -355,6 +366,8 @@ class IslandOverlayService : Service() {
 
         if (!wasCallOverlay) {
             Log.d(TAG, "Showing call overlay for: ${model.callerName}")
+            // Haptic feedback when overlay is shown
+            Haptics.hapticOnIslandShown(applicationContext)
             // INSTRUMENTATION: Overlay show call
             if (BuildConfig.DEBUG) {
                 Log.d(
@@ -406,7 +419,14 @@ class IslandOverlayService : Service() {
         }
 
         overlayController.showOverlay(OverlayEvent.CallEvent(model)) {
-            val activeModel = currentCallModel ?: return@showOverlay
+            val activeModel = currentCallModel
+            if (activeModel == null) {
+                // Call ended - dismiss overlay
+                LaunchedEffect(Unit) {
+                    dismissAllOverlays("CALL_MODEL_NULL")
+                }
+                return@showOverlay
+            }
             val activeIsOngoing = activeModel.state == CallOverlayState.ONGOING
             var isExpanded by remember(activeModel.notificationKey) { mutableStateOf(false) }
             val contextSignals by AccessibilityContextState.signals.collectAsState()
@@ -520,7 +540,8 @@ class IslandOverlayService : Service() {
                                     "HyperIsleIsland",
                                     "RID=$rid EVT=BTN_CALL_ACCEPT_RESULT result=$resultLabel pkg=${activeModel.packageName}"
                                 )
-                                dismissAllOverlays("CALL_ACCEPT")
+                                // Don't dismiss - wait for system to send ongoing call notification
+                                // The overlay will transition to ongoing state when new notification arrives
                             },
                             debugRid = rid
                         )
@@ -675,6 +696,29 @@ class IslandOverlayService : Service() {
         showActivityOverlay(OverlayEvent.TimerEvent(model))
     }
 
+    private fun showNavigationOverlay(model: NavigationOverlayModel) {
+        Log.d(TAG, "Showing navigation overlay: ${model.instruction}")
+        Haptics.hapticOnIslandShown(applicationContext)
+        currentNavigationModel = model
+        
+        // Navigation has lower priority than calls and notifications
+        if (currentCallModel != null || currentNotificationModel != null) {
+            return
+        }
+        
+        val rid = model.notificationKey.hashCode()
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HyperIsleIsland",
+                "RID=$rid STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NAVIGATION pkg=${model.packageName}"
+            )
+        }
+        
+        overlayController.showOverlay(OverlayEvent.NavigationEvent(model)) {
+            NavigationOverlayContent()
+        }
+    }
+
     private fun showActivityOverlay(event: OverlayEvent) {
         if (currentMediaModel == null && currentTimerModel == null) {
             scheduleStopIfIdle("ACTIVITY_EMPTY")
@@ -723,6 +767,8 @@ class IslandOverlayService : Service() {
 
     private fun showNotificationOverlay(model: IosNotificationOverlayModel) {
         Log.d(TAG, "Showing notification overlay from: ${model.sender}")
+        // Haptic feedback when overlay is shown
+        Haptics.hapticOnIslandShown(applicationContext)
         val rid = model.notificationKey.hashCode()
         val contextSignals = AccessibilityContextState.snapshot()
         val contextRestricted = contextSignals.isImeVisible
@@ -1115,6 +1161,150 @@ class IslandOverlayService : Service() {
         }
     }
 
+    @Composable
+    private fun NavigationOverlayContent() {
+        val navModel = currentNavigationModel
+        if (navModel == null) {
+            LaunchedEffect(Unit) {
+                dismissAllOverlays("NAV_MODEL_NULL")
+            }
+            return
+        }
+        
+        val rid = navModel.notificationKey.hashCode()
+        val contextSignals by AccessibilityContextState.signals.collectAsState()
+        val suppressOverlay = contextSignals.foregroundPackage == navModel.packageName
+        
+        LaunchedEffect(suppressOverlay) {
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$rid EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=NAVIGATION fg=${contextSignals.foregroundPackage ?: "unknown"}"
+                )
+            }
+        }
+        
+        if (suppressOverlay) {
+            Spacer(modifier = Modifier.height(0.dp))
+            return
+        }
+        
+        val isCompact = navModel.islandSize == NavIslandSize.COMPACT
+        
+        SwipeDismissContainer(
+            rid = rid,
+            stateLabel = if (isCompact) "nav_compact" else "nav_expanded",
+            onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
+            onTap = {
+                handleNotificationTap(
+                    contentIntent = navModel.contentIntent,
+                    rid = rid,
+                    pkg = navModel.packageName
+                )
+            },
+            onLongPress = null,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            NavigationPill(
+                instruction = navModel.instruction,
+                distance = navModel.distance,
+                eta = navModel.eta,
+                remainingTime = navModel.remainingTime,
+                appIcon = navModel.appIcon,
+                isCompact = isCompact,
+                modifier = Modifier.widthIn(min = 200.dp, max = 340.dp),
+                debugRid = rid
+            )
+        }
+    }
+
+    @Composable
+    private fun NavigationPill(
+        instruction: String,
+        distance: String,
+        eta: String,
+        remainingTime: String,
+        appIcon: Bitmap?,
+        isCompact: Boolean,
+        modifier: Modifier = Modifier,
+        debugRid: Int = 0
+    ) {
+        androidx.compose.material3.Surface(
+            color = Color.Black,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+            modifier = modifier
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Direction icon or app icon
+                if (appIcon != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = appIcon.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(Color(0xFF34C759), androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = "→",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                
+                // Navigation info
+                Column(modifier = Modifier.weight(1f)) {
+                    androidx.compose.material3.Text(
+                        text = instruction,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    if (!isCompact && remainingTime.isNotEmpty()) {
+                        androidx.compose.material3.Text(
+                            text = remainingTime,
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+                
+                // Distance and ETA
+                Column(horizontalAlignment = Alignment.End) {
+                    if (distance.isNotEmpty()) {
+                        androidx.compose.material3.Text(
+                            text = distance,
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (eta.isNotEmpty()) {
+                        androidx.compose.material3.Text(
+                            text = eta,
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private fun scheduleAutoCollapse(
         model: IosNotificationOverlayModel,
         restoreCallAfterDismiss: Boolean
@@ -1301,6 +1491,15 @@ class IslandOverlayService : Service() {
         val matchesNotification = currentNotificationModel?.notificationKey == notificationKey
         val matchesMedia = currentMediaModel?.notificationKey == notificationKey
         val matchesTimer = currentTimerModel?.notificationKey == notificationKey
+        val matchesNavigation = currentNavigationModel?.notificationKey == notificationKey
+
+        if (matchesNavigation) {
+            currentNavigationModel = null
+            if (currentCallModel == null && currentNotificationModel == null) {
+                dismissAllOverlays(reason)
+            }
+            return
+        }
 
         if (matchesCall && currentNotificationModel != null) {
             Log.d(
@@ -1438,6 +1637,7 @@ class IslandOverlayService : Service() {
         currentNotificationModel = null
         currentMediaModel = null
         currentTimerModel = null
+        currentNavigationModel = null
         isNotificationCollapsed = false
         deferCallOverlay = false
         overlayController.removeOverlay()
@@ -1463,6 +1663,9 @@ class IslandOverlayService : Service() {
     private fun dismissFromUser(reason: String) {
         val restoreCall = currentNotificationModel != null &&
             currentCallModel?.state == CallOverlayState.ONGOING
+        
+        // Haptic feedback on user dismiss
+        Haptics.hapticOnIslandSuccess(applicationContext)
         
         // Track user-dismissed calls to prevent re-showing
         if (currentCallModel != null && currentNotificationModel == null) {

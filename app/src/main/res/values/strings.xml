@@ -227,10 +227,15 @@
     <string name="badge_new">YENİ</string>
 
     <string name="custom_design">Özel Tasarım</string>
-    <string name="nav_layout_title">Navigasyon Düzeni</string>
-    <string name="nav_layout_desc">Bilgilerin nerede görüneceğini seçin</string>
+    <string name="nav_layout_title">Navigasyon Ayarları</string>
+    <string name="nav_layout_desc">Ada boyutu ve bilgi düzenini ayarlayın</string>
     <string name="left_content">Sol Taraf</string>
     <string name="right_content">Sağ Taraf</string>
+    <string name="nav_island_size_title">Ada Boyutu</string>
+    <string name="nav_island_size_compact">Kompakt Ada</string>
+    <string name="nav_island_size_compact_desc">2 bilgi alanı (kameranın sol ve sağında)</string>
+    <string name="nav_island_size_expanded">Genişletilmiş Ada</string>
+    <string name="nav_island_size_expanded_desc">4 bilgi alanı ile daha detaylı görünüm</string>
 
     <string name="nav_content_instruction">Talimat</string>
     <string name="nav_content_distance">Mesafe</string>
@@ -694,8 +699,8 @@
     <string name="notification_management_calls_only_island">Sadece ada aramaları</string>
     <string name="notification_management_off">Kapalı</string>
     <string name="notification_management_section_apps">Uygulamalar</string>
-    <string name="notification_management_apps_title">Sistem bildirimlerini gizle (seçili uygulamalar)</string>
-    <string name="notification_management_apps_desc">Uygulama başına panel gizlemeyi etkinleştir/devre dışı bırak</string>
+    <string name="notification_management_apps_title">Uygulama Bildirimi Ayarları</string>
+    <string name="notification_management_apps_desc">Hangi uygulamaların bildirimlerinin adada gösterileceğini seçin</string>
     <string name="notification_management_apps_safety_note">Aramalar, alarmlar, devam eden ve tam ekran bildirimleri güvenlik için hariç tutulur.</string>
     <string name="notification_management_section_calls">Aramalar</string>
     <string name="notification_management_calls_title">Aramalar: sadece adada göster</string>

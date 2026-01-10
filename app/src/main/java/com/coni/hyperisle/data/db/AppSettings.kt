@@ -30,6 +30,7 @@ object SettingsKeys {
     // Nav
     const val NAV_LEFT = "nav_left_content"
     const val NAV_RIGHT = "nav_right_content"
+    const val NAV_ISLAND_SIZE = "nav_island_size"
 
     // Music Island
     const val MUSIC_ISLAND_MODE = "music_island_mode"
