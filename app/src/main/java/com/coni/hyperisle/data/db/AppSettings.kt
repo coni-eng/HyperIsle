@@ -118,4 +118,7 @@ object SettingsKeys {
 
     // Island Style Preview (dev toggle)
     const val DEV_ISLAND_STYLE_PREVIEW = "dev_island_style_preview"
+    
+    // First-time shade cancel setup (v1.0.0)
+    const val SHADE_CANCEL_FIRST_SETUP_DONE = "shade_cancel_first_setup_done"
 }

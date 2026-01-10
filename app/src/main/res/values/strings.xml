@@ -314,6 +314,7 @@
         <item>accept</item>
         <item>cevapla</item>
         <item>kabul</item>
+        <item>yanıtla</item>
     </string-array>
     <string-array name="call_keywords_speaker">
         <item>speaker</item>

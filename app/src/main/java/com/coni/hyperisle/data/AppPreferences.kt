@@ -741,6 +741,36 @@ class AppPreferences(context: Context) {
         }
     }
 
+    /**
+     * v1.0.0: Auto-enable shade cancel for all allowed apps on first setup.
+     * Excludes MEDIA type apps since they have separate HyperOS island option.
+     * This runs once per installation to provide better default UX.
+     */
+    suspend fun setupDefaultShadeCancelIfNeeded(context: Context) {
+        val setupDone = dao.getSetting(SettingsKeys.SHADE_CANCEL_FIRST_SETUP_DONE).toBoolean(false)
+        if (setupDone) return
+
+        val allowedPackages = dao.getSetting(SettingsKeys.ALLOWED_PACKAGES).deserializeSet()
+        if (allowedPackages.isEmpty()) return
+
+        val packageManager = context.packageManager
+        val musicPackages = setOf(
+            "com.spotify.music",
+            "com.google.android.youtube",
+            "com.apple.android.music",
+            "deezer.android.app",
+            "com.soundcloud.android"
+        )
+
+        allowedPackages.forEach { pkg ->
+            if (!musicPackages.contains(pkg)) {
+                setShadeCancel(pkg, true)
+            }
+        }
+
+        save(SettingsKeys.SHADE_CANCEL_FIRST_SETUP_DONE, "true")
+    }
+
     // --- PERMISSION BANNER SNOOZE (v0.9.6) ---
     val permissionBannerSnoozeUntilFlow: Flow<Long> = dao.getSettingFlow(SettingsKeys.PERMISSION_BANNER_SNOOZE_UNTIL).map { it.toLong(0L) }
 

@@ -304,6 +304,9 @@ class NotificationReaderService : NotificationListenerService() {
             // Generate correlation ID for this notification flow
             val ctx = ProcCtx.from(it)
             
+            // CRITICAL: Log ALL notifications to catch WhatsApp/Telegram
+            Log.d("HyperIsleIsland", "RID=${ctx.rid} EVT=NOTIF_RECEIVED pkg=${it.packageName} keyHash=${ctx.keyHash}")
+            
             // STEP: NL_POSTED - Raw notification received
             DebugLog.event("NL_POSTED", ctx.rid, "RAW", kv = DebugLog.lazyKv {
                 val extras = it.notification.extras
@@ -776,13 +779,17 @@ class NotificationReaderService : NotificationListenerService() {
         }
 
         // --- 2. GROUP SUMMARIES ---
-        if ((notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) {
+        val isGroupSummary = (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+        Log.d("HyperIsleIsland", "RID=$rid EVT=GROUP_CHECK pkg=$pkg isGroupSummary=$isGroupSummary flags=${notification.flags}")
+        
+        if (isGroupSummary) {
             if (isAppAllowed(pkg)) {
                 val type = inferNotificationType(sbn)
                 val keyHash = ctx?.keyHash ?: sbn.key.hashCode()
                 cancelGroupSummaryIfNeeded(sbn, type, keyHash)
             }
             DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "GROUP_SUMMARY", kv = mapOf("pkg" to pkg))
+            Log.d("HyperIsleIsland", "RID=$rid EVT=BLOCKED_GROUP_SUMMARY pkg=$pkg")
             return true
         }
 

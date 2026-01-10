@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -263,6 +264,7 @@ fun IncomingCallPill(
 
 /**
  * Compact active call pill showing caller label and duration.
+ * Sleek iOS-style mini pill with phone icon indicator.
  */
 @Composable
 fun ActiveCallCompactPill(
@@ -272,23 +274,45 @@ fun ActiveCallCompactPill(
     fillMaxWidth: Boolean = true,
     debugRid: Int? = null
 ) {
-    PillContainer(
-        modifier = modifier,
-        height = 48.dp,
-        fillMaxWidth = fillMaxWidth,
-        debugRid = debugRid,
-        debugName = "call_compact"
+    val containerModifier = if (fillMaxWidth) modifier.fillMaxWidth() else modifier
+    Surface(
+        modifier = containerModifier
+            .height(52.dp)
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(26.dp))
+            .debugLayoutModifier(debugRid, "call_compact_root"),
+        shape = RoundedCornerShape(26.dp),
+        color = Color(0xE6000000)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .debugLayoutModifier(debugRid, "call_compact_row"),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Phone icon indicator
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF34C759)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Phone,
+                    contentDescription = "Active call",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Caller name
             Text(
                 text = callerLabel,
                 color = Color.White,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -297,13 +321,15 @@ fun ActiveCallCompactPill(
                     .debugLayoutModifier(debugRid, "call_compact_name")
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
+            // Duration with green color
             Text(
                 text = durationText,
                 color = Color(0xFF34C759),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.debugLayoutModifier(debugRid, "call_compact_duration")
@@ -314,6 +340,7 @@ fun ActiveCallCompactPill(
 
 /**
  * Expanded active call pill with call controls.
+ * Modern iOS-style design with centered caller info and action buttons.
  */
 @Composable
 fun ActiveCallExpandedPill(
@@ -324,42 +351,48 @@ fun ActiveCallExpandedPill(
     onMute: (() -> Unit)?,
     debugRid: Int? = null
 ) {
-    PillContainer(
-        height = 92.dp,
-        debugRid = debugRid,
-        debugName = "call_active"
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 12.dp, shape = RoundedCornerShape(36.dp))
+            .debugLayoutModifier(debugRid, "call_active_root"),
+        shape = RoundedCornerShape(36.dp),
+        color = Color(0xE6000000)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .debugLayoutModifier(debugRid, "call_active_header"),
-                verticalAlignment = Alignment.CenterVertically
+            // Caller info - centered
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.debugLayoutModifier(debugRid, "call_active_header")
             ) {
                 Text(
                     text = callerLabel,
                     color = Color.White,
-                    fontSize = 13.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .debugLayoutModifier(debugRid, "call_active_name")
+                    modifier = Modifier.debugLayoutModifier(debugRid, "call_active_name")
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = durationText,
                     color = Color(0xFF34C759),
-                    fontSize = 12.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Monospace,
                     maxLines = 1,
                     modifier = Modifier.debugLayoutModifier(debugRid, "call_active_duration")
                 )
             }
 
+            // Action buttons row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -367,24 +400,27 @@ fun ActiveCallExpandedPill(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Hang up button (red, larger)
                 CallActionButton(
                     icon = Icons.Default.CallEnd,
                     contentDescription = "End call",
-                    background = Color(0xFFE53935),
+                    background = Color(0xFFFF3B30),
                     onClick = onHangUp,
                     modifier = Modifier.debugLayoutModifier(debugRid, "call_active_end")
                 )
+                // Speaker button
                 CallActionButton(
                     icon = Icons.AutoMirrored.Filled.VolumeUp,
                     contentDescription = "Speaker",
-                    background = Color(0xFF3A3A3C),
+                    background = Color(0xFF48484A),
                     onClick = onSpeaker,
                     modifier = Modifier.debugLayoutModifier(debugRid, "call_active_speaker")
                 )
+                // Mute button
                 CallActionButton(
                     icon = Icons.Default.MicOff,
                     contentDescription = "Mute",
-                    background = Color(0xFF3A3A3C),
+                    background = Color(0xFF48484A),
                     onClick = onMute,
                     modifier = Modifier.debugLayoutModifier(debugRid, "call_active_mute")
                 )
@@ -402,19 +438,19 @@ private fun CallActionButton(
     modifier: Modifier = Modifier
 ) {
     val enabled = onClick != null
-    val actionModifier = if (enabled) {
-        Modifier.clickable { onClick?.invoke() }
-    } else {
-        Modifier
-    }
 
     Box(
-        modifier = Modifier
-            .size(42.dp)
-            .then(modifier)
+        modifier = modifier
+            .size(48.dp)
             .clip(CircleShape)
             .background(background)
-            .then(actionModifier)
+            .then(
+                if (enabled) {
+                    Modifier.clickable { onClick?.invoke() }
+                } else {
+                    Modifier
+                }
+            )
             .alpha(if (enabled) 1f else 0.45f),
         contentAlignment = Alignment.Center
     ) {
@@ -422,7 +458,7 @@ private fun CallActionButton(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = Color.White,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(22.dp)
         )
     }
 }
