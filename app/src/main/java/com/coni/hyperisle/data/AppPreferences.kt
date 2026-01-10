@@ -843,41 +843,41 @@ class AppPreferences(context: Context) {
 
     /**
      * Gets the shade cancel mode for a specific app.
-     * Returns SAFE by default.
+     * Returns ISLAND_ONLY by default (safest - show island without touching system notification).
+     * Automatically migrates legacy SAFE values to ISLAND_ONLY.
      */
     suspend fun getShadeCancelMode(packageName: String): com.coni.hyperisle.models.ShadeCancelMode {
         val key = "shade_cancel_mode_$packageName"
         val value = dao.getSetting(key)
-        return try {
-            if (value != null) com.coni.hyperisle.models.ShadeCancelMode.valueOf(value)
-            else com.coni.hyperisle.models.ShadeCancelMode.SAFE
-        } catch (e: Exception) {
-            com.coni.hyperisle.models.ShadeCancelMode.SAFE
+        return if (value != null) {
+            com.coni.hyperisle.models.ShadeCancelMode.fromLegacyValue(value)
+        } else {
+            com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY
         }
     }
 
     /**
      * Gets shade cancel mode as a Flow for reactive UI.
+     * Automatically migrates legacy SAFE values to ISLAND_ONLY.
      */
     fun getShadeCancelModeFlow(packageName: String): Flow<com.coni.hyperisle.models.ShadeCancelMode> {
         val key = "shade_cancel_mode_$packageName"
         return dao.getSettingFlow(key).map { value ->
-            try {
-                if (value != null) com.coni.hyperisle.models.ShadeCancelMode.valueOf(value)
-                else com.coni.hyperisle.models.ShadeCancelMode.SAFE
-            } catch (e: Exception) {
-                com.coni.hyperisle.models.ShadeCancelMode.SAFE
+            if (value != null) {
+                com.coni.hyperisle.models.ShadeCancelMode.fromLegacyValue(value)
+            } else {
+                com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY
             }
         }
     }
 
     /**
      * Sets the shade cancel mode for a specific app.
-     * Setting to SAFE removes the key (default behavior).
+     * Setting to ISLAND_ONLY removes the key (default behavior).
      */
     suspend fun setShadeCancelMode(packageName: String, mode: com.coni.hyperisle.models.ShadeCancelMode) {
         val key = "shade_cancel_mode_$packageName"
-        if (mode == com.coni.hyperisle.models.ShadeCancelMode.SAFE) {
+        if (mode == com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY) {
             remove(key)
         } else {
             save(key, mode.name)

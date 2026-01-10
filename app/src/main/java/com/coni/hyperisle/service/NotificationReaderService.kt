@@ -75,6 +75,7 @@ import com.coni.hyperisle.util.OverlayPermissionHelper
 import com.coni.hyperisle.util.SystemHyperIslandPoster
 import com.coni.hyperisle.util.getStringCompat
 import com.coni.hyperisle.util.getStringCompatOrEmpty
+import com.coni.hyperisle.util.NotificationListenerDiagnostics
 import com.coni.hyperisle.debug.DebugLog
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
@@ -189,10 +190,18 @@ class NotificationReaderService : NotificationListenerService() {
     private lateinit var progressTranslator: ProgressTranslator
     private lateinit var standardTranslator: StandardTranslator
 
+    // Heartbeat job for diagnostics
+    private var heartbeatJob: Job? = null
+    private val HEARTBEAT_INTERVAL_MS = 30_000L
+
     override fun onCreate() {
         super.onCreate()
         preferences = AppPreferences(applicationContext)
         createIslandChannel()
+        
+        // Notify diagnostics of service creation
+        NotificationListenerDiagnostics.onServiceCreated()
+        Log.i(TAG, "HyperIsle Service Created")
 
         callTranslator = CallTranslator(this)
         navTranslator = NavTranslator(this)
@@ -270,16 +279,46 @@ class NotificationReaderService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        Log.i(TAG, "HyperIsle Connected")
+        
+        // Get active notification count for diagnostics
+        val activeCount = try {
+            activeNotifications?.size ?: 0
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get active notifications: ${e.message}")
+            0
+        }
+        
+        Log.i(TAG, "HyperIsle Connected - activeNotifications=$activeCount")
+        
+        // Notify diagnostics
+        NotificationListenerDiagnostics.onListenerConnected(activeCount)
+        
         // INSTRUMENTATION: Service lifecycle
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=SVC_CONN STAGE=LIFECYCLE ACTION=CONNECTED")
-            IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "NL_CONNECTED", reason = "onListenerConnected")
+            Log.d("HyperIsleIsland", "RID=SVC_CONN STAGE=LIFECYCLE ACTION=CONNECTED activeNotifications=$activeCount")
+            IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "NL_CONNECTED", reason = "onListenerConnected", flags = mapOf("activeNotifications" to activeCount))
+            
+            // Log enabled_notification_listeners status
+            val isListed = NotificationListenerDiagnostics.isListedInEnabledListeners(applicationContext)
+            val isBatteryOptimized = NotificationListenerDiagnostics.isBatteryOptimized(applicationContext)
+            Log.d("HyperIsleIsland", "RID=SVC_CONN EVT=LISTENER_STATUS isListed=$isListed batteryOptimized=$isBatteryOptimized")
         }
+        
+        // Start heartbeat monitoring (debug only)
+        startHeartbeat()
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
+        
+        Log.w(TAG, "HyperIsle DISCONNECTED - notifications will not be received!")
+        
+        // Notify diagnostics
+        NotificationListenerDiagnostics.onListenerDisconnected()
+        
+        // Stop heartbeat
+        stopHeartbeat()
+        
         // INSTRUMENTATION: Service lifecycle
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=SVC_DISC STAGE=LIFECYCLE ACTION=DISCONNECTED")
@@ -289,6 +328,15 @@ class NotificationReaderService : NotificationListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        
+        Log.w(TAG, "HyperIsle Service DESTROYED")
+        
+        // Notify diagnostics
+        NotificationListenerDiagnostics.onServiceDestroyed()
+        
+        // Stop heartbeat
+        stopHeartbeat()
+        
         // INSTRUMENTATION: Service lifecycle
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=SVC_DEST STAGE=LIFECYCLE ACTION=DESTROYED")
@@ -296,6 +344,40 @@ class NotificationReaderService : NotificationListenerService() {
         }
         serviceScope.cancel()
         IslandKeyManager.clearAll()
+    }
+
+    // --- Heartbeat for Diagnostics (Debug Only) ---
+    
+    private fun startHeartbeat() {
+        if (!BuildConfig.DEBUG) return
+        
+        heartbeatJob?.cancel()
+        heartbeatJob = serviceScope.launch {
+            while (true) {
+                delay(HEARTBEAT_INTERVAL_MS)
+                
+                val activeCount = try {
+                    activeNotifications?.size ?: -1
+                } catch (e: Exception) {
+                    -1
+                }
+                
+                // Update diagnostics
+                NotificationListenerDiagnostics.updateHeartbeat(activeCount)
+                
+                // Check if we're still listed in enabled_notification_listeners
+                val isListed = NotificationListenerDiagnostics.isListedInEnabledListeners(applicationContext)
+                if (!isListed) {
+                    Log.e(TAG, "CRITICAL: HyperIsle removed from enabled_notification_listeners!")
+                    Log.d("HyperIsleIsland", "RID=HEARTBEAT EVT=LISTENER_NOT_LISTED WARN=CRITICAL")
+                }
+            }
+        }
+    }
+    
+    private fun stopHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
     }
 
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -2630,6 +2712,15 @@ class NotificationReaderService : NotificationListenerService() {
         }
         val art = resolveOverlayBitmap(sbn)
         val actions = extractMediaActions(sbn)
+        
+        // Detect if this is video or music content
+        val mediaType = MediaOverlayModel.detectMediaType(sbn.packageName)
+        val isVideo = MediaOverlayModel.isVideoPackage(sbn.packageName)
+        
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "RID=${sbn.key.hashCode()} EVT=MEDIA_TYPE_DETECT pkg=${sbn.packageName} type=${mediaType.name} isVideo=$isVideo")
+        }
+        
         return MediaOverlayModel(
             title = displayTitle,
             subtitle = displaySubtitle,
@@ -2637,7 +2728,9 @@ class NotificationReaderService : NotificationListenerService() {
             actions = actions,
             contentIntent = sbn.notification.contentIntent,
             packageName = sbn.packageName,
-            notificationKey = sbn.key
+            notificationKey = sbn.key,
+            mediaType = mediaType,
+            isVideo = isVideo
         )
     }
 

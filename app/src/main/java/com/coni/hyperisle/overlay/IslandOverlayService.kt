@@ -71,6 +71,7 @@ import com.coni.hyperisle.ui.components.TimerDot
 import com.coni.hyperisle.ui.components.TimerPill
 import com.coni.hyperisle.util.AccessibilityContextSignals
 import com.coni.hyperisle.util.AccessibilityContextState
+import com.coni.hyperisle.util.CallManager
 import com.coni.hyperisle.util.ContextStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -1197,37 +1198,61 @@ class IslandOverlayService : Service() {
         rid: Int,
         pkg: String?
     ): Boolean {
-        // For hangup/decline actions, try TelecomManager first as it's more reliable on MIUI/HyperOS
-        if (actionType == "hangup" || actionType == "decline") {
-            val telecomResult = com.coni.hyperisle.util.CallManager.endCall(applicationContext)
-            if (telecomResult) {
-                Log.d(TAG, "Call ended via TelecomManager for action: $actionType")
-                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=TELECOM pkg=$pkg")
-                return true
+        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_START action=$actionType pkg=$pkg")
+        
+        // Use enhanced CallManager for all call actions
+        val result = when (actionType) {
+            "answer", "accept" -> {
+                // PRIMARY: TelecomManager.acceptRingingCall()
+                // FALLBACK: PendingIntent from notification
+                val acceptResult = CallManager.acceptCall(applicationContext, pendingIntent)
+                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${acceptResult.success} method=${acceptResult.method} pkg=$pkg")
+                
+                // Schedule verification if TelecomManager was used
+                if (acceptResult.success && acceptResult.method == "TELECOM") {
+                    serviceScope.launch {
+                        val verified = CallManager.verifyCallAccepted(applicationContext)
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACCEPT_VERIFIED verified=$verified pkg=$pkg")
+                        if (!verified && pendingIntent != null) {
+                            // Retry with PendingIntent if verification failed
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACCEPT_RETRY method=PENDING_INTENT pkg=$pkg")
+                            try {
+                                pendingIntent.send()
+                            } catch (e: Exception) {
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACCEPT_RETRY_FAIL reason=${e.javaClass.simpleName}")
+                            }
+                        }
+                    }
+                }
+                acceptResult.success
             }
-            Log.d("HyperIsleIsland", "RID=$rid EVT=TELECOM_FALLBACK action=$actionType reason=TELECOM_FAILED pkg=$pkg")
+            "hangup", "decline", "reject" -> {
+                // PRIMARY: TelecomManager.endCall()
+                // FALLBACK: PendingIntent from notification
+                val endResult = CallManager.endCall(applicationContext, pendingIntent)
+                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${endResult.success} method=${endResult.method} pkg=$pkg")
+                endResult.success
+            }
+            else -> {
+                // Unknown action type - try PendingIntent directly
+                if (pendingIntent == null) {
+                    Log.w(TAG, "No PendingIntent for unknown call action: $actionType")
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=NO_INTENT pkg=$pkg")
+                    false
+                } else {
+                    try {
+                        pendingIntent.send()
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=PENDING_INTENT pkg=$pkg")
+                        true
+                    } catch (e: Exception) {
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=${e.javaClass.simpleName} pkg=$pkg")
+                        false
+                    }
+                }
+            }
         }
-
-        if (pendingIntent == null) {
-            Log.w(TAG, "No PendingIntent for call action: $actionType")
-            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=NO_INTENT pkg=$pkg")
-            return false
-        }
-
-        return try {
-            pendingIntent.send()
-            Log.d(TAG, "Call action sent successfully: $actionType")
-            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=PENDING_INTENT pkg=$pkg")
-            true
-        } catch (e: PendingIntent.CanceledException) {
-            Log.e(TAG, "PendingIntent was cancelled for action: $actionType", e)
-            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=CANCELED pkg=$pkg")
-            false
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to send call action: $actionType", e)
-            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=${e.javaClass.simpleName} pkg=$pkg")
-            false
-        }
+        
+        return result
     }
 
     private fun handleNotificationTap(contentIntent: PendingIntent?, rid: Int, pkg: String) {

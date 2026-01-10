@@ -91,7 +91,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
     // RECOMMENDED permissions
     var isPostGranted by remember { mutableStateOf(isPostNotificationsEnabled(context)) }
     var isBatteryOptimized by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
-    var isPhoneCallsGranted by remember { mutableStateOf(CallManager.hasEndCallPermission(context)) }
+    var isPhoneCallsGranted by remember { mutableStateOf(CallManager.hasCallPermission(context)) }
 
     // --- LIFECYCLE ---
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -102,7 +102,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                 isOverlayGranted = isOverlayPermissionGranted(context)
                 isPostGranted = isPostNotificationsEnabled(context)
                 isBatteryOptimized = isIgnoringBatteryOptimizations(context)
-                isPhoneCallsGranted = CallManager.hasEndCallPermission(context)
+                isPhoneCallsGranted = CallManager.hasCallPermission(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

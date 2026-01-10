@@ -3,10 +3,13 @@ package com.coni.hyperisle.overlay
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.util.Log
+import android.view.DisplayCutout
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -184,15 +187,70 @@ class OverlayWindowController(private val context: Context) {
     }
 
     /**
-     * Get status bar height for proper positioning.
+     * Get optimal Y position for island overlay, accounting for camera cutout.
+     * 
+     * Priority:
+     * 1. Use DisplayCutout bounding rect if available (center on cutout)
+     * 2. Fall back to status bar height
+     * 3. Default fallback value
      */
     @SuppressLint("DiscouragedApi", "InternalInsetResource")
     private fun getStatusBarHeight(): Int {
+        // Try to get camera cutout position for proper island centering
+        val cutoutTop = getCameraCutoutTop()
+        if (cutoutTop > 0) {
+            Log.d(TAG, "Using camera cutout position: $cutoutTop")
+            return cutoutTop
+        }
+        
+        // Fallback to status bar height
         val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (resourceId > 0) {
-            context.resources.getDimensionPixelSize(resourceId) + 16 // Add 16px padding
+            context.resources.getDimensionPixelSize(resourceId)
         } else {
             80 // Default fallback
+        }
+    }
+    
+    /**
+     * Get the top position of the camera cutout for island positioning.
+     * Returns 0 if no cutout is detected or on older API levels.
+     * 
+     * The island should be positioned to visually wrap around the camera cutout,
+     * similar to iOS Dynamic Island behavior.
+     */
+    @Suppress("DEPRECATION")
+    private fun getCameraCutoutTop(): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return 0 // DisplayCutout API requires API 28+
+        }
+        
+        return try {
+            val display = windowManager.defaultDisplay
+            val cutout = display.cutout ?: return 0
+            
+            // Get the bounding rects of all cutouts
+            val boundingRects = cutout.boundingRects
+            if (boundingRects.isEmpty()) return 0
+            
+            // Find the top-center cutout (camera notch)
+            // This is typically the first rect for phones with a single notch
+            val topCutout = boundingRects.firstOrNull { rect ->
+                // Top cutout should be near the top of the screen
+                rect.top < 200
+            } ?: return 0
+            
+            // Position island just below the cutout with small padding
+            val position = topCutout.bottom + 4
+            
+            if (BuildConfig.DEBUG) {
+                Log.d("HyperIsleIsland", "EVT=CUTOUT_DETECTED top=${topCutout.top} bottom=${topCutout.bottom} left=${topCutout.left} right=${topCutout.right} position=$position")
+            }
+            
+            position
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get camera cutout: ${e.message}")
+            0
         }
     }
 

@@ -38,7 +38,19 @@ data class MediaAction(
 )
 
 /**
- * Data model for media overlay.
+ * Media type for unified media/video island.
+ */
+enum class MediaType {
+    MUSIC,      // Audio-only playback (Spotify, Apple Music, etc.)
+    VIDEO,      // Video playback (YouTube, Netflix, video players)
+    UNKNOWN     // Cannot determine media type
+}
+
+/**
+ * Data model for unified media overlay (music AND video).
+ * 
+ * Both music and video apps use the same island UI with play/pause/seek controls.
+ * Video apps are detected by package name patterns or notification metadata.
  */
 data class MediaOverlayModel(
     val title: String,
@@ -47,8 +59,53 @@ data class MediaOverlayModel(
     val actions: List<MediaAction> = emptyList(),
     val contentIntent: PendingIntent? = null,
     val packageName: String,
-    val notificationKey: String
-)
+    val notificationKey: String,
+    val mediaType: MediaType = MediaType.UNKNOWN,  // Unified: music or video
+    val isVideo: Boolean = false                    // Quick check for video content
+) {
+    companion object {
+        // Known video app packages
+        private val VIDEO_PACKAGES = setOf(
+            "com.google.android.youtube",
+            "com.google.android.youtube.tv",
+            "com.google.android.youtube.tvkids",
+            "com.netflix.mediaclient",
+            "com.amazon.avod.thirdpartyclient",
+            "com.disney.disneyplus",
+            "com.hbo.hbonow",
+            "tv.twitch.android.app",
+            "com.zhiliaoapp.musically",  // TikTok
+            "com.instagram.android",
+            "com.ss.android.ugc.trill",  // TikTok lite
+            "org.videolan.vlc",
+            "com.mxtech.videoplayer.ad",
+            "com.mxtech.videoplayer.pro",
+            "com.brouken.player",        // Just Player
+            "is.xyz.mpv",                // mpv
+            "com.kodi",
+            "org.xbmc.kodi",
+            "com.plex.client.smarttv",
+            "com.plexapp.android"
+        )
+        
+        /**
+         * Detect if a package is a video app.
+         */
+        fun isVideoPackage(packageName: String): Boolean {
+            return VIDEO_PACKAGES.contains(packageName) ||
+                   packageName.contains("video", ignoreCase = true) ||
+                   packageName.contains("player", ignoreCase = true) ||
+                   packageName.contains("movie", ignoreCase = true)
+        }
+        
+        /**
+         * Determine media type from package name.
+         */
+        fun detectMediaType(packageName: String): MediaType {
+            return if (isVideoPackage(packageName)) MediaType.VIDEO else MediaType.MUSIC
+        }
+    }
+}
 
 /**
  * Data model for timer/chronometer overlay.

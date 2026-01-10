@@ -10,17 +10,19 @@ import com.coni.hyperisle.models.ShadeCancelMode
 import com.coni.hyperisle.util.NotificationChannels
 
 /**
- * Island Decision Engine - Decoupled decision-making for Island display and shade cancellation.
+ * Island Decision Engine - Decoupled decision-making for Island display and shade management.
  * 
  * Contract A (Island delivery): If the app is enabled to show on Island, then ANY posted 
  * notification from that package must produce an Island UI update.
  * 
- * Contract B (Shade cancel): If hide-system-notification is enabled for that app, attempt 
- * to cancel the system notification ONLY when it is safe/eligible. If not eligible, 
- * do NOT cancel system notification, but still show Island.
+ * Contract B (Shade management): Based on ShadeCancelMode:
+ *   - ISLAND_ONLY: Show island, leave system notification untouched
+ *   - HIDE_POPUP_KEEP_SHADE: Snooze notification to suppress popup, keep in shade
+ *   - FULLY_HIDE: Cancel notification from shade (if eligible)
+ *   - AGGRESSIVE: Force cancel even harder-to-cancel notifications
  * 
  * Contract C (Safety gate): If HyperIsle notifications are disabled or the Island channel 
- * importance is NONE, never cancel the system notification.
+ * importance is NONE, never cancel/snooze the system notification.
  */
 object IslandDecisionEngine {
 
@@ -28,26 +30,29 @@ object IslandDecisionEngine {
 
     /**
      * Result of the decision engine for a notification.
-     * showInIsland and cancelShade are INDEPENDENT decisions.
+     * showInIsland, cancelShade, and snoozeShade are INDEPENDENT decisions.
      */
     data class Decision(
         val showInIsland: Boolean,
         val cancelShade: Boolean,
+        val snoozeShade: Boolean,
         val cancelShadeAllowed: Boolean,
         val cancelShadeEligible: Boolean,
         val cancelShadeSafe: Boolean,
-        val ineligibilityReason: String?
+        val ineligibilityReason: String?,
+        val mode: ShadeCancelMode
     ) {
         fun toLogString(pkg: String, keyHash: Int): String {
             val reason = when {
+                mode == ShadeCancelMode.ISLAND_ONLY -> "ISLAND_ONLY_MODE"
                 cancelShadeAllowed && !cancelShadeEligible -> "NOT_ELIGIBLE_${ineligibilityReason ?: "UNKNOWN"}"
                 cancelShadeAllowed && !cancelShadeSafe -> "ISLAND_CHANNEL_DISABLED"
                 !cancelShadeAllowed -> "SHADE_CANCEL_OFF"
                 else -> "OK"
             }
             return "event=DECISION pkg=$pkg keyHash=$keyHash showInIsland=$showInIsland " +
-                   "cancelShadeAllowed=$cancelShadeAllowed cancelShadeEligible=$cancelShadeEligible " +
-                   "cancelShadeSafe=$cancelShadeSafe cancelShade=$cancelShade reason=$reason"
+                   "mode=${mode.name} cancelShade=$cancelShade snoozeShade=$snoozeShade " +
+                   "cancelShadeEligible=$cancelShadeEligible cancelShadeSafe=$cancelShadeSafe reason=$reason"
         }
     }
 
@@ -73,30 +78,43 @@ object IslandDecisionEngine {
         isOngoingCall: Boolean = false
     ): Decision {
         // Contract A: showInIsland is based ONLY on app being allowed
-        // This is independent of shade cancel eligibility
         val showInIsland = isAppAllowedForIsland
 
         // Contract C: Safety gate - check if Island channel is usable
         val cancelShadeSafe = NotificationChannels.isSafeToCancel(context)
 
-        // Contract B: cancelShadeAllowed is based on per-app setting
-        val cancelShadeAllowed = shadeCancelEnabled
+        // Normalize legacy SAFE mode to ISLAND_ONLY
+        @Suppress("DEPRECATION")
+        val effectiveMode = when (shadeCancelMode) {
+            ShadeCancelMode.SAFE -> ShadeCancelMode.ISLAND_ONLY
+            else -> shadeCancelMode
+        }
+
+        // Contract B: Determine action based on mode
+        // ISLAND_ONLY: Never cancel or snooze
+        // HIDE_POPUP_KEEP_SHADE: Snooze only (no cancel)
+        // FULLY_HIDE / AGGRESSIVE: Cancel if eligible
+        val cancelShadeAllowed = shadeCancelEnabled && ShadeCancelMode.shouldCancel(effectiveMode)
+        val snoozeShadeAllowed = shadeCancelEnabled && ShadeCancelMode.shouldSnooze(effectiveMode)
 
         // Compute eligibility based on notification properties
-        val eligibilityResult = checkShadeCancelEligibility(sbn, type, shadeCancelMode, isOngoingCall)
+        val eligibilityResult = checkShadeCancelEligibility(sbn, type, effectiveMode, isOngoingCall)
         val cancelShadeEligible = eligibilityResult.first
         val ineligibilityReason = if (!cancelShadeEligible) eligibilityResult.second else null
 
-        // Final cancelShade decision: ALL three must be true
+        // Final decisions
         val cancelShade = cancelShadeAllowed && cancelShadeEligible && cancelShadeSafe
+        val snoozeShade = snoozeShadeAllowed && cancelShadeSafe && !cancelShade
 
         val decision = Decision(
             showInIsland = showInIsland,
             cancelShade = cancelShade,
+            snoozeShade = snoozeShade,
             cancelShadeAllowed = cancelShadeAllowed,
             cancelShadeEligible = cancelShadeEligible,
             cancelShadeSafe = cancelShadeSafe,
-            ineligibilityReason = ineligibilityReason
+            ineligibilityReason = ineligibilityReason,
+            mode = effectiveMode
         )
 
         // Log decision in debug builds
@@ -180,14 +198,22 @@ object IslandDecisionEngine {
         }
 
         // Mode-dependent checks
+        @Suppress("DEPRECATION")
         when (mode) {
-            ShadeCancelMode.SAFE -> {
-                // SAFE mode: Block ongoing and foreground service notifications
+            ShadeCancelMode.ISLAND_ONLY -> {
+                // ISLAND_ONLY: Never cancel - this shouldn't be reached but handle gracefully
+                return Pair(false, "ISLAND_ONLY_MODE")
+            }
+            ShadeCancelMode.HIDE_POPUP_KEEP_SHADE -> {
+                // HIDE_POPUP_KEEP_SHADE: Snooze only, same eligibility as FULLY_HIDE
                 if ((flags and Notification.FLAG_ONGOING_EVENT) != 0) {
-                    return Pair(false, "ONGOING_SAFE_MODE")
+                    return Pair(false, "ONGOING_EVENT")
                 }
-                if ((flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) {
-                    return Pair(false, "FOREGROUND_SERVICE")
+            }
+            ShadeCancelMode.FULLY_HIDE, ShadeCancelMode.SAFE -> {
+                // FULLY_HIDE/SAFE: Block ongoing and foreground service notifications
+                if ((flags and Notification.FLAG_ONGOING_EVENT) != 0) {
+                    return Pair(false, "ONGOING_EVENT")
                 }
             }
             ShadeCancelMode.AGGRESSIVE -> {

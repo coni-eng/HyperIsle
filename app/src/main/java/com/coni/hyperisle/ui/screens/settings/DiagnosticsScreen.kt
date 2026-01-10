@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -66,6 +67,7 @@ import android.content.Context
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.util.DiagnosticsManager
+import com.coni.hyperisle.util.NotificationListenerDiagnostics
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.util.Locale
@@ -384,6 +386,13 @@ fun DiagnosticsScreen(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Notification Listener Diagnostics Section
+            ListenerDiagnosticsCard()
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Recent Logs
             Text(
                 text = "Recent Logs",
@@ -422,6 +431,219 @@ fun DiagnosticsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ListenerDiagnosticsCard() {
+    val context = LocalContext.current
+    val listenerConnected by NotificationListenerDiagnostics.listenerConnected.collectAsState()
+    val lastConnectedTime by NotificationListenerDiagnostics.lastConnectedTime.collectAsState()
+    val lastDisconnectedTime by NotificationListenerDiagnostics.lastDisconnectedTime.collectAsState()
+    val activeNotificationCount by NotificationListenerDiagnostics.activeNotificationCount.collectAsState()
+    val lastHeartbeatTime by NotificationListenerDiagnostics.lastHeartbeatTime.collectAsState()
+    val isRebinding by NotificationListenerDiagnostics.isRebinding.collectAsState()
+    
+    var isListedInSettings by remember { mutableStateOf(false) }
+    var isBatteryOptimized by remember { mutableStateOf(false) }
+    var oemHints by remember { mutableStateOf<List<String>>(emptyList()) }
+    
+    // Refresh diagnostics periodically
+    LaunchedEffect(Unit) {
+        while (true) {
+            isListedInSettings = NotificationListenerDiagnostics.isListedInEnabledListeners(context)
+            isBatteryOptimized = NotificationListenerDiagnostics.isBatteryOptimized(context)
+            oemHints = NotificationListenerDiagnostics.getOemPermissionHints(context)
+            delay(5000)
+        }
+    }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (listenerConnected && isListedInSettings && !isBatteryOptimized)
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            else
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Notification Listener Status",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "WhatsApp/Telegram notifications require healthy listener",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Status indicators
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                StatusIndicator(
+                    label = "Connected",
+                    isOk = listenerConnected,
+                    value = if (listenerConnected) "YES" else "NO"
+                )
+                StatusIndicator(
+                    label = "In Settings",
+                    isOk = isListedInSettings,
+                    value = if (isListedInSettings) "YES" else "NO"
+                )
+                StatusIndicator(
+                    label = "Battery Opt",
+                    isOk = !isBatteryOptimized,
+                    value = if (isBatteryOptimized) "ON ⚠️" else "OFF ✓"
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Device info
+            Text(
+                text = "Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (NotificationListenerDiagnostics.isMiuiDevice()) {
+                Text(
+                    text = "OS: ${NotificationListenerDiagnostics.getMiuiVersion() ?: "Unknown"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            if (activeNotificationCount >= 0) {
+                Text(
+                    text = "Active Notifications: $activeNotificationCount",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            if (lastHeartbeatTime > 0) {
+                val secondsAgo = (System.currentTimeMillis() - lastHeartbeatTime) / 1000
+                Text(
+                    text = "Last Heartbeat: ${secondsAgo}s ago",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            // OEM hints (show first 2)
+            if (oemHints.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "OEM Hints:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+                oemHints.take(2).forEach { hint ->
+                    Text(
+                        text = "• $hint",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = {
+                        val intent = NotificationListenerDiagnostics.getNotificationListenerSettingsIntent()
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Listener Settings", fontSize = 11.sp)
+                }
+                
+                FilledTonalButton(
+                    onClick = {
+                        val intent = NotificationListenerDiagnostics.getBatteryOptimizationSettingsIntent(context)
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Battery Settings", fontSize = 11.sp)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Rebind button (debug only, use with caution)
+            OutlinedButton(
+                onClick = {
+                    val success = NotificationListenerDiagnostics.attemptRebind(context)
+                    Toast.makeText(
+                        context,
+                        if (success) "Rebind initiated - re-enable in settings" else "Rebind failed",
+                        Toast.LENGTH_LONG
+                    ).show()
+                },
+                enabled = !isRebinding,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text(
+                    text = if (isRebinding) "Rebinding..." else "Force Rebind (Re-enable Required)",
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusIndicator(label: String, isOk: Boolean, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isOk)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.error
+                )
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (isOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
