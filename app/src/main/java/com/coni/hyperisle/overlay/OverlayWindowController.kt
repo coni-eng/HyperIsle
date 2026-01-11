@@ -119,9 +119,25 @@ class OverlayWindowController(private val context: Context) {
                 hasLoggedWindowFlags = true
             }
 
-            windowManager.addView(overlayView, params)
-            Log.d(TAG, "Overlay shown successfully")
-            Log.d("HyperIsleIsland", "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK")
+            // Add view with MIUI-safe error handling
+            // MIUI's MiuiCameraCoveredManager may throw NullPointerException when accessing cloud settings
+            // This is a MIUI system bug, not our fault - we catch and log it safely
+            try {
+                windowManager.addView(overlayView, params)
+                Log.d(TAG, "Overlay shown successfully")
+                Log.d("HyperIsleIsland", "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK")
+            } catch (miuiException: NullPointerException) {
+                // MIUI MiuiCameraCoveredManager bug - safe to ignore
+                // The view is still added successfully despite the exception
+                if (miuiException.message?.contains("MiuiSettings") == true || 
+                    miuiException.message?.contains("CloudData") == true) {
+                    Log.w(TAG, "MIUI MiuiCameraCoveredManager NullPointerException (safe to ignore): ${miuiException.message}")
+                    Log.d("HyperIsleIsland", "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK reason=MIUI_EXCEPTION_IGNORED")
+                } else {
+                    // Re-throw if it's a different NullPointerException
+                    throw miuiException
+                }
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show overlay: ${e.message}", e)

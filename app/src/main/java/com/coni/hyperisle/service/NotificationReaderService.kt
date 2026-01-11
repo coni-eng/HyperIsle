@@ -1138,6 +1138,22 @@ class NotificationReaderService : NotificationListenerService() {
 
             val isUpdate = activeIslands.containsKey(groupKey)
             
+            // --- EMPTY MESSAGE UPDATE GUARD ---
+            // Skip update if message content is empty (prevents narrow/collapsed island display)
+            // This handles cases where Telegram/WhatsApp sends update notifications with only sender name
+            if (isUpdate && type == NotificationType.STANDARD && text.isEmpty() && subText.isEmpty()) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$rid EVT=UPDATE_SKIP reason=EMPTY_MESSAGE_UPDATE pkg=${sbn.packageName} titleLen=${title.length} textLen=0"
+                )
+                DebugLog.event("UPDATE_SKIP", rid, "SKIP", reason = "EMPTY_MESSAGE_UPDATE", kv = mapOf(
+                    "pkg" to sbn.packageName,
+                    "titleLen" to title.length,
+                    "textLen" to 0
+                ))
+                return
+            }
+            
             // UI Snapshot: NOTIF_DECISION - Decision to show in island
             if (BuildConfig.DEBUG) {
                 val snapshotCtx = IslandUiSnapshotLogger.ctxFromSbn(rid, sbn, type.name).copy(groupKey = groupKey)
@@ -1797,12 +1813,12 @@ class NotificationReaderService : NotificationListenerService() {
         
         // v1.0.0: Always intercept STANDARD and CALL notifications
         // STANDARD: Always cancel clearable notifications (messages, alerts)
-        // CALL: Always suppress incoming call popups (handled via snooze/cancel earlier)
+        // CALL: Check calls-only-island setting
         // NAVIGATION: Always suppress to avoid system islands
         // Other types (MEDIA, PROGRESS, TIMER): Preserve existing behavior
         val shadeCancelEnabled = when (type) {
             NotificationType.STANDARD -> true  // Always intercept messages     
-            NotificationType.CALL -> true      // Always intercept calls        
+            NotificationType.CALL -> preferences.isCallsOnlyIslandEnabled()  // Check setting for calls
             NotificationType.NAVIGATION -> true // Always intercept navigation
             else -> preferences.isShadeCancel(pkg)  // Legacy behavior for other types
         }
