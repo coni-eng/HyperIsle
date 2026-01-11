@@ -180,6 +180,7 @@ class NotificationReaderService : NotificationListenerService() {
     private val MIN_VISIBLE_MS = 2500L
     private val SELF_CANCEL_WINDOW_MS = 5000L
     private val SYS_CANCEL_POST_DELAY_MS = 200L
+    private val POPUP_SUPPRESS_SNOOZE_MS = 500L  // Snooze duration to suppress popup, then show silently in status bar
     private val OVERLAY_DEFAULT_COLLAPSE_MS = 4000L
     private val SHADE_CANCEL_HINT_NOTIFICATION_ID = 9105
     private val SHADE_CANCEL_HINT_COOLDOWN_MS = 24 * 60 * 60 * 1000L
@@ -1184,8 +1185,9 @@ class NotificationReaderService : NotificationListenerService() {
                 insertDigestItem(sbn.packageName, title, text, type.name)
             }
 
-            // --- EARLY INTERCEPTION: Cancel clearable STANDARD notifications immediately ---
-            // This "steals" the notification: shows it in Dynamic Island, cancels system popup
+            // --- EARLY INTERCEPTION: Snooze clearable STANDARD notifications to suppress popup ---
+            // This "steals" the notification: shows it in Dynamic Island, suppresses system popup
+            // but keeps notification in status bar for stacking (iOS-like behavior)
             // Scope: Only STANDARD type (messages, alerts). Does NOT affect PROGRESS, NAVIGATION, MEDIA, TIMER.
             if (type == NotificationType.STANDARD && sbn.isClearable && !isOngoing) {
                 val contentIntent = sbn.notification.contentIntent
@@ -1194,18 +1196,20 @@ class NotificationReaderService : NotificationListenerService() {
                     IslandCooldownManager.setContentIntent(bridgeIdForIntent, contentIntent)
                 }
                 
-                // Cancel notification immediately to prevent system heads-up popup
+                // Snooze notification briefly to prevent system heads-up popup
+                // After snooze expires, notification appears silently in status bar (stacking)
                 try {
-                    cancelNotification(sbn.key)
+                    snoozeNotification(sbn.key, POPUP_SUPPRESS_SNOOZE_MS)
                     markSelfCancel(sbn.key, sbn.key.hashCode())
-                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_CANCEL_OK", kv = mapOf(
+                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_SNOOZE_OK", kv = mapOf(
                         "pkg" to sbn.packageName,
                         "isClearable" to sbn.isClearable,
-                        "isOngoing" to isOngoing
+                        "isOngoing" to isOngoing,
+                        "snoozeMs" to POPUP_SUPPRESS_SNOOZE_MS
                     ))
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to cancel clearable notification: ${e.message}")
-                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_CANCEL_FAIL", kv = mapOf(
+                    Log.w(TAG, "Failed to snooze clearable notification: ${e.message}")
+                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_SNOOZE_FAIL", kv = mapOf(
                         "pkg" to sbn.packageName,
                         "error" to (e.message ?: "unknown")
                     ))
@@ -1913,7 +1917,7 @@ class NotificationReaderService : NotificationListenerService() {
             return
         }
         
-        // Only cancel if all conditions are met
+        // Only cancel/snooze if all conditions are met
         if (decision.cancelShade) {
             // UI Snapshot: SYS_NOTIF_CANCEL_TRY
             if (BuildConfig.DEBUG) {
@@ -1931,21 +1935,33 @@ class NotificationReaderService : NotificationListenerService() {
             }
             
             val groupKey = sbnKeyToGroupKey[sbn.key]
+            
+            // For STANDARD notifications: use snooze to keep in status bar (iOS-like stacking)
+            // For other types (NAVIGATION, etc.): use cancel as before
+            val useSnoozeForStacking = type == NotificationType.STANDARD && clearable
+            
             try {
                 delay(SYS_CANCEL_POST_DELAY_MS)
-                cancelNotification(sbn.key)
+                if (useSnoozeForStacking) {
+                    // Snooze briefly - notification will reappear silently in status bar
+                    snoozeNotification(sbn.key, POPUP_SUPPRESS_SNOOZE_MS)
+                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_SNOOZE_OK snoozeMs=$POPUP_SUPPRESS_SNOOZE_MS")
+                } else {
+                    cancelNotification(sbn.key)
+                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK")
+                }
                 markSelfCancel(sbn.key, keyHash)
                 if (groupKey != null) {
                     startMinVisibleTimer(groupKey, keyHash)
                 }
-                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK")
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_OK pkg=$pkg")
-                    Log.d("HI_NOTIF", "event=shadeCancelled pkg=$pkg keyHash=$keyHash")
+                    val action = if (useSnoozeForStacking) "SNOOZE_OK" else "CANCEL_OK"
+                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=$action pkg=$pkg")
+                    Log.d("HI_NOTIF", "event=shadeHandled pkg=$pkg keyHash=$keyHash method=${if (useSnoozeForStacking) "snooze" else "cancel"}")
                     IslandRuntimeDump.recordEvent(
                         ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
                         stage = "HIDE_SYS_NOTIF",
-                        action = "CANCEL_OK",
+                        action = action,
                         reason = "SUCCESS"
                     )
                     // UI Snapshot: SYS_NOTIF_CANCEL_OK
@@ -1957,20 +1973,21 @@ class NotificationReaderService : NotificationListenerService() {
                     )
                     IslandUiSnapshotLogger.logEvent(
                         ctx = snapshotCtx,
-                        evt = "SYS_NOTIF_CANCEL_OK",
+                        evt = "SYS_NOTIF_${if (useSnoozeForStacking) "SNOOZE" else "CANCEL"}_OK",
                         route = IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION
                     )
                 }
             } catch (e: Exception) {
                 selfCancelKeys.remove(sbn.key)
-                Log.w(TAG, "Failed to cancel notification from shade: ${e.message}")
-                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_FAIL reason=${e.javaClass.simpleName}")
+                val method = if (useSnoozeForStacking) "snooze" else "cancel"
+                Log.w(TAG, "Failed to $method notification from shade: ${e.message}")
+                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_${method.uppercase()}_FAIL reason=${e.javaClass.simpleName}")
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=CANCEL_FAIL reason=${e.message} pkg=$pkg")
+                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=${method.uppercase()}_FAIL reason=${e.message} pkg=$pkg")
                     IslandRuntimeDump.recordEvent(
                         ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
                         stage = "HIDE_SYS_NOTIF",
-                        action = "CANCEL_FAIL",
+                        action = "${method.uppercase()}_FAIL",
                         reason = e.message ?: "EXCEPTION",
                         flags = mapOf("exceptionType" to e.javaClass.simpleName)
                     )
@@ -1983,7 +2000,7 @@ class NotificationReaderService : NotificationListenerService() {
                     )
                     IslandUiSnapshotLogger.logEvent(
                         ctx = snapshotCtx,
-                        evt = "SYS_NOTIF_CANCEL_FAIL",
+                        evt = "SYS_NOTIF_${method.uppercase()}_FAIL",
                         route = IslandUiSnapshotLogger.Route.SYSTEM_NOTIFICATION,
                         reason = e.javaClass.simpleName
                     )

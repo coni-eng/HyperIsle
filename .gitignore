@@ -22,6 +22,7 @@ local.properties
 .idea/misc.xml
 .idea/runConfigurations.xml
 .idea/vcs.xml
+.windsurf
 
 # Android Profiling ve Loglar
 captures/
@@ -63,5 +64,5 @@ google-services.json
 ehthumbs.db
 Thumbs.db
 .idea/
-*.iml
+
 
