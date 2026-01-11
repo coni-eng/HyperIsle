@@ -25,7 +25,8 @@ data class IosCallOverlayModel(
     val durationText: String = "",
     val state: CallOverlayState = CallOverlayState.INCOMING,
     val packageName: String,
-    val notificationKey: String
+    val notificationKey: String,
+    val accentColor: String? = null
 )
 
 /**
@@ -61,7 +62,8 @@ data class MediaOverlayModel(
     val packageName: String,
     val notificationKey: String,
     val mediaType: MediaType = MediaType.UNKNOWN,  // Unified: music or video
-    val isVideo: Boolean = false                    // Quick check for video content
+    val isVideo: Boolean = false,                   // Quick check for video content
+    val accentColor: String? = null
 ) {
     companion object {
         // Known video app packages
@@ -116,7 +118,8 @@ data class TimerOverlayModel(
     val isCountdown: Boolean,
     val contentIntent: PendingIntent? = null,
     val packageName: String,
-    val notificationKey: String
+    val notificationKey: String,
+    val accentColor: String? = null
 )
 
 /**
@@ -156,7 +159,8 @@ data class NavigationOverlayModel(
     val contentIntent: PendingIntent? = null,
     val packageName: String,
     val notificationKey: String,
-    val islandSize: NavIslandSize = NavIslandSize.COMPACT
+    val islandSize: NavIslandSize = NavIslandSize.COMPACT,
+    val accentColor: String? = null
 )
 
 /**
@@ -180,7 +184,8 @@ data class IosNotificationOverlayModel(
     val packageName: String,
     val notificationKey: String,
     val collapseAfterMs: Long? = null,
-    val replyAction: IosNotificationReplyAction? = null
+    val replyAction: IosNotificationReplyAction? = null,
+    val accentColor: String? = null
 )
 
 /**

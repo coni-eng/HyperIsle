@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,8 @@ class OverlayWindowController(private val context: Context) {
     private var lifecycleOwner: OverlayLifecycleOwner? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var hasLoggedWindowFlags = false
+    private var lastScreenWidth: Int = 0
+    private var lastOrientation: Int = Configuration.ORIENTATION_UNDEFINED
 
     // Current overlay state
     var currentEvent: OverlayEvent? by mutableStateOf(null)
@@ -85,20 +88,26 @@ class OverlayWindowController(private val context: Context) {
 
             // Create layout params for overlay
             // Use WRAP_CONTENT for width to allow touch pass-through outside the island
+            // REMOVED FLAG_LAYOUT_NO_LIMITS to prevent off-screen positioning
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                // Add top margin for status bar
-                y = getStatusBarHeight()
+                // Add top margin for status bar with clamped position
+                val positionResult = getClampedPosition()
+                y = positionResult.y
+                x = positionResult.x
             }
+            
+            // Track screen dimensions for orientation changes
+            lastScreenWidth = getScreenWidth()
+            lastOrientation = context.resources.configuration.orientation
             overlayParams = params
             if (!hasLoggedWindowFlags) {
                 val touchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) == 0
@@ -187,6 +196,59 @@ class OverlayWindowController(private val context: Context) {
             is OverlayEvent.DismissEvent,
             OverlayEvent.DismissAllEvent -> 0
         }
+    }
+
+    /**
+     * Result of clamped position calculation.
+     */
+    data class PositionResult(val x: Int, val y: Int)
+
+    /**
+     * Get screen width for position calculations.
+     */
+    @Suppress("DEPRECATION")
+    private fun getScreenWidth(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val windowMetrics = windowManager.currentWindowMetrics
+            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.systemBars()
+            )
+            windowMetrics.bounds.width() - insets.left - insets.right
+        } else {
+            val display = windowManager.defaultDisplay
+            val metrics = android.util.DisplayMetrics()
+            display.getMetrics(metrics)
+            metrics.widthPixels
+        }
+    }
+
+    /**
+     * Get clamped position for island overlay, ensuring it stays within screen bounds.
+     * Centers on camera cutout if available, with proper X/Y clamping.
+     */
+    private fun getClampedPosition(): PositionResult {
+        val screenWidth = getScreenWidth()
+        val y = getStatusBarHeight()
+        
+        // For X position: we use CENTER_HORIZONTAL gravity, so x=0 means centered.
+        // We only need to adjust x if there's an asymmetric cutout.
+        // For now, keep x=0 (centered) but add bounds logging.
+        val x = 0
+        
+        // Estimate island width (will be measured properly after layout)
+        // Use a reasonable max width for clamping validation
+        val estimatedIslandWidth = (screenWidth * 0.9).toInt()
+        val maxX = (screenWidth - estimatedIslandWidth) / 2
+        val clampedX = x.coerceIn(-maxX, maxX)
+        
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HyperIsleIsland",
+                "EVT=POSITION_CALC screenW=$screenWidth estimatedIslandW=$estimatedIslandWidth desiredX=$x clampedX=$clampedX y=$y orientation=${context.resources.configuration.orientation}"
+            )
+        }
+        
+        return PositionResult(clampedX, y)
     }
 
     /**

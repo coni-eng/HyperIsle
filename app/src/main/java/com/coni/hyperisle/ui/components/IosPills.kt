@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -147,6 +148,7 @@ fun IncomingCallPill(
     avatarBitmap: Bitmap? = null,
     onDecline: () -> Unit,
     onAccept: () -> Unit,
+    accentColor: String? = null,
     debugRid: Int? = null
 ) {
     if (BuildConfig.DEBUG && debugRid != null) {
@@ -167,9 +169,17 @@ fun IncomingCallPill(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             // Left: Avatar
+            val borderColor = accentColor?.let { 
+                try { Color(android.graphics.Color.parseColor(it)) } catch (e: Exception) { null }
+            }
             Box(
                 modifier = Modifier
                     .size(44.dp)
+                    .then(
+                        if (borderColor != null) {
+                            Modifier.border(2.dp, borderColor, CircleShape)
+                        } else Modifier
+                    )
                     .clip(CircleShape)
                     .background(Color(0xFF030302))
                     .debugLayoutModifier(debugRid, "call_avatar"),
@@ -179,13 +189,13 @@ fun IncomingCallPill(
                     Image(
                         bitmap = avatarBitmap.asImageBitmap(),
                         contentDescription = "Caller avatar",
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(44.dp).clip(CircleShape)
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Default avatar",
-                        tint = Color(0xFF8E8E93),
+                        tint = borderColor ?: Color(0xFF8E8E93),
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -223,38 +233,38 @@ fun IncomingCallPill(
 
             // Right: Action buttons
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(15.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Decline button
                 Box(
                     modifier = Modifier
-                        .size(65.dp)
+                        .size(50.dp)
                         .debugLayoutModifier(debugRid, "call_decline_btn")
                         .clickable { onDecline() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        painter = painterResource(id = R.drawable.call_end),
+                        painter = painterResource(id = R.drawable.ic_call_end),
                         contentDescription = "Decline call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(95.dp)
+                        modifier = Modifier.size(80.dp)
                     )
                 }
 
                 // Accept button
                 Box(
                     modifier = Modifier
-                        .size(55.dp)
+                        .size(37.dp)
                         .debugLayoutModifier(debugRid, "call_accept_btn")
                         .clickable { onAccept() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        painter = painterResource(id = R.drawable.call),
+                        painter = painterResource(id = R.drawable.ic_call),
                         contentDescription = "Accept call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(85.dp)
+                        modifier = Modifier.size(55.dp)
                     )
                 }
             }
@@ -456,6 +466,7 @@ fun MediaPill(
     subtitle: String,
     modifier: Modifier = Modifier,
     albumArt: Bitmap? = null,
+    accentColor: String? = null,
     debugRid: Int? = null
 ) {
     if (BuildConfig.DEBUG && debugRid != null) {
@@ -707,6 +718,7 @@ fun TimerPill(
     baseTimeMs: Long,
     isCountdown: Boolean,
     modifier: Modifier = Modifier,
+    accentColor: String? = null,
     debugRid: Int? = null
 ) {
     val timerText by produceState(initialValue = "00:00", baseTimeMs, isCountdown) {
@@ -944,6 +956,7 @@ fun NotificationPill(
     onLongPress: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
+    accentColor: String? = null,
     debugRid: Int? = null
 ) {
     if (BuildConfig.DEBUG && debugRid != null) {
@@ -986,9 +999,17 @@ fun NotificationPill(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: App icon (rounded square like iOS)
+            val borderColor = accentColor?.let { 
+                try { Color(android.graphics.Color.parseColor(it)) } catch (e: Exception) { null }
+            }
             Box(
                 modifier = Modifier
                     .size(42.dp)
+                    .then(
+                        if (borderColor != null) {
+                            Modifier.border(2.dp, borderColor, RoundedCornerShape(10.dp))
+                        } else Modifier
+                    )
                     .clip(RoundedCornerShape(10.dp))
                     .background(Color(0xFF030302))
                     .debugLayoutModifier(debugRid, "notif_avatar"),
@@ -1006,7 +1027,7 @@ fun NotificationPill(
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Default icon",
-                        tint = Color(0xFF8E8E93),
+                        tint = borderColor ?: Color(0xFF8E8E93),
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -1044,27 +1065,6 @@ fun NotificationPill(
                         overflow = TextOverflow.Ellipsis,
                         lineHeight = 18.sp,
                         modifier = Modifier.debugLayoutModifier(debugRid, "notif_message")
-                    )
-                }
-            }
-
-            // Right: Dismiss button (X)
-            if (onDismiss != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF48484A))
-                        .clickable { onDismiss() }
-                        .debugLayoutModifier(debugRid, "notif_dismiss_btn"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Dismiss notification",
-                        tint = Color(0xFFAEAEB2),
-                        modifier = Modifier.size(16.dp)
                     )
                 }
             }

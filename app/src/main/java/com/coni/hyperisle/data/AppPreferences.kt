@@ -989,4 +989,87 @@ class AppPreferences(context: Context) {
         if (!com.coni.hyperisle.BuildConfig.DEBUG) return false
         return dao.getSetting(SettingsKeys.DEV_ISLAND_STYLE_PREVIEW).toBoolean(false)
     }
+
+    // --- PER-APP ISLAND COLORS (v1.0.1) ---
+    // Dynamic keys: 
+    // - island_color_<packageName> -> hex color string (e.g., "#FF5722")
+    // - island_color_auto_<packageName> -> true/false (use auto-extracted color)
+    // Default: auto=true (extract from app icon)
+
+    /**
+     * Gets the custom island color for a specific app.
+     * Returns null if not set (use auto-extracted color).
+     */
+    suspend fun getAppIslandColor(packageName: String): String? {
+        val key = "island_color_$packageName"
+        return dao.getSetting(key)
+    }
+
+    /**
+     * Gets app island color as a Flow for reactive UI.
+     */
+    fun getAppIslandColorFlow(packageName: String): Flow<String?> {
+        val key = "island_color_$packageName"
+        return dao.getSettingFlow(key)
+    }
+
+    /**
+     * Sets a custom island color for a specific app.
+     * Pass null to remove custom color (use auto-extracted).
+     * @param color Hex color string (e.g., "#FF5722") or null
+     */
+    suspend fun setAppIslandColor(packageName: String, color: String?) {
+        val key = "island_color_$packageName"
+        if (color == null) {
+            remove(key)
+        } else {
+            save(key, color)
+        }
+    }
+
+    /**
+     * Checks if auto color extraction is enabled for an app.
+     * Returns true by default (auto mode).
+     */
+    suspend fun isAppColorAuto(packageName: String): Boolean {
+        val key = "island_color_auto_$packageName"
+        return dao.getSetting(key).toBoolean(true)
+    }
+
+    /**
+     * Gets auto color mode as a Flow for reactive UI.
+     */
+    fun isAppColorAutoFlow(packageName: String): Flow<Boolean> {
+        val key = "island_color_auto_$packageName"
+        return dao.getSettingFlow(key).map { it.toBoolean(true) }
+    }
+
+    /**
+     * Sets whether to use auto color extraction for an app.
+     * @param auto true = extract from app icon, false = use custom color
+     */
+    suspend fun setAppColorAuto(packageName: String, auto: Boolean) {
+        val key = "island_color_auto_$packageName"
+        if (auto) {
+            remove(key) // Default is true, so remove key
+        } else {
+            save(key, auto.toString())
+        }
+    }
+
+    /**
+     * Gets the effective island color for an app.
+     * If auto mode, extracts from app icon. Otherwise returns custom color.
+     * @param context Application context for color extraction
+     * @param packageName Package to get color for
+     * @return Hex color string (e.g., "#FF5722")
+     */
+    suspend fun getEffectiveIslandColor(context: Context, packageName: String): String {
+        val isAuto = isAppColorAuto(packageName)
+        return if (isAuto) {
+            com.coni.hyperisle.util.AccentColorResolver.getAccentColor(context, packageName)
+        } else {
+            getAppIslandColor(packageName) ?: com.coni.hyperisle.util.AccentColorResolver.getAccentColor(context, packageName)
+        }
+    }
 }

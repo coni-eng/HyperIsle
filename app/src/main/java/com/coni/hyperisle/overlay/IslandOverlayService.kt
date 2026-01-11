@@ -122,7 +122,9 @@ class IslandOverlayService : Service() {
     private var deferCallOverlay: Boolean = false
     
     // Track user-dismissed calls to prevent re-showing after swipe
-    private val userDismissedCallKeys = mutableSetOf<String>()
+    // Uses TTL-based dedupe: key -> dismissTime
+    private val userDismissedCallKeys = mutableMapOf<String, Long>()
+    private val CALL_DEDUPE_TTL_MS = 10_000L // 10 seconds TTL
 
     override fun onCreate() {
         super.onCreate()
@@ -337,14 +339,25 @@ class IslandOverlayService : Service() {
         val wasCallOverlay =
             overlayController.currentEvent is OverlayEvent.CallEvent && overlayController.isShowing()
 
-        // Check if user dismissed this call - don't re-show
-        if (isOngoing && userDismissedCallKeys.contains(model.notificationKey)) {
-            Log.d(
-                "HyperIsleIsland",
-                "RID=${model.notificationKey.hashCode()} EVT=CALL_SKIP reason=USER_DISMISSED state=${model.state.name}"
-            )
-            currentCallModel = model // Keep model for state tracking but don't show
-            return
+        // Check if user dismissed this call - don't re-show (with TTL dedupe)
+        val dismissTime = userDismissedCallKeys[model.notificationKey]
+        if (isOngoing && dismissTime != null) {
+            val elapsed = System.currentTimeMillis() - dismissTime
+            if (elapsed < CALL_DEDUPE_TTL_MS) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=${model.notificationKey.hashCode()} EVT=DEDUP_SUPPRESS_UPDATE ttl=${CALL_DEDUPE_TTL_MS - elapsed}ms reason=USER_DISMISSED state=${model.state.name}"
+                )
+                currentCallModel = model // Keep model for state tracking but don't show
+                return
+            } else {
+                // TTL expired, remove from dismissed set
+                userDismissedCallKeys.remove(model.notificationKey)
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=${model.notificationKey.hashCode()} EVT=DEDUP_TTL_EXPIRED elapsed=${elapsed}ms"
+                )
+            }
         }
 
         if (deferCallOverlay && currentNotificationModel != null && isOngoing) {
@@ -506,6 +519,7 @@ class IslandOverlayService : Service() {
                             title = activeModel.title,
                             name = activeModel.callerName,
                             avatarBitmap = activeModel.avatarBitmap,
+                            accentColor = activeModel.accentColor,
                             onDecline = {
                                 Log.d(
                                     "HyperIsleIsland",
@@ -980,6 +994,7 @@ class IslandOverlayService : Service() {
                                 timeLabel = model.timeLabel,
                                 message = model.message,
                                 avatarBitmap = model.avatarBitmap,
+                                accentColor = model.accentColor,
                                 onDismiss = {
                                     Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                                     dismissFromUser("BTN_RED_X")
@@ -1077,6 +1092,7 @@ class IslandOverlayService : Service() {
                             title = mediaModel.title,
                             subtitle = mediaModel.subtitle,
                             albumArt = mediaModel.albumArt,
+                            accentColor = mediaModel.accentColor,
                             modifier = Modifier
                                 .widthIn(min = 200.dp, max = 260.dp)
                                 .combinedClickable(
@@ -1122,6 +1138,7 @@ class IslandOverlayService : Service() {
                         title = mediaModel.title,
                         subtitle = mediaModel.subtitle,
                         albumArt = mediaModel.albumArt,
+                        accentColor = mediaModel.accentColor,
                         modifier = Modifier
                             .widthIn(min = 220.dp, max = 280.dp)
                             .combinedClickable(
@@ -1142,6 +1159,7 @@ class IslandOverlayService : Service() {
                         label = timerModel.label,
                         baseTimeMs = timerModel.baseTimeMs,
                         isCountdown = timerModel.isCountdown,
+                        accentColor = timerModel.accentColor,
                         modifier = Modifier
                             .widthIn(min = 160.dp, max = 220.dp)
                             .combinedClickable(
@@ -1667,11 +1685,11 @@ class IslandOverlayService : Service() {
         // Haptic feedback on user dismiss
         Haptics.hapticOnIslandSuccess(applicationContext)
         
-        // Track user-dismissed calls to prevent re-showing
+        // Track user-dismissed calls to prevent re-showing (with TTL timestamp)
         if (currentCallModel != null && currentNotificationModel == null) {
             currentCallModel?.notificationKey?.let { key ->
-                userDismissedCallKeys.add(key)
-                Log.d("HyperIsleIsland", "RID=${key.hashCode()} EVT=CALL_USER_DISMISSED reason=$reason")
+                userDismissedCallKeys[key] = System.currentTimeMillis()
+                Log.d("HyperIsleIsland", "RID=${key.hashCode()} EVT=CALL_USER_DISMISSED reason=$reason ttl=${CALL_DEDUPE_TTL_MS}ms")
             }
         }
         
@@ -1698,7 +1716,7 @@ class IslandOverlayService : Service() {
         var containerWidth by remember { mutableStateOf(0) }
         var isSwiping by remember { mutableStateOf(false) }
         val density = LocalDensity.current
-        val dismissThresholdPx = with(density) { 72.dp.toPx() }
+        val dismissThresholdPx = with(density) { 48.dp.toPx() }
         val state = stateLabel.lowercase()
 
         Box(

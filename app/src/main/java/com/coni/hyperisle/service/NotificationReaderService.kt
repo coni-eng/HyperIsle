@@ -431,9 +431,20 @@ class NotificationReaderService : NotificationListenerService() {
             // Check Global Junk + Blocked Terms
             if (isJunkNotification(it, ctx)) return
 
-            if (!isAppAllowed(it.packageName)) {
+            // Early type detection for critical types that bypass whitelist
+            val isNavigationType = it.notification.category == Notification.CATEGORY_NAVIGATION ||
+                    it.packageName.contains("maps") || it.packageName.contains("waze")
+            val isCallType = it.notification.category == Notification.CATEGORY_CALL ||
+                    isDialerPackage(it.packageName)
+            val bypassWhitelist = isNavigationType || isCallType
+            
+            if (!bypassWhitelist && !isAppAllowed(it.packageName)) {
                 DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "BLOCKED_NOT_SELECTED", kv = mapOf("pkg" to it.packageName, "allowedCount" to allowedPackageSet.size))
                 return
+            }
+            
+            if (bypassWhitelist && !isAppAllowed(it.packageName)) {
+                DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "ALLOWED_FORCE_NAV_CALL", kv = mapOf("pkg" to it.packageName, "isNav" to isNavigationType, "isCall" to isCallType))
             }
             
             DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "ALLOWED", kv = mapOf("pkg" to it.packageName))
@@ -1539,18 +1550,22 @@ class NotificationReaderService : NotificationListenerService() {
                     )
                     activeRoutes[groupKey] = IslandRoute.MIUI_BRIDGE
 
-                    // Emit overlay event in addition to MIUI island (both systems work together)
-                    emitOverlayEvent(
-                        sbn,
-                        type,
-                        title,
-                        text,
-                        isOngoingCall,
-                        callDurationSeconds,
-                        finalConfig
-                    )
+                    // FIX: Do NOT emit overlay event when MIUI bridge is active
+                    // This was causing TWO islands (MIUI mini + HyperIsle overlay) for the same notification
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=$rid EVT=ROUTE_FINAL route=MIUI_BRIDGE reason=MIUI_BRIDGE_ACTIVE type=${type.name} pkg=${sbn.packageName}"
+                        )
+                    }
                 }
                 IslandRoute.APP_OVERLAY -> {
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HyperIsleIsland",
+                            "RID=$rid EVT=ROUTE_FINAL route=APP_OVERLAY reason=OVERLAY_SELECTED type=${type.name} pkg=${sbn.packageName}"
+                        )
+                    }
                     val overlayDelivered = emitOverlayEvent(
                         sbn,
                         type,
@@ -2673,10 +2688,12 @@ class NotificationReaderService : NotificationListenerService() {
             ""
         }
 
+        val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
+        
         return IosCallOverlayModel(
             title = if (isOngoingCall) getString(R.string.call_ongoing) else getString(R.string.call_incoming),
             callerName = callerName,
-            avatarBitmap = null, // Could extract from notification largeIcon if needed
+            avatarBitmap = resolveOverlayBitmap(sbn),
             contentIntent = sbn.notification.contentIntent,
             acceptIntent = acceptIntent,
             declineIntent = declineIntent,
@@ -2686,7 +2703,8 @@ class NotificationReaderService : NotificationListenerService() {
             durationText = durationText,
             state = if (isOngoingCall) CallOverlayState.ONGOING else CallOverlayState.INCOMING,
             packageName = sbn.packageName,
-            notificationKey = sbn.key
+            notificationKey = sbn.key,
+            accentColor = accentColor
         )
     }
 
@@ -2714,6 +2732,8 @@ class NotificationReaderService : NotificationListenerService() {
             Log.d("HyperIsleIsland", "RID=${sbn.key.hashCode()} EVT=MEDIA_TYPE_DETECT pkg=${sbn.packageName} type=${mediaType.name} isVideo=$isVideo")
         }
         
+        val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
+        
         return MediaOverlayModel(
             title = displayTitle,
             subtitle = displaySubtitle,
@@ -2723,7 +2743,8 @@ class NotificationReaderService : NotificationListenerService() {
             packageName = sbn.packageName,
             notificationKey = sbn.key,
             mediaType = mediaType,
-            isVideo = isVideo
+            isVideo = isVideo,
+            accentColor = accentColor
         )
     }
 
@@ -2737,13 +2758,16 @@ class NotificationReaderService : NotificationListenerService() {
         val isCountdown = extras.getBoolean(EXTRA_CHRONOMETER_COUNTDOWN) ||
             baseTime > System.currentTimeMillis()
         val label = title.ifBlank { getString(R.string.fallback_timer) }
+        val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
+        
         return TimerOverlayModel(
             label = label,
             baseTimeMs = baseTime,
             isCountdown = isCountdown,
             contentIntent = sbn.notification.contentIntent,
             packageName = sbn.packageName,
-            notificationKey = sbn.key
+            notificationKey = sbn.key,
+            accentColor = accentColor
         )
     }
 
@@ -2784,6 +2808,7 @@ class NotificationReaderService : NotificationListenerService() {
         if (instruction.isEmpty()) instruction = getString(R.string.maps_title)
         
         val appIcon = getAppIconBitmap(sbn.packageName)
+        val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
         
         return NavigationOverlayModel(
             instruction = instruction,
@@ -2797,7 +2822,8 @@ class NotificationReaderService : NotificationListenerService() {
             contentIntent = sbn.notification.contentIntent,
             packageName = sbn.packageName,
             notificationKey = sbn.key,
-            islandSize = NavIslandSize.COMPACT
+            islandSize = NavIslandSize.COMPACT,
+            accentColor = accentColor
         )
     }
 
@@ -2900,16 +2926,19 @@ class NotificationReaderService : NotificationListenerService() {
         } else {
             collapseAfterMs
         }
+        val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
+        
         return IosNotificationOverlayModel(
             sender = title.ifEmpty { appName },
             timeLabel = "now",
             message = text,
-            avatarBitmap = null, // Could extract from notification largeIcon if needed
+            avatarBitmap = resolveOverlayBitmap(sbn),
             contentIntent = sbn.notification.contentIntent,
             packageName = sbn.packageName,
             notificationKey = sbn.key,
             collapseAfterMs = effectiveCollapse,
-            replyAction = replyAction
+            replyAction = replyAction,
+            accentColor = accentColor
         )
     }
 
