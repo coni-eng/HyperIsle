@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -83,8 +84,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import android.telephony.TelephonyManager
 
 /**
  * Foreground service that manages iOS-style pill overlays.
@@ -124,12 +127,31 @@ class IslandOverlayService : Service() {
     // Track user-dismissed calls to prevent re-showing after swipe
     // Uses TTL-based dedupe: key -> dismissTime
     private val userDismissedCallKeys = mutableMapOf<String, Long>()
-    private val CALL_DEDUPE_TTL_MS = 10_000L // 10 seconds TTL
+    private val CALL_DEDUPE_TTL_MS = 60_000L // 60 seconds - prevent re-showing after user swipe dismiss // 10 seconds TTL
+    
+    // Track removed call notifications to prevent late CALL_STATE events from re-showing
+    // MIUI bridge may send CALL_STATE ONGOING even after notification is removed
+    private val removedCallNotificationKeys = mutableMapOf<String, Long>()
+    private val REMOVED_CALL_TTL_MS = 30_000L // 30 seconds TTL - prevent late CALL_STATE events after call ends
+    
+    // Call state tracking for lifecycle management
+    private var lastCallState: CallManager.CallState = CallManager.CallState.IDLE
+    private var callStateGuardJob: Job? = null
+    private var isCallOverlayActive = false
+    
+    // BUG#2 FIX: Track when call ended to implement cooldown for stale MIUI bridge events
+    // MIUI bridge may send ONGOING events even after CallManager reports IDLE
+    private var lastCallEndTs: Long = 0L
+    private val CALL_END_COOLDOWN_MS = 3000L // 3 seconds cooldown after call ends
+    
+    // BUG#2 FIX: Service-level call UI state - persists across model updates
+    // Keyed by notificationKey, prevents flickering when MIUI bridge sends periodic updates
+    private val callExpandedState = mutableMapOf<String, Boolean>()
+    private val callMediaExpandedState = mutableMapOf<String, Boolean>()
 
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service created")
-        // INSTRUMENTATION: Overlay service lifecycle
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=OVL_CREATE STAGE=LIFECYCLE ACTION=OVERLAY_SVC_CREATED")
             IslandRuntimeDump.recordOverlay(null, "SERVICE_CREATED", reason = "onCreate")
@@ -138,6 +160,7 @@ class IslandOverlayService : Service() {
         overlayController = OverlayWindowController(applicationContext)
         createNotificationChannel()
         startEventCollection()
+        startCallStateGuard()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -172,16 +195,17 @@ class IslandOverlayService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "Service destroyed")
-        // INSTRUMENTATION: Overlay service destroy
         if (BuildConfig.DEBUG) {
             Log.d("HyperIsleIsland", "RID=OVL_DEST STAGE=LIFECYCLE ACTION=OVERLAY_SVC_DESTROYED")
             IslandRuntimeDump.recordOverlay(null, "SERVICE_DESTROYED", reason = "onDestroy")
         }
         autoCollapseJob?.cancel()
         stopForegroundJob?.cancel()
-        overlayController.removeOverlay()
+        callStateGuardJob?.cancel()
+        overlayController.forceDismissOverlay("SERVICE_DESTROYED")
         serviceScope.cancel()
         isForegroundActive = false
+        isCallOverlayActive = false
     }
 
     private fun createNotificationChannel() {
@@ -243,6 +267,72 @@ class IslandOverlayService : Service() {
         serviceScope.launch {
             OverlayEventBus.events.collectLatest { event ->
                 handleOverlayEvent(event)
+            }
+        }
+    }
+
+    /**
+     * Start call state guard to detect stuck overlays.
+     * Runs every 2 seconds and force-dismisses overlay if call ended but overlay remains.
+     */
+    private fun startCallStateGuard() {
+        callStateGuardJob = serviceScope.launch {
+            while (isActive) {
+                delay(2000L)
+                val currentState = CallManager.getCallState(applicationContext)
+                
+                if (BuildConfig.DEBUG && currentState != lastCallState) {
+                    Log.d("HI_CALL", "EVT=CALL_STATE_CHANGED old=${lastCallState.name} new=${currentState.name}")
+                }
+                
+                // Detect stuck overlay: call ended but overlay still showing
+                if (currentState == CallManager.CallState.IDLE && 
+                    isCallOverlayActive && 
+                    overlayController.isShowing()) {
+                    val rid = currentCallModel?.notificationKey?.hashCode() ?: 0
+                    val notifKey = currentCallModel?.notificationKey
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_GUARD", "RID=$rid EVT=GUARD_CLEANUP reason=CALL_ENDED_OVERLAY_STUCK")
+                    }
+                    // BUG#2 FIX: Set call end timestamp for cooldown
+                    lastCallEndTs = System.currentTimeMillis()
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_CALL", "RID=$rid EVT=CALL_END_TS_SET ts=$lastCallEndTs cooldown=${CALL_END_COOLDOWN_MS}ms reason=GUARD_CLEANUP")
+                    }
+                    
+                    // FIX#4: Clear all call-related state when call ends
+                    notifKey?.let { key ->
+                        callExpandedState.remove(key)
+                        callMediaExpandedState.keys.filter { it.startsWith("${key}_") }
+                            .forEach { callMediaExpandedState.remove(it) }
+                        userDismissedCallKeys.remove(key)
+                    }
+                    
+                    overlayController.forceDismissOverlay("GUARD_CLEANUP_CALL_ENDED")
+                    currentCallModel = null
+                    isCallOverlayActive = false
+                    
+                    // Restore other overlays if needed
+                    if (currentMediaModel != null || currentTimerModel != null) {
+                        showActivityOverlayFromState()
+                    } else {
+                        scheduleStopIfIdle("GUARD_CLEANUP")
+                    }
+                }
+                
+                // FIX#4: Also detect transition from active call to IDLE (even if overlay is already hidden)
+                // This ensures stale MIUI bridge events are ignored
+                if (lastCallState != CallManager.CallState.IDLE && 
+                    currentState == CallManager.CallState.IDLE) {
+                    val rid = currentCallModel?.notificationKey?.hashCode() ?: 0
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_CALL", "RID=$rid EVT=CALL_STATE_IDLE_DETECTED reason=STATE_TRANSITION")
+                    }
+                    // Set cooldown timestamp to ignore stale MIUI bridge events
+                    lastCallEndTs = System.currentTimeMillis()
+                }
+                
+                lastCallState = currentState
             }
         }
     }
@@ -338,8 +428,50 @@ class IslandOverlayService : Service() {
         val hasTimer = model.durationText.isNotEmpty()
         val wasCallOverlay =
             overlayController.currentEvent is OverlayEvent.CallEvent && overlayController.isShowing()
+        val rid = model.notificationKey.hashCode()
 
-        // Check if user dismissed this call - don't re-show (with TTL dedupe)
+        // BUG#2 FIX: Truth source check - CallManager is the authoritative source for call state
+        // If CallManager reports IDLE, do NOT show call overlay regardless of MIUI bridge state
+        val callManagerState = CallManager.getCallState(applicationContext)
+        if (callManagerState == CallManager.CallState.IDLE && isOngoing) {
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HI_CALL",
+                    "RID=$rid EVT=CALL_ENDED_TRUTH_SOURCE modelState=${model.state.name} callManagerState=IDLE action=IGNORE"
+                )
+            }
+            // Don't show overlay - call has ended per truth source
+            // Also check cooldown to prevent rapid re-showing
+            val elapsed = System.currentTimeMillis() - lastCallEndTs
+            if (lastCallEndTs > 0 && elapsed < CALL_END_COOLDOWN_MS) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "HI_CALL",
+                        "RID=$rid EVT=CALL_BRIDGE_STALE_IGNORED cooldownRemaining=${CALL_END_COOLDOWN_MS - elapsed}ms"
+                    )
+                }
+            }
+            return
+        }
+
+        // Check if notification was removed (call ended) - ignore late CALL_STATE events from MIUI bridge
+        val removedTime = removedCallNotificationKeys[model.notificationKey]
+        if (removedTime != null) {
+            val elapsed = System.currentTimeMillis() - removedTime
+            if (elapsed < REMOVED_CALL_TTL_MS) {
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=${model.notificationKey.hashCode()} EVT=CALL_SKIP_REMOVED ttl=${REMOVED_CALL_TTL_MS - elapsed}ms reason=NOTIF_ALREADY_REMOVED state=${model.state.name}"
+                )
+                return // Don't show - call notification was already removed
+            } else {
+                // TTL expired, remove tracking
+                removedCallNotificationKeys.remove(model.notificationKey)
+            }
+        }
+        
+        // BUG#4 FIX: Check if user dismissed this call - don't re-show (with TTL dedupe)
+        // IMPORTANT: Do NOT set currentCallModel when suppressing - this prevents Compose from re-rendering
         val dismissTime = userDismissedCallKeys[model.notificationKey]
         if (isOngoing && dismissTime != null) {
             val elapsed = System.currentTimeMillis() - dismissTime
@@ -348,7 +480,7 @@ class IslandOverlayService : Service() {
                     "HyperIsleIsland",
                     "RID=${model.notificationKey.hashCode()} EVT=DEDUP_SUPPRESS_UPDATE ttl=${CALL_DEDUPE_TTL_MS - elapsed}ms reason=USER_DISMISSED state=${model.state.name}"
                 )
-                currentCallModel = model // Keep model for state tracking but don't show
+                // BUG#4 FIX: Do NOT set currentCallModel here - keep it null so overlay doesn't render
                 return
             } else {
                 // TTL expired, remove from dismissed set
@@ -431,17 +563,85 @@ class IslandOverlayService : Service() {
             return
         }
 
-        overlayController.showOverlay(OverlayEvent.CallEvent(model)) {
+        // BUG#1 FIX: Determine interactive mode based on call state
+        // IMPORTANT: ONGOING calls MUST be interactive so tap/long-press works on collapsed pill
+        // Only RINGING state should be passive (non-interactive) because system may intercept
+        // For OFFHOOK (active call), we NEED touch input to open call UI or expand pill
+        val currentCallState = CallManager.getCallState(applicationContext)
+        val isInteractive = when {
+            isIncoming -> true  // INCOMING calls: interactive for accept/decline buttons
+            isOngoing -> true   // BUG#1 FIX: ONGOING calls MUST be interactive for tap/long-press
+            currentCallState == CallManager.CallState.RINGING -> false  // RINGING only: passive
+            else -> true  // Default to interactive
+        }
+        
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HI_CALL",
+                "RID=$rid EVT=CALL_OVERLAY_MODE interactive=$isInteractive callState=${currentCallState.name} modelState=${model.state.name}"
+            )
+            // Log touchability state for debugging
+            Log.d(
+                "HI_CALL",
+                "RID=$rid EVT=CALL_OVERLAY_TOUCHABLE touchable=$isInteractive reason=${if (isOngoing) "ONGOING_MUST_BE_TOUCHABLE" else if (isIncoming) "INCOMING_BUTTONS" else "DEFAULT"}"
+            )
+        }
+        
+        isCallOverlayActive = true
+
+        overlayController.showOverlay(OverlayEvent.CallEvent(model), interactive = isInteractive) {
             val activeModel = currentCallModel
             if (activeModel == null) {
                 // Call ended - dismiss overlay
                 LaunchedEffect(Unit) {
+                    isCallOverlayActive = false
                     dismissAllOverlays("CALL_MODEL_NULL")
                 }
                 return@showOverlay
             }
+            
+            // BUG#3 FIX: Check if call notification was removed - don't render if in removed set
+            val isRemoved = removedCallNotificationKeys[activeModel.notificationKey]?.let { removedTime ->
+                (System.currentTimeMillis() - removedTime) < REMOVED_CALL_TTL_MS
+            } ?: false
+            if (isRemoved) {
+                LaunchedEffect(Unit) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HyperIsleIsland", "RID=${activeModel.notificationKey.hashCode()} EVT=RENDER_SKIP_REMOVED reason=CALL_NOTIF_REMOVED")
+                    }
+                    isCallOverlayActive = false
+                    dismissAllOverlays("CALL_NOTIF_REMOVED")
+                }
+                return@showOverlay
+            }
+            
+            // BUG#4 FIX: Check if user dismissed this call - don't render if in dismissed set
             val activeIsOngoing = activeModel.state == CallOverlayState.ONGOING
-            var isExpanded by remember(activeModel.notificationKey) { mutableStateOf(false) }
+            val isUserDismissed = if (activeIsOngoing) {
+                userDismissedCallKeys[activeModel.notificationKey]?.let { dismissTime ->
+                    (System.currentTimeMillis() - dismissTime) < CALL_DEDUPE_TTL_MS
+                } ?: false
+            } else false
+            if (isUserDismissed) {
+                LaunchedEffect(Unit) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HyperIsleIsland", "RID=${activeModel.notificationKey.hashCode()} EVT=RENDER_SKIP_DISMISSED reason=USER_DISMISSED")
+                    }
+                    isCallOverlayActive = false
+                    dismissAllOverlays("USER_DISMISSED_RENDER")
+                }
+                return@showOverlay
+            }
+            // BUG#2 FIX: Use service-level state instead of Compose remember
+            // This prevents flickering when MIUI bridge sends periodic CALL_STATE updates
+            val notifKey = activeModel.notificationKey
+            var isExpanded by remember(notifKey) {
+                mutableStateOf(callExpandedState[notifKey] ?: false)
+            }
+            // Sync changes back to service-level state
+            LaunchedEffect(isExpanded) {
+                callExpandedState[notifKey] = isExpanded
+            }
             val contextSignals by AccessibilityContextState.signals.collectAsState()
             val suppressOverlay = shouldSuppressOverlay(
                 contextSignals = contextSignals,
@@ -455,20 +655,35 @@ class IslandOverlayService : Service() {
                         "RID=${activeModel.notificationKey.hashCode()} EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=CALL fg=${contextSignals.foregroundPackage ?: "unknown"} pkg=${activeModel.packageName}"
                     )
                 }
+                // FIX#3: When dialer is foreground, hard-hide overlay instead of rendering empty Spacer
+                // Empty Spacer causes half-rendered/shifted overlay issue
+                if (suppressOverlay) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_CALL", "RID=${activeModel.notificationKey.hashCode()} EVT=OVERLAY_FORCE_HIDE reason=CALL_UI_FOREGROUND")
+                    }
+                    overlayController.forceDismissOverlay("CALL_UI_FOREGROUND")
+                }
             }
             if (suppressOverlay) {
-                Spacer(modifier = Modifier.height(0.dp))
                 return@showOverlay
             }
 
             val rid = activeModel.notificationKey.hashCode()
             val mediaModel = currentMediaModel
-            var isMediaExpanded by remember(activeModel.notificationKey, mediaModel?.notificationKey) {
-                mutableStateOf(false)
+            // BUG#2 FIX: Use service-level state for media expanded too
+            val mediaKey = "${notifKey}_${mediaModel?.notificationKey ?: "none"}"
+            var isMediaExpanded by remember(mediaKey) {
+                mutableStateOf(callMediaExpandedState[mediaKey] ?: false)
+            }
+            LaunchedEffect(isMediaExpanded) {
+                callMediaExpandedState[mediaKey] = isMediaExpanded
             }
             LaunchedEffect(mediaModel?.notificationKey) {
                 if (mediaModel == null) {
                     isMediaExpanded = false
+                    // Clean up orphaned media states
+                    callMediaExpandedState.keys.filter { it.startsWith("${notifKey}_") && it != mediaKey }
+                        .forEach { callMediaExpandedState.remove(it) }
                 }
             }
             val showSplit = activeIsOngoing && mediaModel != null && !isExpanded && !isMediaExpanded
@@ -520,79 +735,85 @@ class IslandOverlayService : Service() {
                             name = activeModel.callerName,
                             avatarBitmap = activeModel.avatarBitmap,
                             accentColor = activeModel.accentColor,
-                            onDecline = {
-                                Log.d(
-                                    "HyperIsleIsland",
-                                    "RID=$rid EVT=BTN_CALL_DECLINE_CLICK pkg=${activeModel.packageName}"
-                                )
-                                val result = handleCallAction(
-                                    pendingIntent = activeModel.declineIntent,
-                                    actionType = "decline",
-                                    rid = rid,
-                                    pkg = activeModel.packageName
-                                )
-                                val resultLabel = if (result) "OK" else "FAIL"
-                                Log.d(
-                                    "HyperIsleIsland",
-                                    "RID=$rid EVT=BTN_CALL_DECLINE_RESULT result=$resultLabel pkg=${activeModel.packageName}"
-                                )
-                                dismissAllOverlays("CALL_DECLINE")
-                            },
-                            onAccept = {
-                                Log.d(
-                                    "HyperIsleIsland",
-                                    "RID=$rid EVT=BTN_CALL_ACCEPT_CLICK pkg=${activeModel.packageName}"
-                                )
-                                val result = handleCallAction(
-                                    pendingIntent = activeModel.acceptIntent,
-                                    actionType = "accept",
-                                    rid = rid,
-                                    pkg = activeModel.packageName
-                                )
-                                val resultLabel = if (result) "OK" else "FAIL"
-                                Log.d(
-                                    "HyperIsleIsland",
-                                    "RID=$rid EVT=BTN_CALL_ACCEPT_RESULT result=$resultLabel pkg=${activeModel.packageName}"
-                                )
-                                // Don't dismiss - wait for system to send ongoing call notification
-                                // The overlay will transition to ongoing state when new notification arrives
-                            },
+                            onDecline = if (isInteractive) {
+                                {
+                                    if (BuildConfig.DEBUG) {
+                                        Log.d("HI_INPUT", "RID=$rid EVT=INPUT_DECLINE_CLICK")
+                                    }
+                                    Log.d(
+                                        "HyperIsleIsland",
+                                        "RID=$rid EVT=BTN_CALL_DECLINE_CLICK pkg=${activeModel.packageName}"
+                                    )
+                                    val result = handleCallAction(
+                                        pendingIntent = activeModel.declineIntent,
+                                        actionType = "decline",
+                                        rid = rid,
+                                        pkg = activeModel.packageName
+                                    )
+                                    val resultLabel = if (result) "OK" else "FAIL"
+                                    Log.d(
+                                        "HyperIsleIsland",
+                                        "RID=$rid EVT=BTN_CALL_DECLINE_RESULT result=$resultLabel pkg=${activeModel.packageName}"
+                                    )
+                                    isCallOverlayActive = false
+                                    dismissAllOverlays("CALL_DECLINE")
+                                }
+                            } else null,
+                            onAccept = if (isInteractive) {
+                                {
+                                    if (BuildConfig.DEBUG) {
+                                        Log.d("HI_INPUT", "RID=$rid EVT=INPUT_ACCEPT_CLICK")
+                                    }
+                                    Log.d(
+                                        "HyperIsleIsland",
+                                        "RID=$rid EVT=BTN_CALL_ACCEPT_CLICK pkg=${activeModel.packageName}"
+                                    )
+                                    val result = handleCallAction(
+                                        pendingIntent = activeModel.acceptIntent,
+                                        actionType = "accept",
+                                        rid = rid,
+                                        pkg = activeModel.packageName
+                                    )
+                                    val resultLabel = if (result) "OK" else "FAIL"
+                                    Log.d(
+                                        "HyperIsleIsland",
+                                        "RID=$rid EVT=BTN_CALL_ACCEPT_RESULT result=$resultLabel pkg=${activeModel.packageName}"
+                                    )
+                                    // Don't dismiss - wait for system to send ongoing call notification
+                                    // The overlay will transition to ongoing state when new notification arrives
+                                }
+                            } else null,
                             debugRid = rid
                         )
                     }
                     isExpanded -> {
+                        // BUG#1 FIX: Always provide action handlers - AudioManager fallback works even without PendingIntent
                         ActiveCallExpandedPill(
                             callerLabel = activeModel.callerName,
                             durationText = activeModel.durationText,
-                            onHangUp = activeModel.hangUpIntent?.let {
-                                {
-                                    handleCallAction(
-                                        pendingIntent = it,
-                                        actionType = "hangup",
-                                        rid = rid,
-                                        pkg = activeModel.packageName
-                                    )
-                                }
+                            onHangUp = {
+                                handleCallAction(
+                                    pendingIntent = activeModel.hangUpIntent,
+                                    actionType = "hangup",
+                                    rid = rid,
+                                    pkg = activeModel.packageName
+                                )
                             },
-                            onSpeaker = activeModel.speakerIntent?.let {
-                                {
-                                    handleCallAction(
-                                        pendingIntent = it,
-                                        actionType = "speaker",
-                                        rid = rid,
-                                        pkg = activeModel.packageName
-                                    )
-                                }
+                            onSpeaker = {
+                                handleCallAction(
+                                    pendingIntent = activeModel.speakerIntent,
+                                    actionType = "speaker",
+                                    rid = rid,
+                                    pkg = activeModel.packageName
+                                )
                             },
-                            onMute = activeModel.muteIntent?.let {
-                                {
-                                    handleCallAction(
-                                        pendingIntent = it,
-                                        actionType = "mute",
-                                        rid = rid,
-                                        pkg = activeModel.packageName
-                                    )
-                                }
+                            onMute = {
+                                handleCallAction(
+                                    pendingIntent = activeModel.muteIntent,
+                                    actionType = "mute",
+                                    rid = rid,
+                                    pkg = activeModel.packageName
+                                )
                             },
                             debugRid = rid
                         )
@@ -678,11 +899,14 @@ class IslandOverlayService : Service() {
                                         "HyperIsleIsland",
                                         "RID=$rid EVT=CALL_COMPACT_TAP pkg=${activeModel.packageName}"
                                     )
-                                    handleNotificationTap(
-                                        contentIntent = activeModel.contentIntent,
-                                        rid = rid,
-                                        pkg = activeModel.packageName
-                                    )
+                                    // BUG#1 FIX: Use TelecomManager to show in-call UI, do NOT dismiss
+                                    // This ensures tap opens call UI without killing the overlay
+                                    val opened = handleCallTap(rid, activeModel.packageName, activeModel.contentIntent)
+                                    if (BuildConfig.DEBUG) {
+                                        Log.d("HI_INPUT", "RID=$rid EVT=CALL_COMPACT_TAP_RESULT opened=$opened")
+                                    }
+                                    // DO NOT dismiss - call overlay should stay visible
+                                    // User-dismissed calls are tracked separately via swipe
                                 },
                                 onLongClick = { isExpanded = true }
                             ),
@@ -873,136 +1097,196 @@ class IslandOverlayService : Service() {
                 return@showOverlay
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(if (isReplying) Color(0x99000000) else Color.Transparent),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                SwipeDismissContainer(
-                    rid = rid,
-                    stateLabel = if (isNotificationCollapsed) "collapsed" else "expanded",
-                    onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
-                    onTap = {
-                        if (isReplying) {
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_IGNORED reason=REPLY_OPEN")
-                            return@SwipeDismissContainer
-                        }
-                        if (isNotificationCollapsed) {
-                            if (allowExpand) {
-                                isNotificationCollapsed = false
-                                scheduleAutoCollapse(model, restoreCallAfterDismiss)
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
-                            } else {
-                                Log.d(
-                                    "HyperIsleIsland",
-                                    "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY_CONTEXT pkg=${model.packageName}"
-                                )
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
-                                handleNotificationTap(model.contentIntent, rid, model.packageName)
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
-                                dismissFromUser("TAP_OPEN")
-                            }
-                        } else {
-                            Log.d(
-                                "HyperIsleIsland",
-                                "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
-                            )
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
-                            handleNotificationTap(model.contentIntent, rid, model.packageName)
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
-                            dismissFromUser("TAP_OPEN")
-                        }
-                    },
-                    onLongPress = if (allowReply) {
-                        {
-                            if (isNotificationCollapsed) {
-                                isNotificationCollapsed = false
-                                scheduleAutoCollapse(model, restoreCallAfterDismiss)
-                            }
-                            isReplying = true
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN reason=LONG_PRESS")
-                        }
-                    } else {
-                        null
-                    },
+            // FIX: Use wrapContentSize for normal mode to allow touch pass-through outside pill
+            // Only use fillMaxSize when replying to capture background taps and dim screen
+            if (isReplying) {
+                // Reply mode: full screen dim background to capture outside taps
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .fillMaxSize()
+                        .background(Color(0x99000000)),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    LaunchedEffect(isNotificationCollapsed) {
-                        if (isNotificationCollapsed) {
-                            if (isReplying) {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_CLOSE reason=COLLAPSE")
-                            }
-                            isReplying = false
-                            replyText = ""
-                        }
-                    }
-                    LaunchedEffect(isReplying) {
-                        overlayController.setFocusable(
-                            isFocusable = isReplying,
-                            reason = if (isReplying) "REPLY_OPEN" else "REPLY_CLOSE",
-                            rid = rid
-                        )
+                    NotificationOverlayContent(
+                        model = model,
+                        rid = rid,
+                        isReplying = isReplying,
+                        onReplyingChange = { isReplying = it },
+                        replyText = replyText,
+                        onReplyTextChange = { replyText = it },
+                        allowExpand = allowExpand,
+                        allowReply = allowReply,
+                        restoreCallAfterDismiss = restoreCallAfterDismiss
+                    )
+                }
+            } else {
+                // Normal mode: wrapContentSize allows touch pass-through outside pill area
+                Box(
+                    modifier = Modifier
+                        .wrapContentSize(unbounded = true)
+                        .background(Color.Transparent),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    NotificationOverlayContent(
+                        model = model,
+                        rid = rid,
+                        isReplying = isReplying,
+                        onReplyingChange = { isReplying = it },
+                        replyText = replyText,
+                        onReplyTextChange = { replyText = it },
+                        allowExpand = allowExpand,
+                        allowReply = allowReply,
+                        restoreCallAfterDismiss = restoreCallAfterDismiss
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Extracted notification overlay content to avoid code duplication between reply/normal modes.
+     */
+    @Composable
+    private fun NotificationOverlayContent(
+        model: IosNotificationOverlayModel,
+        rid: Int,
+        isReplying: Boolean,
+        onReplyingChange: (Boolean) -> Unit,
+        replyText: String,
+        onReplyTextChange: (String) -> Unit,
+        allowExpand: Boolean,
+        allowReply: Boolean,
+        restoreCallAfterDismiss: Boolean
+    ) {
+        val replyAction = model.replyAction
+        
+        SwipeDismissContainer(
+            rid = rid,
+            stateLabel = if (isNotificationCollapsed) "collapsed" else "expanded",
+            onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
+            onTap = {
+                if (isReplying) {
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_IGNORED reason=REPLY_OPEN")
+                    return@SwipeDismissContainer
+                }
+                if (isNotificationCollapsed) {
+                    if (allowExpand) {
+                        isNotificationCollapsed = false
+                        scheduleAutoCollapse(model, restoreCallAfterDismiss)
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
+                    } else {
                         Log.d(
                             "HyperIsleIsland",
-                            "RID=$rid EVT=REPLY_STATE state=${if (isReplying) "OPEN" else "CLOSED"}"
+                            "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY_CONTEXT pkg=${model.packageName}"
                         )
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                        handleNotificationTap(model.contentIntent, rid, model.packageName)
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                        dismissFromUser("TAP_OPEN")
                     }
+                } else {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
+                    )
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                    handleNotificationTap(model.contentIntent, rid, model.packageName)
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                    dismissFromUser("TAP_OPEN")
+                }
+            },
+            onLongPress = if (allowReply) {
+                {
+                    if (isNotificationCollapsed) {
+                        isNotificationCollapsed = false
+                        scheduleAutoCollapse(model, restoreCallAfterDismiss)
+                    }
+                    onReplyingChange(true)
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN reason=LONG_PRESS")
+                }
+            } else {
+                null
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            LaunchedEffect(isNotificationCollapsed) {
+                if (isNotificationCollapsed) {
+                    if (isReplying) {
+                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_CLOSE reason=COLLAPSE")
+                    }
+                    onReplyingChange(false)
+                    onReplyTextChange("")
+                    // Request layout update to ensure touch regions match mini pill size
+                    overlayController.requestLayoutUpdate("MINI", rid)
+                } else {
+                    // Request layout update when expanding back
+                    overlayController.requestLayoutUpdate("EXPANDED", rid)
+                }
+            }
+            LaunchedEffect(isReplying) {
+                overlayController.setFocusable(
+                    isFocusable = isReplying,
+                    reason = if (isReplying) "REPLY_OPEN" else "REPLY_CLOSE",
+                    rid = rid
+                )
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$rid EVT=REPLY_STATE state=${if (isReplying) "OPEN" else "CLOSED"}"
+                )
+            }
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (isNotificationCollapsed) {
-                            MiniNotificationPill(
-                                sender = model.sender,
-                                avatarBitmap = model.avatarBitmap,
-                                onDismiss = {
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
-                                    dismissFromUser("BTN_RED_X")
-                                },
-                                debugRid = rid
-                            )
-                        } else if (replyAction != null && isReplying) {
-                            NotificationReplyPill(
-                                sender = model.sender,
-                                message = model.message,
-                                avatarBitmap = model.avatarBitmap,
-                                replyText = replyText,
-                                onReplyChange = { replyText = it },
-                                onSend = send@{
-                                    val trimmed = replyText.trim()
-                                    if (trimmed.isEmpty()) {
-                                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
-                                        return@send
-                                    }
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
-                                    val result = sendInlineReply(replyAction, trimmed, rid)
-                                        if (result) {
-                                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
-                                            isReplying = false
-                                            replyText = ""
-                                            dismissFromUser("REPLY_SENT")
-                                        }
-                                    },
-                                    sendLabel = getString(R.string.overlay_send),   
-                                    debugRid = rid
-                                )
-                        } else {
-                            NotificationPill(
-                                sender = model.sender,
-                                timeLabel = model.timeLabel,
-                                message = model.message,
-                                avatarBitmap = model.avatarBitmap,
-                                accentColor = model.accentColor,
-                                onDismiss = {
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
-                                    dismissFromUser("BTN_RED_X")
-                                },
-                                debugRid = rid
-                            )
-                        }
-                    }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (isNotificationCollapsed) {
+                    MiniNotificationPill(
+                        sender = model.sender,
+                        avatarBitmap = model.avatarBitmap,
+                        onDismiss = {
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                            dismissFromUser("BTN_RED_X")
+                        },
+                        debugRid = rid
+                    )
+                } else if (replyAction != null && isReplying) {
+                    NotificationReplyPill(
+                        sender = model.sender,
+                        message = model.message,
+                        avatarBitmap = model.avatarBitmap,
+                        replyText = replyText,
+                        onReplyChange = { onReplyTextChange(it) },
+                        onSend = send@{
+                            val trimmed = replyText.trim()
+                            if (trimmed.isEmpty()) {
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
+                                return@send
+                            }
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
+                            val result = sendInlineReply(replyAction, trimmed, rid)
+                            if (result) {
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
+                                onReplyingChange(false)
+                                onReplyTextChange("")
+                                dismissFromUser("REPLY_SENT")
+                            }
+                        },
+                        sendLabel = getString(R.string.overlay_send),
+                        debugRid = rid
+                    )
+                } else {
+                    NotificationPill(
+                        sender = model.sender,
+                        timeLabel = model.timeLabel,
+                        message = model.message,
+                        avatarBitmap = model.avatarBitmap,
+                        accentColor = model.accentColor,
+                        onDismiss = {
+                            Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                            dismissFromUser("BTN_RED_X")
+                        },
+                        debugRid = rid
+                    )
                 }
             }
         }
@@ -1406,9 +1690,9 @@ class IslandOverlayService : Service() {
         rid: Int,
         pkg: String?
     ): Boolean {
-        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_START action=$actionType pkg=$pkg")
+        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_START action=$actionType hasIntent=${pendingIntent != null} pkg=$pkg")
         
-        // Use enhanced CallManager for all call actions
+        // Use enhanced CallManager for all call actions with AudioManager fallbacks
         val result = when (actionType) {
             "answer", "accept" -> {
                 // PRIMARY: TelecomManager.acceptRingingCall()
@@ -1441,6 +1725,18 @@ class IslandOverlayService : Service() {
                 Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${endResult.success} method=${endResult.method} pkg=$pkg")
                 endResult.success
             }
+            "speaker" -> {
+                // BUG#1 FIX: AudioManager fallback for speaker toggle when MIUI sends actions=0
+                val speakerResult = CallManager.toggleSpeaker(applicationContext, pendingIntent)
+                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${speakerResult.success} method=${speakerResult.method} pkg=$pkg")
+                speakerResult.success
+            }
+            "mute" -> {
+                // BUG#1 FIX: AudioManager fallback for mute toggle when MIUI sends actions=0
+                val muteResult = CallManager.toggleMute(applicationContext, pendingIntent)
+                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${muteResult.success} method=${muteResult.method} pkg=$pkg")
+                muteResult.success
+            }
             else -> {
                 // Unknown action type - try PendingIntent directly
                 if (pendingIntent == null) {
@@ -1460,14 +1756,172 @@ class IslandOverlayService : Service() {
             }
         }
         
+        // FIX#2: UI Fail-Safe - If action failed, show toast and fallback to in-call UI
+        if (!result && (actionType == "speaker" || actionType == "mute")) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_CALL", "RID=$rid EVT=CALL_ACTION_FAILSAFE action=$actionType fallback=SHOW_INCALL_SCREEN")
+            }
+            // Show short toast to inform user
+            serviceScope.launch(Dispatchers.Main) {
+                try {
+                    android.widget.Toast.makeText(
+                        applicationContext,
+                        getString(R.string.call_action_failed_toast),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } catch (e: Exception) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_CALL", "RID=$rid EVT=TOAST_FAIL reason=${e.javaClass.simpleName}")
+                    }
+                }
+            }
+            // Fallback: Show in-call UI so user can perform action there
+            try {
+                val telecomManager = getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
+                telecomManager?.showInCallScreen(true)
+                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAILSAFE_OK action=$actionType fallback=INCALL_SCREEN_SHOWN")
+            } catch (e: Exception) {
+                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAILSAFE_FAIL action=$actionType reason=${e.javaClass.simpleName}")
+            }
+        }
+        
         return result
+    }
+
+    /**
+     * BUG#1 & BUG#2 FIX: Handle call island tap using TelecomManager.showInCallScreen().
+     * This is more reliable on MIUI/HyperOS than contentIntent, and ensures the in-call UI opens.
+     * 
+     * @return true if in-call UI was shown, false otherwise
+     */
+    private fun handleCallTap(rid: Int, pkg: String, fallbackIntent: PendingIntent?): Boolean {
+        Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_START pkg=$pkg")
+        
+        // BUG#2 FIX: Check READ_PHONE_STATE permission before trying showInCallScreen
+        val hasPhoneStatePermission = androidx.core.content.ContextCompat.checkSelfPermission(
+            applicationContext,
+            android.Manifest.permission.READ_PHONE_STATE
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        
+        // Method 1: TelecomManager.showInCallScreen() - only if we have permission
+        if (hasPhoneStatePermission) {
+            try {
+                val telecomManager = getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
+                if (telecomManager != null) {
+                    telecomManager.showInCallScreen(true)
+                    Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=TELECOM_SHOW_INCALL pkg=$pkg")
+                    Haptics.hapticOnIslandSuccess(applicationContext)
+                    return true
+                } else {
+                    Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_WARN reason=NO_TELECOM_SERVICE pkg=$pkg")
+                }
+            } catch (e: SecurityException) {
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=SECURITY_EXCEPTION msg=${e.message} pkg=$pkg")
+            } catch (e: Exception) {
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=${e.javaClass.simpleName} msg=${e.message} pkg=$pkg")
+            }
+        } else {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_SKIP reason=NO_READ_PHONE_STATE method=TELECOM_SHOW_INCALL pkg=$pkg")
+            }
+        }
+        
+        // BUG#2 FIX: Method 2 - Try dialer-specific InCallUI activities
+        val inCallActivities = when (pkg) {
+            "com.google.android.dialer" -> listOf(
+                "com.android.incallui.InCallActivity",
+                "com.google.android.dialer.extensions.call.ui.InCallActivity"
+            )
+            "com.samsung.android.incallui" -> listOf(
+                "com.samsung.android.incallui.InCallActivity"
+            )
+            "com.android.dialer" -> listOf(
+                "com.android.incallui.InCallActivity"
+            )
+            else -> emptyList()
+        }
+        
+        for (activity in inCallActivities) {
+            try {
+                val inCallIntent = Intent().apply {
+                    setClassName(pkg, activity)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                startActivity(inCallIntent)
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=INCALL_ACTIVITY activity=$activity pkg=$pkg")
+                Haptics.hapticOnIslandSuccess(applicationContext)
+                return true
+            } catch (e: Exception) {
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_TRY reason=INCALL_${e.javaClass.simpleName} activity=$activity pkg=$pkg")
+            }
+        }
+        
+        // Method 3: Try ACTION_MAIN with DIAL category for phone apps
+        try {
+            val dialIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                setPackage(pkg)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            }
+            val resolveInfo = packageManager.resolveActivity(dialIntent, 0)
+            if (resolveInfo != null) {
+                startActivity(dialIntent)
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=DIAL_MAIN pkg=$pkg")
+                Haptics.hapticOnIslandSuccess(applicationContext)
+                return true
+            }
+        } catch (e: Exception) {
+            Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_TRY reason=DIAL_MAIN_${e.javaClass.simpleName} pkg=$pkg")
+        }
+        
+        // Method 4: Try contentIntent (notification's original intent)
+        if (fallbackIntent != null) {
+            try {
+                fallbackIntent.send()
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=CONTENT_INTENT pkg=$pkg")
+                Haptics.hapticOnIslandSuccess(applicationContext)
+                return true
+            } catch (e: Exception) {
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_TRY reason=CONTENT_INTENT_${e.javaClass.simpleName} pkg=$pkg")
+            }
+        }
+        
+        // Method 5: Launch dialer package directly
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                startActivity(launchIntent)
+                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=LAUNCH_INTENT pkg=$pkg")
+                Haptics.hapticOnIslandSuccess(applicationContext)
+                return true
+            }
+        } catch (e: Exception) {
+            Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=LAUNCH_INTENT_${e.javaClass.simpleName} pkg=$pkg")
+        }
+        
+        Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=ALL_METHODS_FAILED pkg=$pkg")
+        return false
     }
 
     private fun handleNotificationTap(contentIntent: PendingIntent?, rid: Int, pkg: String) {
         // Try contentIntent first
         if (contentIntent != null) {
             try {
-                contentIntent.send()
+                // Send with context to ensure Activity can be launched
+                contentIntent.send(
+                    this,
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
                 Log.d(TAG, "Notification tap intent sent successfully")
                 Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_OK method=CONTENT_INTENT pkg=$pkg")
                 return
@@ -1560,9 +2014,24 @@ class IslandOverlayService : Service() {
         }
 
         if (matchesCall) {
+            // Track removed call notification to prevent late CALL_STATE events from re-showing
+            removedCallNotificationKeys[notificationKey] = System.currentTimeMillis()
+            // BUG#2 FIX: Set call end timestamp for cooldown
+            lastCallEndTs = System.currentTimeMillis()
+            Log.d(
+                "HyperIsleIsland",
+                "RID=${notificationKey.hashCode()} EVT=CALL_NOTIF_REMOVED_TRACKED ttl=${REMOVED_CALL_TTL_MS}ms"
+            )
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HI_CALL",
+                    "RID=${notificationKey.hashCode()} EVT=CALL_END_TS_SET ts=$lastCallEndTs cooldown=${CALL_END_COOLDOWN_MS}ms"
+                )
+            }
             // Clear dismissed tracking when call ends
             userDismissedCallKeys.remove(notificationKey)
             currentCallModel = null
+            isCallOverlayActive = false
             if (currentMediaModel != null || currentTimerModel != null) {
                 showActivityOverlayFromState()
             } else {
@@ -1651,6 +2120,20 @@ class IslandOverlayService : Service() {
             )
         }
         autoCollapseJob?.cancel()
+        // BUG#2 FIX: Clean up service-level call UI state maps and set call end timestamp
+        currentCallModel?.notificationKey?.let { key ->
+            callExpandedState.remove(key)
+            callMediaExpandedState.keys.filter { it.startsWith("${key}_") }
+                .forEach { callMediaExpandedState.remove(it) }
+            // Set call end timestamp for cooldown
+            lastCallEndTs = System.currentTimeMillis()
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HI_CALL",
+                    "RID=${key.hashCode()} EVT=CALL_END_TS_SET ts=$lastCallEndTs cooldown=${CALL_END_COOLDOWN_MS}ms reason=dismissAllOverlays"
+                )
+            }
+        }
         currentCallModel = null
         currentNotificationModel = null
         currentMediaModel = null
@@ -1658,6 +2141,7 @@ class IslandOverlayService : Service() {
         currentNavigationModel = null
         isNotificationCollapsed = false
         deferCallOverlay = false
+        isCallOverlayActive = false
         overlayController.removeOverlay()
         Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
         Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
@@ -1742,7 +2226,7 @@ class IslandOverlayService : Service() {
                 .pointerInput(rid, onTap, onLongPress) {
                     awaitPointerEventScope {
                         while (true) {
-                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val down = awaitFirstDown(requireUnconsumed = true)
                             val pointerId = down.id
                             var longPressTriggered = false
                             var dragTotal = 0f
@@ -1755,7 +2239,8 @@ class IslandOverlayService : Service() {
                             val touchSlop = viewConfiguration.touchSlop
                             val longPressJob = if (onLongPress != null) {
                                 scope.launch {
-                                    delay(viewConfiguration.longPressTimeoutMillis.toLong())
+                                    // Use longer timeout (600ms) to prevent accidental long press on quick taps
+                                    delay(600L)
                                     if (!hasStarted && totalDx <= touchSlop && totalDy <= touchSlop) {
                                         longPressTriggered = true
                                         onLongPress.invoke()
@@ -1778,10 +2263,14 @@ class IslandOverlayService : Service() {
                                         hasStarted = true
                                         isSwiping = true
                                         longPressJob?.cancel()
+                                        change.consume()
                                         Log.d(
                                             "HyperIsleIsland",
                                             "RID=$rid EVT=SWIPE_START x=${down.position.x} y=${down.position.y} state=$state"
                                         )
+                                    } else if (totalDx <= touchSlop && totalDy <= touchSlop) {
+                                        // Consume small movements to prevent them from being handled elsewhere
+                                        change.consume()
                                     }
                                 }
 
@@ -1805,9 +2294,22 @@ class IslandOverlayService : Service() {
                             longPressJob?.cancel()
                             if (!hasStarted) {
                                 isSwiping = false
-                                if (endedByUp && !endedByCancel && !longPressTriggered &&
+                                val isTap = endedByUp && !endedByCancel && !longPressTriggered &&
                                     totalDx <= touchSlop && totalDy <= touchSlop
-                                ) {
+                                if (BuildConfig.DEBUG) {
+                                    val decision = when {
+                                        isTap && onTap != null -> "TAP_FIRE"
+                                        isTap && onTap == null -> "TAP_NO_HANDLER"
+                                        longPressTriggered -> "LONG_PRESS"
+                                        endedByCancel -> "CANCEL"
+                                        else -> "IGNORED"
+                                    }
+                                    Log.d(
+                                        "HyperIsleIsland",
+                                        "RID=$rid EVT=GESTURE_DECISION decision=$decision dx=$totalDx dy=$totalDy slop=$touchSlop state=$state"
+                                    )
+                                }
+                                if (isTap) {
                                     onTap?.invoke()
                                 }
                                 continue

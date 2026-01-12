@@ -861,7 +861,12 @@ class AppPreferences(context: Context) {
         return if (value != null) {
             com.coni.hyperisle.models.ShadeCancelMode.fromLegacyValue(value)
         } else {
-            com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY
+            // SMS app should hide from shade by default for better UX
+            if (packageName == "com.google.android.apps.messaging") {
+                com.coni.hyperisle.models.ShadeCancelMode.FULLY_HIDE
+            } else {
+                com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY
+            }
         }
     }
 
@@ -875,7 +880,12 @@ class AppPreferences(context: Context) {
             if (value != null) {
                 com.coni.hyperisle.models.ShadeCancelMode.fromLegacyValue(value)
             } else {
-                com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY
+                // SMS app should hide from shade by default for better UX
+                if (packageName == "com.google.android.apps.messaging") {
+                    com.coni.hyperisle.models.ShadeCancelMode.FULLY_HIDE
+                } else {
+                    com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY
+                }
             }
         }
     }

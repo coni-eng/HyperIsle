@@ -30,6 +30,7 @@ import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
 import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
 import java.util.Locale
+import com.coni.hyperisle.util.CallManager
 
 class CallTranslator(context: Context) : BaseTranslator(context) {
 

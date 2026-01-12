@@ -9,6 +9,9 @@
     
     <!-- Required for ending calls via TelecomManager (API 28+) -->
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    
+    <!-- BUG#1 FIX: Required for TelecomManager.showInCallScreen() -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -87,7 +90,13 @@
         <receiver
             android:name=".receiver.IslandActionReceiver"
             android:enabled="true"
-            android:exported="false" />
+            android:exported="false">
+            <intent-filter>
+                <action android:name="miui.focus.action_tapopen" />
+                <action android:name="miui.focus.action_options" />
+                <action android:name="miui.focus.action_dismiss" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".receiver.ContextSignalsReceiver"

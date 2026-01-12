@@ -137,6 +137,14 @@ class NotificationReaderService : NotificationListenerService() {
     private var perAppMuted: Set<String> = emptySet()
     private var perAppBlocked: Set<String> = emptySet()
 
+    // Call action intent cache (key: notification key)
+    private data class CallActionCache(
+        val hangUpIntent: PendingIntent?,
+        val speakerIntent: PendingIntent?,
+        val muteIntent: PendingIntent?
+    )
+    private val callActionCache = mutableMapOf<String, CallActionCache>()
+
     // Smart Priority cache
     private var smartPriorityEnabled = true
     private var smartPriorityAggressiveness = 1
@@ -392,6 +400,24 @@ class NotificationReaderService : NotificationListenerService() {
             // CRITICAL: Log ALL notifications to catch WhatsApp/Telegram
             Log.d("HyperIsleIsland", "RID=${ctx.rid} EVT=NOTIF_RECEIVED pkg=${it.packageName} keyHash=${ctx.keyHash}")
             
+            // WhatsApp-specific telemetry for diagnosis
+            if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
+                val extras = it.notification.extras
+                val category = it.notification.category
+                val isOngoing = (it.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
+                val isGroupSummary = (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+                val hasContentIntent = it.notification.contentIntent != null
+                val channelId = it.notification.channelId
+                Log.d(
+                    "HI_WHATSAPP",
+                    "EVT=WHATSAPP_RECEIVED rid=${ctx.rid} keyHash=${ctx.keyHash} category=$category " +
+                    "isOngoing=$isOngoing isGroupSummary=$isGroupSummary hasContentIntent=$hasContentIntent " +
+                    "channelId=$channelId isClearable=${it.isClearable} " +
+                    "hasTitle=${extras.getCharSequence(Notification.EXTRA_TITLE) != null} " +
+                    "hasText=${extras.getCharSequence(Notification.EXTRA_TEXT) != null}"
+                )
+            }
+            
             // STEP: NL_POSTED - Raw notification received
             DebugLog.event("NL_POSTED", ctx.rid, "RAW", kv = DebugLog.lazyKv {
                 val extras = it.notification.extras
@@ -430,7 +456,13 @@ class NotificationReaderService : NotificationListenerService() {
             }
 
             // Check Global Junk + Blocked Terms
-            if (isJunkNotification(it, ctx)) return
+            if (isJunkNotification(it, ctx)) {
+                // WhatsApp telemetry: log when filtered as junk
+                if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
+                    Log.d("HI_WHATSAPP", "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=JUNK_NOTIFICATION")
+                }
+                return
+            }
 
             // Early type detection for critical types that bypass whitelist
             val isNavigationType = it.notification.category == Notification.CATEGORY_NAVIGATION ||
@@ -441,6 +473,10 @@ class NotificationReaderService : NotificationListenerService() {
             
             if (!bypassWhitelist && !isAppAllowed(it.packageName)) {
                 DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "BLOCKED_NOT_SELECTED", kv = mapOf("pkg" to it.packageName, "allowedCount" to allowedPackageSet.size))
+                // WhatsApp telemetry: log when not in allowed list
+                if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
+                    Log.d("HI_WHATSAPP", "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=NOT_IN_ALLOWED_LIST allowedCount=${allowedPackageSet.size}")
+                }
                 return
             }
             
@@ -450,9 +486,28 @@ class NotificationReaderService : NotificationListenerService() {
             
             DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "ALLOWED", kv = mapOf("pkg" to it.packageName))
             
+            // WhatsApp telemetry: log when passed filter
+            if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
+                Log.d("HI_WHATSAPP", "EVT=WHATSAPP_ALLOWED rid=${ctx.rid} step=FILTER_PASSED")
+            }
+            
             if (shouldSkipUpdate(it)) {
                 DebugLog.event("DEDUP_CHECK", ctx.rid, "DEDUP", reason = "DROP_RATE_LIMIT", kv = mapOf("pkg" to it.packageName))
+                // WhatsApp telemetry: log when rate-limited
+                if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
+                    Log.d("HI_WHATSAPP", "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=RATE_LIMITED")
+                }
                 return
+            }
+            
+            // WhatsApp telemetry: log when queued for processing
+            if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
+                Log.d("HI_WHATSAPP", "EVT=WHATSAPP_QUEUED rid=${ctx.rid} step=PROCESS_AND_POST")
+            }
+            
+            // BUG#2 DEBUG: Log all notification processing for WhatsApp
+            if (BuildConfig.DEBUG && (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b")) {
+                Log.d("HI_WHATSAPP", "EVT=WHATSAPP_PROCESSING_START rid=${ctx.rid}")
             }
             
             serviceScope.launch { processAndPost(it, ctx) }
@@ -512,6 +567,18 @@ class NotificationReaderService : NotificationListenerService() {
             if (isActiveIsland) {
                 val safeGroupKey = groupKey ?: return
                 val activeRoute = route ?: return
+                
+                // Ignore GROUP_SUMMARY_CANCELED for active islands - this is a side-effect
+                // of our own group summary cancellation, not a real notification removal.
+                // The individual notification we're showing is still valid.
+                if (reason == REASON_GROUP_SUMMARY_CANCELED) {
+                    Log.d(
+                        "HyperIsleIsland",
+                        "RID=$keyHash EVT=ON_REMOVED_IGNORED reason=$reasonName activeIsland=true cause=OUR_GROUP_CANCEL"
+                    )
+                    return
+                }
+                
                 val remainingVisibleMs = remainingMinVisibleMs(safeGroupKey, now)
                 val delayMs = when {
                     selfCancel -> if (remainingVisibleMs > 0L) remainingVisibleMs else MIN_VISIBLE_MS
@@ -558,6 +625,7 @@ class NotificationReaderService : NotificationListenerService() {
             sbnKeyToGroupKey.remove(key)
             bridgePostConfirmations.remove(key)
             selfCancelKeys.remove(key)
+            callActionCache.remove(key)
 
             if (!isActiveIsland && activeIslands.isEmpty()) {
                 IslandCooldownManager.clearLastActiveIsland()
@@ -907,6 +975,12 @@ class NotificationReaderService : NotificationListenerService() {
         try {
             val extras = sbn.notification.extras
             val rid = ctx.rid
+            
+            // BUG#2 DEBUG: Track WhatsApp through entire flow
+            val isWhatsApp = sbn.packageName == "com.whatsapp" || sbn.packageName == "com.whatsapp.w4b"
+            if (BuildConfig.DEBUG && isWhatsApp) {
+                Log.d("HI_WHATSAPP", "EVT=PROCESS_START rid=$rid")
+            }
 
             // Timeline: onNotificationPosted event (PII-safe)
             val isOngoingFlag = (sbn.notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
@@ -963,6 +1037,11 @@ class NotificationReaderService : NotificationListenerService() {
                 isMedia -> NotificationType.MEDIA
                 hasProgress -> NotificationType.PROGRESS
                 else -> NotificationType.STANDARD
+            }
+            
+            // BUG#2 DEBUG: Log type classification
+            if (BuildConfig.DEBUG && isWhatsApp) {
+                Log.d("HI_WHATSAPP", "EVT=TYPE_CLASSIFIED rid=$rid type=${type.name}")
             }
 
             val config = preferences.getAppConfig(sbn.packageName).first()
@@ -1472,6 +1551,11 @@ class NotificationReaderService : NotificationListenerService() {
             val canUseOverlay = overlaySupported && OverlayPermissionHelper.hasOverlayPermission(applicationContext)
             val forceOverlayRoute = type == NotificationType.STANDARD || type == NotificationType.NAVIGATION
             val preferOverlay = forceOverlayRoute && canUseOverlay
+            
+            // BUG#2 DEBUG: Log overlay routing decision
+            if (BuildConfig.DEBUG && isWhatsApp) {
+                Log.d("HI_WHATSAPP", "EVT=OVERLAY_DECISION rid=$rid overlaySupported=$overlaySupported canUseOverlay=$canUseOverlay forceOverlayRoute=$forceOverlayRoute preferOverlay=$preferOverlay")
+            }
             if (preferOverlay) {
                 if (BuildConfig.DEBUG) {
                     Log.d(
@@ -2702,16 +2786,79 @@ class NotificationReaderService : NotificationListenerService() {
         var speakerIntent: PendingIntent? = null
         var muteIntent: PendingIntent? = null
 
+        // FIX#1: Collect all action intents first, then apply keyword matching
+        // MIUI/HyperOS may send icon-only actions (title blank) - don't skip them
+        val allActionIntents = mutableListOf<PendingIntent>()
+        
         for (action in actions) {
-            val actionTitle = action.title?.toString()?.lowercase(java.util.Locale.getDefault()) ?: continue
+            val actionTitle = action.title?.toString()?.lowercase(java.util.Locale.getDefault())
+            val actionIntent = action.actionIntent
+            
+            // Collect all valid intents for heuristic fallback
+            if (actionIntent != null) {
+                allActionIntents.add(actionIntent)
+            }
+            
+            // Skip keyword matching if title is blank, but continue to collect intents
+            if (actionTitle.isNullOrBlank()) continue
+            
             when {
-                answerKeywords.any { actionTitle.contains(it) } -> acceptIntent = action.actionIntent
+                answerKeywords.any { actionTitle.contains(it) } -> acceptIntent = actionIntent
                 hangUpKeywords.any { actionTitle.contains(it) } -> {
-                    declineIntent = action.actionIntent
-                    hangUpIntent = action.actionIntent
+                    declineIntent = actionIntent
+                    hangUpIntent = actionIntent
                 }
-                speakerKeywords.any { actionTitle.contains(it) } -> speakerIntent = action.actionIntent
-                muteKeywords.any { actionTitle.contains(it) } -> muteIntent = action.actionIntent
+                speakerKeywords.any { actionTitle.contains(it) } -> speakerIntent = actionIntent
+                muteKeywords.any { actionTitle.contains(it) } -> muteIntent = actionIntent
+            }
+        }
+
+        // FIX#1: MIUI/HyperOS Icon-Only Heuristic for speaker/mute
+        // HARD RULES: Only apply if ALL conditions are met:
+        // 1. isOngoingCall == true (OFFHOOK state)
+        // 2. hangUpIntent != null (we found hangup via keyword)
+        // 3. speakerIntent == null && muteIntent == null (keywords didn't find them)
+        // 4. Remaining action candidates (excluding hangup) == exactly 2
+        if (isOngoingCall && hangUpIntent != null && speakerIntent == null && muteIntent == null) {
+            val actionCandidates = allActionIntents.filter { intent ->
+                intent != hangUpIntent
+            }
+            if (actionCandidates.size == 2) {
+                // Heuristic: first = speaker, second = mute (MIUI convention)
+                speakerIntent = actionCandidates[0]
+                muteIntent = actionCandidates[1]
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_HEURISTIC applied=true reason=ICON_ONLY_EXACT2 totalActions=${allActionIntents.size}")
+                }
+            } else {
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_HEURISTIC applied=false reason=CANDIDATE_COUNT_MISMATCH count=${actionCandidates.size} expected=2")
+                }
+            }
+        }
+
+        // Cache call actions if we found any, or restore from cache if missing
+        val notificationKey = sbn.key
+        if (hangUpIntent != null || speakerIntent != null || muteIntent != null) {
+            // We have at least one action - cache them
+            callActionCache[notificationKey] = CallActionCache(
+                hangUpIntent = hangUpIntent,
+                speakerIntent = speakerIntent,
+                muteIntent = muteIntent
+            )
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_CACHE cached=${hangUpIntent != null}|${speakerIntent != null}|${muteIntent != null}")
+            }
+        } else {
+            // No actions in this update - try to restore from cache
+            val cached = callActionCache[notificationKey]
+            if (cached != null) {
+                hangUpIntent = cached.hangUpIntent
+                speakerIntent = cached.speakerIntent
+                muteIntent = cached.muteIntent
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_RESTORE restored=${hangUpIntent != null}|${speakerIntent != null}|${muteIntent != null}")
+                }
             }
         }
 
@@ -2891,40 +3038,189 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     private fun resolveOverlayBitmap(sbn: StatusBarNotification): Bitmap? {
+        val rid = sbn.key.hashCode()
         val extras = sbn.notification.extras
-        val picture = extras.getParcelable<Bitmap>(Notification.EXTRA_PICTURE)
-        if (picture != null) return picture
-        val largeIconBitmap = extras.getParcelable<Bitmap>(Notification.EXTRA_LARGE_ICON)
-        if (largeIconBitmap != null) return largeIconBitmap
-        val largeIcon = sbn.notification.getLargeIcon()
-        if (largeIcon != null) {
-            val bitmap = loadIconBitmap(largeIcon, sbn.packageName)
-            if (bitmap != null) return bitmap
+        var iconSource = "NONE"
+        
+        // BUG#3 FIX: Use safe extraction that handles both Bitmap and Icon types
+        // EXTRA_LARGE_ICON can contain either Bitmap or Icon depending on Android/OEM
+        
+        try {
+            // 1. Try EXTRA_PICTURE (already a Bitmap)
+            val picture = safeGetBitmapFromExtras(extras, Notification.EXTRA_PICTURE, rid, sbn.packageName)
+            if (picture != null) {
+                iconSource = "EXTRA_PICTURE"
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                }
+                return picture
+            }
+            
+            // 2. Try EXTRA_LARGE_ICON - SAFE extraction handles both Bitmap and Icon
+            val largeIconBitmap = safeGetBitmapFromExtras(extras, Notification.EXTRA_LARGE_ICON, rid, sbn.packageName)
+            if (largeIconBitmap != null) {
+                iconSource = "EXTRA_LARGE_ICON_BITMAP"
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                }
+                return largeIconBitmap
+            }
+            
+            // 3. Try getLargeIcon() (returns Icon, needs conversion)
+            val largeIcon = sbn.notification.getLargeIcon()
+            if (largeIcon != null) {
+                val bitmap = loadIconBitmapSafe(largeIcon, sbn.packageName, rid, "LARGE_ICON")
+                if (bitmap != null) {
+                    iconSource = "LARGE_ICON"
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                    }
+                    return bitmap
+                }
+            }
+            
+            // 4. Try smallIcon (returns Icon, needs conversion)
+            val smallIcon = sbn.notification.smallIcon
+            if (smallIcon != null) {
+                val bitmap = loadIconBitmapSafe(smallIcon, sbn.packageName, rid, "SMALL_ICON")
+                if (bitmap != null) {
+                    iconSource = "SMALL_ICON"
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                    }
+                    return bitmap
+                }
+            }
+            
+            // 5. Fallback to app icon
+            val appIcon = getAppIconBitmap(sbn.packageName)
+            if (appIcon != null) {
+                iconSource = "APP_ICON_FALLBACK"
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                }
+                return appIcon
+            }
+            
+            // 6. No icon available
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_ICON", "RID=$rid EVT=ICON_NONE pkg=${sbn.packageName}")
+            }
+            return null
+            
+        } catch (e: Exception) {
+            Log.e("HI_ICON", "RID=$rid EVT=ICON_FAIL exception=${e.javaClass.simpleName} msg=${e.message} pkg=${sbn.packageName}")
+            // Ultimate fallback - try app icon even after exception
+            return try {
+                getAppIconBitmap(sbn.packageName)
+            } catch (fallbackEx: Exception) {
+                null
+            }
         }
-        val smallIcon = sbn.notification.smallIcon
-        if (smallIcon != null) {
-            val bitmap = loadIconBitmap(smallIcon, sbn.packageName)
-            if (bitmap != null) return bitmap
+    }
+
+    /**
+     * BUG#3 FIX: Safely extract Bitmap from notification extras.
+     * Handles the case where EXTRA_LARGE_ICON may contain either a Bitmap or an Icon,
+     * preventing ClassCastException: Icon cannot be cast to Bitmap.
+     */
+    private fun safeGetBitmapFromExtras(extras: android.os.Bundle, key: String, rid: Int, pkg: String): Bitmap? {
+        return try {
+            val value = extras.get(key) ?: return null
+            when (value) {
+                is Bitmap -> {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_OK key=$key type=BITMAP pkg=$pkg")
+                    }
+                    value
+                }
+                is Icon -> {
+                    // EXTRA_LARGE_ICON contains Icon instead of Bitmap - convert it
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_CONVERT key=$key type=ICON pkg=$pkg")
+                    }
+                    loadIconBitmapSafe(value, pkg, rid, "EXTRA_$key")
+                }
+                else -> {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_SKIP key=$key type=${value.javaClass.simpleName} pkg=$pkg")
+                    }
+                    null
+                }
+            }
+        } catch (e: ClassCastException) {
+            // This should not happen now, but guard against it
+            Log.e("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_CAST_FAIL key=$key exception=${e.message} pkg=$pkg (handled=true)")
+            null
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_FAIL key=$key exception=${e.javaClass.simpleName} pkg=$pkg")
+            }
+            null
         }
-        return getAppIconBitmap(sbn.packageName)
+    }
+
+    /**
+     * Safely load Icon to Bitmap with proper type handling.
+     * NEVER casts Icon to Bitmap directly - always uses loadDrawable().
+     * Handles all Icon types: TYPE_RESOURCE, TYPE_BITMAP, TYPE_URI, TYPE_DATA, TYPE_ADAPTIVE_BITMAP.
+     */
+    private fun loadIconBitmapSafe(icon: Icon, packageName: String, rid: Int, source: String): Bitmap? {
+        return try {
+            val iconType = icon.type
+            val iconTypeName = when (iconType) {
+                Icon.TYPE_RESOURCE -> "RESOURCE"
+                Icon.TYPE_BITMAP -> "BITMAP"
+                Icon.TYPE_URI -> "URI"
+                Icon.TYPE_DATA -> "DATA"
+                Icon.TYPE_ADAPTIVE_BITMAP -> "ADAPTIVE"
+                else -> "UNKNOWN($iconType)"
+            }
+            
+            val drawable = when (iconType) {
+                Icon.TYPE_RESOURCE -> {
+                    // For resource icons, try target package context first
+                    try {
+                        val targetContext = createPackageContext(packageName, 0)
+                        icon.loadDrawable(targetContext)
+                    } catch (e: Exception) {
+                        // Fallback to our context
+                        icon.loadDrawable(this)
+                    }
+                }
+                else -> {
+                    // For all other types (BITMAP, URI, DATA, ADAPTIVE), use our context
+                    icon.loadDrawable(this)
+                }
+            }
+            
+            if (drawable == null) {
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_ICON", "RID=$rid EVT=ICON_LOAD_NULL source=$source type=$iconTypeName pkg=$packageName")
+                }
+                return null
+            }
+            
+            val bitmap = drawable.toBitmap()
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_ICON", "RID=$rid EVT=ICON_LOAD_OK source=$source type=$iconTypeName w=${bitmap.width} h=${bitmap.height} pkg=$packageName")
+            }
+            bitmap
+            
+        } catch (e: ClassCastException) {
+            // This should never happen with proper Icon handling, but guard against it
+            Log.e("HI_ICON", "RID=$rid EVT=ICON_CAST_FAIL source=$source exception=${e.message} pkg=$packageName")
+            null
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_ICON", "RID=$rid EVT=ICON_LOAD_FAIL source=$source exception=${e.javaClass.simpleName} pkg=$packageName")
+            }
+            null
+        }
     }
 
     private fun loadIconBitmap(icon: Icon, packageName: String): Bitmap? {
-        return try {
-            val drawable = if (icon.type == Icon.TYPE_RESOURCE) {
-                try {
-                    val targetContext = createPackageContext(packageName, 0)
-                    icon.loadDrawable(targetContext)
-                } catch (e: Exception) {
-                    icon.loadDrawable(this)
-                }
-            } else {
-                icon.loadDrawable(this)
-            }
-            drawable?.toBitmap()
-        } catch (e: Exception) {
-            null
-        }
+        return loadIconBitmapSafe(icon, packageName, 0, "GENERIC")
     }
 
     private fun getAppIconBitmap(packageName: String): Bitmap? {

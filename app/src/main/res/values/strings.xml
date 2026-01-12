@@ -305,6 +305,7 @@
 
     <string name="call_incoming">Gelen Arama</string>
     <string name="call_ongoing">Aktif Arama</string>
+    <string name="call_action_failed_toast">İşlem başarısız, arama ekranı açılıyor</string>
 
     <string-array name="call_keywords_hangup">
         <item>hang</item>
@@ -325,7 +326,9 @@
         <item>speaker</item>
         <item>audio</item>
         <item>hoparlör</item>
+        <item>hoparl</item>
         <item>ses</item>
+        <item>sesli</item>
     </string-array>
     <string-array name="call_keywords_mute">
         <item>mute</item>

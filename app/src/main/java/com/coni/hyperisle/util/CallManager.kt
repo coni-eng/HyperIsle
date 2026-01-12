@@ -4,11 +4,13 @@ import android.Manifest
 import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.Build
 import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.coni.hyperisle.BuildConfig
 import kotlinx.coroutines.delay
 
 /**
@@ -271,5 +273,155 @@ object CallManager {
      */
     fun isEndCallSupported(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P // API 28 for endCall
+    }
+
+    // ========== AUDIO MANAGER FALLBACKS FOR MIUI actions=0 ==========
+    
+    /**
+     * Toggle speakerphone using AudioManager.
+     * PRIMARY fallback when notification action is unavailable (MIUI actions=0).
+     * 
+     * @param context Application context
+     * @param fallbackIntent Optional PendingIntent to try first
+     * @return CallActionResult with success status and method used
+     */
+    @Suppress("DEPRECATION")
+    fun toggleSpeaker(context: Context, fallbackIntent: PendingIntent? = null): CallActionResult {
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_START hasIntent=${fallbackIntent != null}")
+        }
+        
+        // Try PendingIntent first if available
+        if (fallbackIntent != null) {
+            val intentResult = tryFallbackIntent(fallbackIntent, "NONE")
+            if (intentResult.success) {
+                return intentResult
+            }
+        }
+        
+        // AudioManager fallback
+        return try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null) {
+                val currentState = audioManager.isSpeakerphoneOn
+                audioManager.isSpeakerphoneOn = !currentState
+                val newState = audioManager.isSpeakerphoneOn
+                val toggled = currentState != newState
+                if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_RESULT method=AUDIO_MANAGER old=$currentState new=$newState toggled=$toggled")
+                }
+                CallActionResult(
+                    success = toggled,
+                    method = "AUDIO_MANAGER",
+                    verifiedState = null
+                )
+            } else {
+                if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_FAIL reason=NO_AUDIO_MANAGER")
+                }
+                CallActionResult(
+                    success = false,
+                    method = "NONE",
+                    verifiedState = null,
+                    error = "No AudioManager available"
+                )
+            }
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
+            }
+            CallActionResult(
+                success = false,
+                method = "AUDIO_MANAGER",
+                verifiedState = null,
+                error = e.message
+            )
+        }
+    }
+
+    /**
+     * Toggle microphone mute using AudioManager.
+     * PRIMARY fallback when notification action is unavailable (MIUI actions=0).
+     * 
+     * @param context Application context
+     * @param fallbackIntent Optional PendingIntent to try first
+     * @return CallActionResult with success status and method used
+     */
+    @Suppress("DEPRECATION")
+    fun toggleMute(context: Context, fallbackIntent: PendingIntent? = null): CallActionResult {
+        if (BuildConfig.DEBUG) {
+            Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_START hasIntent=${fallbackIntent != null}")
+        }
+        
+        // Try PendingIntent first if available
+        if (fallbackIntent != null) {
+            val intentResult = tryFallbackIntent(fallbackIntent, "NONE")
+            if (intentResult.success) {
+                return intentResult
+            }
+        }
+        
+        // AudioManager fallback
+        return try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null) {
+                val currentState = audioManager.isMicrophoneMute
+                audioManager.isMicrophoneMute = !currentState
+                val newState = audioManager.isMicrophoneMute
+                val toggled = currentState != newState
+                if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_RESULT method=AUDIO_MANAGER old=$currentState new=$newState toggled=$toggled")
+                }
+                CallActionResult(
+                    success = toggled,
+                    method = "AUDIO_MANAGER",
+                    verifiedState = null
+                )
+            } else {
+                if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_FAIL reason=NO_AUDIO_MANAGER")
+                }
+                CallActionResult(
+                    success = false,
+                    method = "NONE",
+                    verifiedState = null,
+                    error = "No AudioManager available"
+                )
+            }
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
+            }
+            CallActionResult(
+                success = false,
+                method = "AUDIO_MANAGER",
+                verifiedState = null,
+                error = e.message
+            )
+        }
+    }
+
+    /**
+     * Get current speaker state.
+     */
+    fun isSpeakerOn(context: Context): Boolean {
+        return try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.isSpeakerphoneOn ?: false
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Get current mute state.
+     */
+    fun isMuted(context: Context): Boolean {
+        return try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.isMicrophoneMute ?: false
+        } catch (e: Exception) {
+            false
+        }
     }
 }

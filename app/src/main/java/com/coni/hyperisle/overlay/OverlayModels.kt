@@ -26,7 +26,8 @@ data class IosCallOverlayModel(
     val state: CallOverlayState = CallOverlayState.INCOMING,
     val packageName: String,
     val notificationKey: String,
-    val accentColor: String? = null
+    val accentColor: String? = null,
+    val interactive: Boolean = true
 )
 
 /**

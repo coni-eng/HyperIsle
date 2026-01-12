@@ -59,8 +59,9 @@ class OverlayWindowController(private val context: Context) {
 
     /**
      * Show an overlay with the given composable content.
+     * @param interactive If false, overlay is non-touchable (passive mode for calls on MIUI)
      */
-    fun showOverlay(event: OverlayEvent, content: @Composable () -> Unit) {
+    fun showOverlay(event: OverlayEvent, interactive: Boolean = true, content: @Composable () -> Unit) {
         if (!hasOverlayPermission()) {
             Log.w(TAG, "Overlay permission not granted, ignoring event")
             return
@@ -89,13 +90,20 @@ class OverlayWindowController(private val context: Context) {
             // Create layout params for overlay
             // Use WRAP_CONTENT for width to allow touch pass-through outside the island
             // REMOVED FLAG_LAYOUT_NO_LIMITS to prevent off-screen positioning
+            // For passive mode (call during RINGING/OFFHOOK on MIUI): add FLAG_NOT_TOUCHABLE
+            val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            val flags = if (!interactive) {
+                baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                baseFlags
+            }
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                flags,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -109,9 +117,15 @@ class OverlayWindowController(private val context: Context) {
             lastScreenWidth = getScreenWidth()
             lastOrientation = context.resources.configuration.orientation
             overlayParams = params
+            val touchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) == 0
+            val focusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
+            if (BuildConfig.DEBUG) {
+                Log.d(
+                    "HI_WINDOW",
+                    "RID=${overlayRid(event)} EVT=WINDOW_ATTACHED interactive=$interactive touchable=$touchable focusable=$focusable flags=${params.flags}"
+                )
+            }
             if (!hasLoggedWindowFlags) {
-                val touchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) == 0
-                val focusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
                 Log.d(
                     "HyperIsleIsland",
                     "RID=OVL_FLAGS EVT=WINDOW_FLAGS flags=${params.flags} type=${params.type} touchable=$touchable focusable=$focusable"
@@ -119,13 +133,34 @@ class OverlayWindowController(private val context: Context) {
                 hasLoggedWindowFlags = true
             }
 
+            // Add overlay measurement logging after layout
+            if (BuildConfig.DEBUG) {
+                overlayView?.viewTreeObserver?.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
+                    override fun onGlobalLayout() {
+                        overlayView?.let { view ->
+                            val w = view.width
+                            val h = view.height
+                            Log.d(
+                                "HyperIsleIsland",
+                                "RID=${overlayRid(event)} EVT=OVERLAY_MEASURED w=$w h=$h interactive=$interactive"
+                            )
+                            // Remove listener after first measurement to avoid spam
+                            view.viewTreeObserver?.removeOnGlobalLayoutListener(this)
+                        }
+                    }
+                })
+            }
+            
             // Add view with MIUI-safe error handling
             // MIUI's MiuiCameraCoveredManager may throw NullPointerException when accessing cloud settings
             // This is a MIUI system bug, not our fault - we catch and log it safely
             try {
                 windowManager.addView(overlayView, params)
-                Log.d(TAG, "Overlay shown successfully")
+                Log.d(TAG, "Overlay shown successfully (interactive=$interactive)")
                 Log.d("HyperIsleIsland", "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK")
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_ISLAND", "RID=${overlayRid(event)} EVT=ISLAND_RENDER interactive=$interactive flags=${params.flags}")
+                }
             } catch (miuiException: NullPointerException) {
                 // MIUI MiuiCameraCoveredManager bug - safe to ignore
                 // The view is still added successfully despite the exception
@@ -156,12 +191,51 @@ class OverlayWindowController(private val context: Context) {
                 lifecycleOwner?.performDestroy()
 
                 if (view.isAttachedToWindow) {
-                    windowManager.removeView(view)
+                    windowManager.removeViewImmediate(view)
                 }
                 Log.d(TAG, "Overlay removed successfully")
+                if (BuildConfig.DEBUG) {
+                    val rid = currentEvent?.let { overlayRid(it) } ?: 0
+                    Log.d("HI_WINDOW", "RID=$rid EVT=WINDOW_DETACHED")
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to remove overlay: ${e.message}", e)
+        } finally {
+            overlayView = null
+            lifecycleOwner = null
+            currentEvent = null
+            overlayParams = null
+        }
+    }
+
+    /**
+     * Force dismiss overlay with guaranteed cleanup (for stuck overlay scenarios).
+     */
+    fun forceDismissOverlay(reason: String) {
+        val rid = currentEvent?.let { overlayRid(it) } ?: 0
+        if (BuildConfig.DEBUG) {
+            Log.d("HI_ISLAND", "RID=$rid EVT=ISLAND_FORCE_DISMISS reason=$reason")
+        }
+        try {
+            overlayView?.let { view ->
+                try {
+                    lifecycleOwner?.performPause()
+                    lifecycleOwner?.performStop()
+                    lifecycleOwner?.performDestroy()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Lifecycle cleanup failed during force dismiss: ${e.message}")
+                }
+
+                try {
+                    if (view.isAttachedToWindow) {
+                        windowManager.removeViewImmediate(view)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "View removal failed during force dismiss: ${e.message}")
+                }
+                Log.d(TAG, "Overlay force dismissed: $reason")
+            }
         } finally {
             overlayView = null
             lifecycleOwner = null
@@ -199,6 +273,35 @@ class OverlayWindowController(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update overlay focusable: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Request WindowManager to recalculate layout.
+     * Called when overlay content changes size (e.g., expanded -> mini mode).
+     * This ensures touch regions are updated to match the new content bounds.
+     * 
+     * With WRAP_CONTENT, the window should automatically resize, but we force
+     * an updateViewLayout call to ensure WindowManager recalculates touch regions.
+     */
+    fun requestLayoutUpdate(mode: String, rid: Int? = null) {
+        val view = overlayView ?: return
+        val params = overlayParams ?: return
+        
+        try {
+            // Force WindowManager to recalculate layout by calling updateViewLayout
+            // This ensures touch regions match the new content size
+            windowManager.updateViewLayout(view, params)
+            
+            if (BuildConfig.DEBUG) {
+                val logRid = rid ?: currentEvent?.let { overlayRid(it) } ?: 0
+                Log.d(
+                    "HyperIsleIsland",
+                    "RID=$logRid EVT=WIN_LAYOUT_UPDATE mode=$mode w=${params.width} h=${params.height} flags=${params.flags}"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update overlay layout: ${e.message}", e)
         }
     }
 

@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -146,8 +147,8 @@ fun IncomingCallPill(
     title: String,
     name: String,
     avatarBitmap: Bitmap? = null,
-    onDecline: () -> Unit,
-    onAccept: () -> Unit,
+    onDecline: (() -> Unit)? = null,
+    onAccept: (() -> Unit)? = null,
     accentColor: String? = null,
     debugRid: Int? = null
 ) {
@@ -241,14 +242,22 @@ fun IncomingCallPill(
                     modifier = Modifier
                         .size(50.dp)
                         .debugLayoutModifier(debugRid, "call_decline_btn")
-                        .clickable { onDecline() },
+                        .then(
+                            if (onDecline != null) {
+                                Modifier.clickable { onDecline() }
+                            } else {
+                                Modifier
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_call_end),
                         contentDescription = "Decline call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(80.dp)
+                        modifier = Modifier
+                            .size(80.dp)
+                            .alpha(if (onDecline != null) 1f else 0.5f)
                     )
                 }
 
@@ -257,14 +266,22 @@ fun IncomingCallPill(
                     modifier = Modifier
                         .size(37.dp)
                         .debugLayoutModifier(debugRid, "call_accept_btn")
-                        .clickable { onAccept() },
+                        .then(
+                            if (onAccept != null) {
+                                Modifier.clickable { onAccept() }
+                            } else {
+                                Modifier
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_call),
                         contentDescription = "Accept call",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(55.dp)
+                        modifier = Modifier
+                            .size(55.dp)
+                            .alpha(if (onAccept != null) 1f else 0.5f)
                     )
                 }
             }
@@ -432,15 +449,59 @@ private fun CallActionButton(
     modifier: Modifier = Modifier
 ) {
     val enabled = onClick != null
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    // BUG#4 FIX: Add pressed state for visual feedback
+    var isPressed by remember { mutableStateOf(false) }
+    
+    // Optimistic UI: briefly highlight when pressed
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessHigh
+        ),
+        label = "call_btn_scale"
+    )
+    
+    // Background highlight when pressed
+    val pressedBackground = if (isPressed) {
+        background.copy(alpha = 0.7f)
+    } else {
+        background
+    }
 
     Box(
         modifier = modifier
             .size(48.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(CircleShape)
-            .background(background)
+            .background(pressedBackground)
             .then(
                 if (enabled) {
-                    Modifier.clickable { onClick?.invoke() }
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                isPressed = true
+                                // BUG#4 FIX: Haptic feedback on press
+                                com.coni.hyperisle.util.Haptics.hapticOnIslandSuccess(context)
+                                try {
+                                    awaitRelease()
+                                } finally {
+                                    isPressed = false
+                                }
+                            },
+                            onTap = {
+                                if (BuildConfig.DEBUG) {
+                                    Log.d("HI_CALL_ACTION", "EVT=CALL_ACTION_CLICK action=$contentDescription uiOptimistic=true")
+                                }
+                                onClick?.invoke()
+                            }
+                        )
+                    }
                 } else {
                     Modifier
                 }
