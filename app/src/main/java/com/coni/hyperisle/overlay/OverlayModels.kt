@@ -183,6 +183,21 @@ data class IosNotificationReplyAction(
 )
 
 /**
+ * Media content type for notification messages (sticker, photo, video, GIF, etc.)
+ */
+enum class NotificationMediaType {
+    NONE,       // Regular text message
+    PHOTO,      // 📷 Photo
+    VIDEO,      // 🎬 Video
+    GIF,        // GIF animation
+    STICKER,    // Sticker
+    VOICE,      // 🎤 Voice message
+    DOCUMENT,   // 📄 Document
+    LOCATION,   // 📍 Location
+    CONTACT     // 👤 Contact
+}
+
+/**
  * Data model for iOS-style notification overlay.
  */
 data class IosNotificationOverlayModel(
@@ -195,7 +210,9 @@ data class IosNotificationOverlayModel(
     val notificationKey: String,
     val collapseAfterMs: Long? = null,
     val replyAction: IosNotificationReplyAction? = null,
-    val accentColor: String? = null
+    val accentColor: String? = null,
+    val mediaType: NotificationMediaType = NotificationMediaType.NONE,
+    val mediaBitmap: Bitmap? = null  // Preview image for photo/video/sticker
 )
 
 /**

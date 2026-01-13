@@ -514,11 +514,16 @@ class NotificationReaderService : NotificationListenerService() {
             // MIUI's system island triggers immediately when notification arrives.
             // By snoozing BEFORE processing, we prevent MIUI from showing its island.
             // Only for clearable non-ongoing notifications from messaging apps.
+            // FIX: Always snooze on MIUI devices regardless of useMiuiBridgeIsland setting
+            // This ensures MIUI island is suppressed even when using APP_OVERLAY route
             val isClearableStandard = it.isClearable && !ctx.isOngoing && 
                 it.notification.category != Notification.CATEGORY_CALL &&
                 it.notification.category != Notification.CATEGORY_NAVIGATION &&
                 it.notification.category != Notification.CATEGORY_TRANSPORT
-            if (isClearableStandard && useMiuiBridgeIsland) {
+            val isMiuiDevice = android.os.Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) ||
+                android.os.Build.MANUFACTURER.equals("Redmi", ignoreCase = true) ||
+                android.os.Build.MANUFACTURER.equals("POCO", ignoreCase = true)
+            if (isClearableStandard && isMiuiDevice) {
                 try {
                     snoozeNotification(it.key, POPUP_SUPPRESS_SNOOZE_MS)
                     markSelfCancel(it.key, ctx.keyHash)
@@ -3335,18 +3340,126 @@ class NotificationReaderService : NotificationListenerService() {
         }
         val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
         
+        // Detect media type from message content
+        val mediaType = detectNotificationMediaType(text, sbn)
+        val mediaBitmap = if (mediaType != com.coni.hyperisle.overlay.NotificationMediaType.NONE) {
+            extractMediaBitmap(sbn)
+        } else null
+        
+        // Adjust message text for media types
+        val displayMessage = when (mediaType) {
+            com.coni.hyperisle.overlay.NotificationMediaType.PHOTO -> if (text.isBlank()) "📷 Fotoğraf" else text
+            com.coni.hyperisle.overlay.NotificationMediaType.VIDEO -> if (text.isBlank()) "🎬 Video" else text
+            com.coni.hyperisle.overlay.NotificationMediaType.GIF -> if (text.isBlank()) "GIF" else text
+            com.coni.hyperisle.overlay.NotificationMediaType.STICKER -> if (text.isBlank()) "Çıkartma" else text
+            com.coni.hyperisle.overlay.NotificationMediaType.VOICE -> if (text.isBlank()) "🎤 Sesli mesaj" else text
+            com.coni.hyperisle.overlay.NotificationMediaType.DOCUMENT -> if (text.isBlank()) "📄 Dosya" else text
+            com.coni.hyperisle.overlay.NotificationMediaType.LOCATION -> if (text.isBlank()) "📍 Konum" else text
+            com.coni.hyperisle.overlay.NotificationMediaType.CONTACT -> if (text.isBlank()) "👤 Kişi" else text
+            else -> text
+        }
+        
+        if (BuildConfig.DEBUG && mediaType != com.coni.hyperisle.overlay.NotificationMediaType.NONE) {
+            Log.d("HI_NOTIF", "RID=${sbn.key.hashCode()} EVT=MEDIA_TYPE_DETECTED type=${mediaType.name} hasPreview=${mediaBitmap != null}")
+        }
+        
         return IosNotificationOverlayModel(
             sender = title.ifEmpty { appName },
             timeLabel = "now",
-            message = text,
+            message = displayMessage,
             avatarBitmap = resolveOverlayBitmap(sbn),
             contentIntent = sbn.notification.contentIntent,
             packageName = sbn.packageName,
             notificationKey = sbn.key,
             collapseAfterMs = effectiveCollapse,
             replyAction = replyAction,
-            accentColor = accentColor
+            accentColor = accentColor,
+            mediaType = mediaType,
+            mediaBitmap = mediaBitmap
         )
+    }
+    
+    /**
+     * Detect media type from notification message content.
+     * Handles WhatsApp, Telegram, and other messaging apps.
+     */
+    private fun detectNotificationMediaType(text: String, sbn: StatusBarNotification): com.coni.hyperisle.overlay.NotificationMediaType {
+        val lowerText = text.lowercase()
+        val extras = sbn.notification.extras
+        
+        // Check for EXTRA_PICTURE which indicates media content
+        val hasPicture = extras.get(Notification.EXTRA_PICTURE) != null
+        
+        return when {
+            // Photo indicators
+            lowerText.contains("📷") || lowerText.contains("photo") || 
+            lowerText.contains("fotoğraf") || lowerText.contains("resim") ||
+            (hasPicture && !lowerText.contains("video") && !lowerText.contains("gif")) -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.PHOTO
+            
+            // Video indicators
+            lowerText.contains("🎬") || lowerText.contains("video") -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.VIDEO
+            
+            // GIF indicators
+            lowerText.contains("gif") -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.GIF
+            
+            // Sticker indicators
+            lowerText.contains("sticker") || lowerText.contains("çıkartma") ||
+            lowerText.contains("etiket") -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.STICKER
+            
+            // Voice message indicators
+            lowerText.contains("🎤") || lowerText.contains("voice") || 
+            lowerText.contains("sesli") || lowerText.contains("audio") -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.VOICE
+            
+            // Document indicators
+            lowerText.contains("📄") || lowerText.contains("document") || 
+            lowerText.contains("dosya") || lowerText.contains("file") -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.DOCUMENT
+            
+            // Location indicators
+            lowerText.contains("📍") || lowerText.contains("location") || 
+            lowerText.contains("konum") -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.LOCATION
+            
+            // Contact indicators
+            lowerText.contains("👤") || lowerText.contains("contact") || 
+            lowerText.contains("kişi") -> 
+                com.coni.hyperisle.overlay.NotificationMediaType.CONTACT
+            
+            else -> com.coni.hyperisle.overlay.NotificationMediaType.NONE
+        }
+    }
+    
+    /**
+     * Extract media preview bitmap from notification.
+     */
+    private fun extractMediaBitmap(sbn: StatusBarNotification): Bitmap? {
+        val extras = sbn.notification.extras
+        val rid = sbn.key.hashCode()
+        
+        // Try EXTRA_PICTURE first (contains image preview)
+        val picture = safeGetBitmapFromExtras(extras, Notification.EXTRA_PICTURE, rid, sbn.packageName)
+        if (picture != null) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_NOTIF", "RID=$rid EVT=MEDIA_BITMAP_FOUND source=EXTRA_PICTURE")
+            }
+            return picture
+        }
+        
+        // Try EXTRA_LARGE_ICON as fallback
+        val largeIcon = safeGetBitmapFromExtras(extras, Notification.EXTRA_LARGE_ICON, rid, sbn.packageName)
+        if (largeIcon != null) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_NOTIF", "RID=$rid EVT=MEDIA_BITMAP_FOUND source=EXTRA_LARGE_ICON")
+            }
+            return largeIcon
+        }
+        
+        return null
     }
 
     /**

@@ -1383,7 +1383,7 @@ class IslandOverlayService : Service() {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)  // Increased from 16dp to accommodate shadow
         ) {
             LaunchedEffect(isNotificationCollapsed) {
                 if (isNotificationCollapsed) {
@@ -1485,6 +1485,8 @@ class IslandOverlayService : Service() {
                         message = model.message,
                         avatarBitmap = model.avatarBitmap,
                         accentColor = model.accentColor,
+                        mediaType = model.mediaType,
+                        mediaBitmap = model.mediaBitmap,
                         onDismiss = {
                             Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                             dismissFromUser("BTN_RED_X")

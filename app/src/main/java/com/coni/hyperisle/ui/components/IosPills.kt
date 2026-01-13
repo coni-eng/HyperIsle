@@ -1030,6 +1030,8 @@ fun NotificationPill(
     onClick: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
     accentColor: String? = null,
+    mediaType: com.coni.hyperisle.overlay.NotificationMediaType = com.coni.hyperisle.overlay.NotificationMediaType.NONE,
+    mediaBitmap: Bitmap? = null,
     debugRid: Int? = null
 ) {
     if (BuildConfig.DEBUG && debugRid != null) {
@@ -1149,16 +1151,75 @@ fun NotificationPill(
                 // Message preview - 2 lines max for better content visibility
                 if (message.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = message,
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 18.sp,
-                        modifier = Modifier.debugLayoutModifier(debugRid, "notif_message")
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.debugLayoutModifier(debugRid, "notif_message_row")
+                    ) {
+                        // Media type icon for sticker/gif/voice etc
+                        val mediaIcon = when (mediaType) {
+                            com.coni.hyperisle.overlay.NotificationMediaType.STICKER -> "🏷️"
+                            com.coni.hyperisle.overlay.NotificationMediaType.GIF -> "🎞️"
+                            com.coni.hyperisle.overlay.NotificationMediaType.VOICE -> "🎤"
+                            com.coni.hyperisle.overlay.NotificationMediaType.DOCUMENT -> "📄"
+                            com.coni.hyperisle.overlay.NotificationMediaType.LOCATION -> "📍"
+                            com.coni.hyperisle.overlay.NotificationMediaType.CONTACT -> "👤"
+                            else -> null
+                        }
+                        if (mediaIcon != null) {
+                            Text(
+                                text = mediaIcon,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+                        }
+                        
+                        // Message text
+                        Text(
+                            text = message,
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = 18.sp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .debugLayoutModifier(debugRid, "notif_message")
+                        )
+                        
+                        // Media preview thumbnail for photo/video
+                        if (mediaBitmap != null && (mediaType == com.coni.hyperisle.overlay.NotificationMediaType.PHOTO || 
+                            mediaType == com.coni.hyperisle.overlay.NotificationMediaType.VIDEO)) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                            ) {
+                                Image(
+                                    bitmap = mediaBitmap.asImageBitmap(),
+                                    contentDescription = "Media preview",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                // Video play icon overlay
+                                if (mediaType == com.coni.hyperisle.overlay.NotificationMediaType.VIDEO) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Black.copy(alpha = 0.3f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "▶",
+                                            color = Color.White,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
