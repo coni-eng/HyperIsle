@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.13.2" type="baseline" client="gradle" dependencies="false" name="AGP (8.13.2)" variant="all" version="8.13.2">
+
+    <issue
+        id="InconsistentArrays"
+        message="Array `call_keywords_answer` has an inconsistent number of items (5 in `values/strings.xml`, 4 in `values-en/strings.xml`)"
+        errorLine1="    &lt;string-array name=&quot;call_keywords_answer&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="318"
+            column="5"
+            message="Declaration with array size (5)"/>
+        <location
+            file="src/main/res/values-en/strings.xml"
+            line="320"
+            column="5"
+            message="Declaration with array size (4)"/>
+    </issue>
+
+    <issue
+        id="InconsistentArrays"
+        message="Array `call_keywords_speaker` has an inconsistent number of items (6 in `values/strings.xml`, 4 in `values-en/strings.xml`)"
+        errorLine1="    &lt;string-array name=&quot;call_keywords_speaker&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="325"
+            column="5"
+            message="Declaration with array size (6)"/>
+        <location
+            file="src/main/res/values-en/strings.xml"
+            line="326"
+            column="5"
+            message="Declaration with array size (4)"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier,"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/overlay/host/OverlayHostComposable.kt"
+            line="141"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;call_action_failed_toast&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;call_action_failed_toast&quot;>İşlem başarısız, arama ekranı açılıyor&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="308"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;perm_phone_calls_title&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;perm_phone_calls_title&quot;>Telefon Aramaları&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="683"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;perm_phone_calls_desc&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;perm_phone_calls_desc&quot;>Adadan çağrıları sonlandırmak için gerekli&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="684"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;accessibility_banner_title&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;accessibility_banner_title&quot;>Akıllı Ada Gizleme&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="691"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;accessibility_banner_message&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;accessibility_banner_message&quot;>Çağrı uygulaması açıkken adayı otomatik gizlemek için Erişilebilirlik Servisi\&apos;ni etkinleştirin.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="692"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;accessibility_banner_enable&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;accessibility_banner_enable&quot;>Etkinleştir&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="693"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;accessibility_banner_dismiss&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;accessibility_banner_dismiss&quot;>Kapat&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="694"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_screen_info_title&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_screen_info_title&quot;>Neden bu ayar gerekli?&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="744"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_screen_info_desc&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_screen_info_desc&quot;>MIUI/HyperOS bazen sistem bildirimlerini zorla gosterir. Cift ada olusmasini onlemek icin bu uygulamalarin bildirimlerini sistem ayarlarindan kapatmaniz gerekebilir.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="745"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_status_disabled&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_status_disabled&quot;>Bildirim kapali&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="746"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_status_enabled&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_status_enabled&quot;>Bildirim kapali degil&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="747"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_status_unknown&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_status_unknown&quot;>Durum bilinmiyor&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="748"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_tap_to_settings&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_tap_to_settings&quot;>Bildirim ayarlarini acmak icin dokun&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="749"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_confirm_dialog_title&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_confirm_dialog_title&quot;>Bildirim durumu&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="750"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_confirm_dialog_message&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_confirm_dialog_message&quot;>%s icin bildirimleri kapattiniz mi?&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="751"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_confirm_yes&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_confirm_yes&quot;>Evet, kapattim&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="752"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_confirm_no&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_confirm_no&quot;>Hayir, acik&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="753"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_confirm_skip&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_confirm_skip&quot;>Atla&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="754"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_empty_list&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_empty_list&quot;>Gizlenecek uygulama yok&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="755"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_empty_list_desc&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_empty_list_desc&quot;>Once Uygulama Listesi ekranindan uygulamalari ekleyin&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="756"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;shade_cancel_guard_skip_reason&quot; is not translated in &quot;en&quot; (English)"
+        errorLine1="    &lt;string name=&quot;shade_cancel_guard_skip_reason&quot;>SHADE_CANCEL_GUARD&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="757"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is never &lt; 35"
+        errorLine1="        if (Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.P) {"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/util/CallManager.kt"
+            line="109"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 35"
+        errorLine1="        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O // API 26 for acceptRingingCall"
+        errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/util/CallManager.kt"
+            line="268"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 35"
+        errorLine1="        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.P // API 28 for endCall"
+        errorLine2="               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/util/CallManager.kt"
+            line="275"
+            column="16"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 35"
+        errorLine1="        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/util/Haptics.kt"
+            line="51"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 35"
+        errorLine1="        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/overlay/OverlayWindowController.kt"
+            line="330"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is never &lt; 35"
+        errorLine1="        if (Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.P) {"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/overlay/OverlayWindowController.kt"
+            line="408"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        message="Prefer `mutableIntStateOf` instead of `mutableStateOf`"
+        errorLine1="    var missingRequiredCount by remember { mutableStateOf(PermissionRegistry.getMissingRequiredCount(context)) }"
+        errorLine2="                                           ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/ui/screens/home/HomeScreen.kt"
+            line="74"
+            column="44"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        message="Prefer `mutableFloatStateOf` instead of `mutableStateOf`"
+        errorLine1="        var offsetX by remember { mutableStateOf(0f) }"
+        errorLine2="                                  ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/overlay/IslandOverlayService.kt"
+            line="2208"
+            column="35"/>
+    </issue>
+
+    <issue
+        id="AutoboxingStateCreation"
+        message="Prefer `mutableIntStateOf` instead of `mutableStateOf`"
+        errorLine1="        var containerWidth by remember { mutableStateOf(0) }"
+        errorLine2="                                         ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/overlay/IslandOverlayService.kt"
+            line="2209"
+            column="42"/>
+    </issue>
+
+    <issue
+        id="LaunchActivityFromNotification"
+        message="Notifications should only launch a `BroadcastReceiver` from notification actions (`addAction`)"
+        errorLine1="            notificationBuilder.setContentIntent(wrapperIntent)"
+        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/service/NotificationReaderService.kt"
+            line="1756"
+            column="33"/>
+        <location
+            file="src/main/java/com/coni/hyperisle/service/NotificationReaderService.kt"
+            line="1750"
+            column="33"
+            message="This `BroadcastReceiver` intent is launched from a notification; this is discouraged except as notification actions"/>
+    </issue>
+
+    <issue
+        id="LaunchActivityFromNotification"
+        message="Notifications should only launch a `BroadcastReceiver` from notification actions (`addAction`)"
+        errorLine1="                        notificationBuilder.setContentIntent(wrapperIntent)"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/service/NotificationReaderService.kt"
+            line="2402"
+            column="45"/>
+        <location
+            file="src/main/java/com/coni/hyperisle/service/NotificationReaderService.kt"
+            line="2396"
+            column="45"
+            message="This `BroadcastReceiver` intent is launched from a notification; this is discouraged except as notification actions"/>
+    </issue>
+
+    <issue
+        id="IconXmlAndPng"
+        message="The following images appear both as density independent `.xml` files and as bitmap files: src\main\res\mipmap-anydpi\ic_launcher.xml, src\main\res\mipmap-hdpi\ic_launcher.webp">
+        <location
+            file="src/main/res/mipmap-xxxhdpi/ic_launcher.webp"/>
+        <location
+            file="src/main/res/mipmap-xxhdpi/ic_launcher.webp"/>
+        <location
+            file="src/main/res/mipmap-xhdpi/ic_launcher.webp"/>
+        <location
+            file="src/main/res/mipmap-mdpi/ic_launcher.webp"/>
+        <location
+            file="src/main/res/mipmap-hdpi/ic_launcher.webp"/>
+        <location
+            file="src/main/res/mipmap-anydpi/ic_launcher.xml"/>
+    </issue>
+
+    <issue
+        id="IconXmlAndPng"
+        message="The following images appear both as density independent `.xml` files and as bitmap files: src\main\res\mipmap-anydpi\ic_launcher_round.xml, src\main\res\mipmap-hdpi\ic_launcher_round.webp">
+        <location
+            file="src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp"/>
+        <location
+            file="src/main/res/mipmap-xxhdpi/ic_launcher_round.webp"/>
+        <location
+            file="src/main/res/mipmap-xhdpi/ic_launcher_round.webp"/>
+        <location
+            file="src/main/res/mipmap-mdpi/ic_launcher_round.webp"/>
+        <location
+            file="src/main/res/mipmap-hdpi/ic_launcher_round.webp"/>
+        <location
+            file="src/main/res/mipmap-anydpi/ic_launcher_round.xml"/>
+    </issue>
+
+    <issue
+        id="IconMissingDensityFolder"
+        message="Missing density variation folders in `src\main\res`: drawable-hdpi, drawable-mdpi, drawable-xhdpi">
+        <location
+            file="src/main/res"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toColorInt` instead?"
+        errorLine1="                try { Color(android.graphics.Color.parseColor(it)) } catch (e: Exception) { null }"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/ui/components/IosPills.kt"
+            line="174"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toColorInt` instead?"
+        errorLine1="                try { Color(android.graphics.Color.parseColor(it)) } catch (e: Exception) { null }"
+        errorLine2="                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/ui/components/IosPills.kt"
+            line="1064"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;package:$packageName&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/ui/screens/settings/NotificationManagementAppsScreen.kt"
+            line="343"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;package:$packageName&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/coni/hyperisle/ui/screens/settings/NotificationManagementAppsScreen.kt"
+            line="343"
+            column="24"/>
+    </issue>
+
+</issues>

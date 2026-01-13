@@ -27,7 +27,16 @@ data class IosCallOverlayModel(
     val packageName: String,
     val notificationKey: String,
     val accentColor: String? = null,
-    val interactive: Boolean = true
+    val interactive: Boolean = true,
+    // BUG#1 FIX: Capability flags - button disabled when false
+    val canHangup: Boolean = true,
+    val canSpeaker: Boolean = true,
+    val canMute: Boolean = true,
+    // BUG#3 FIX: Audio state flags for UI feedback
+    val isSpeakerOn: Boolean = false,
+    val isMuted: Boolean = false,
+    // BUG#2 FIX: Unique call key for proper lifecycle management
+    val callKey: String = notificationKey
 )
 
 /**

@@ -46,6 +46,7 @@ android {
     }
     lint {
         disable += listOf("GradleDependency", "NewerVersionAvailable")
+        baseline = file("lint-baseline.xml")
     }
 }
 

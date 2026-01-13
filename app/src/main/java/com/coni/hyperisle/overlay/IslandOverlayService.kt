@@ -17,6 +17,7 @@ import android.view.MotionEvent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -47,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
@@ -148,6 +151,34 @@ class IslandOverlayService : Service() {
     // Keyed by notificationKey, prevents flickering when MIUI bridge sends periodic updates
     private val callExpandedState = mutableMapOf<String, Boolean>()
     private val callMediaExpandedState = mutableMapOf<String, Boolean>()
+    
+    // HARDENING#4: Debounce for overlay show - callKey + overlayType based
+    // Prevents multiple overlays for same call during CALL_UI_FOREGROUND → HOME transition
+    private data class DebounceKey(val callKey: String, val overlayType: String)
+    private val lastOverlayShowTs = mutableMapOf<DebounceKey, Long>()
+    private val CALL_OVERLAY_DEBOUNCE_MS = 250L // Debounce window for same callKey+type
+    
+    // HARDENING#2: IDLE state lock - prevents stale events from recreating ONGOING state
+    // Once CallManager reports IDLE, model stays null until NEW call event
+    @Volatile
+    private var idleStateLocked = false
+    private var idleLockCallKey: String? = null
+    
+    // BUG#2 FIX: Cache lastStableCallKey for CALL_RESET - prevents "unknown_..." keys
+    // Updated on every CALLKEY_USED event, used when CALL_RESET needs a valid key
+    private var lastStableCallKey: String? = null
+    private var pendingCallReset = false // Set when IDLE transition happens without valid key
+    
+    // HARDENING#3: Optimistic speaker/mute state tracking
+    // UI shows optimistic state immediately, reverts if real state doesn't match within timeout
+    private data class OptimisticAudioState(
+        val isSpeakerOn: Boolean?,
+        val isMuted: Boolean?,
+        val appliedAtMs: Long
+    )
+    private var optimisticAudioState: OptimisticAudioState? = null
+    private val OPTIMISTIC_REVERT_MS = 800L // Revert optimistic state after 800ms if no confirmation
+    private var audioStateRevertJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -320,16 +351,54 @@ class IslandOverlayService : Service() {
                     }
                 }
                 
-                // FIX#4: Also detect transition from active call to IDLE (even if overlay is already hidden)
-                // This ensures stale MIUI bridge events are ignored
+                // BUG#2 FIX: Detect transition from active call to IDLE (even if overlay is already hidden)
+                // This ensures stale MIUI bridge events are ignored AND model is fully reset
                 if (lastCallState != CallManager.CallState.IDLE && 
                     currentState == CallManager.CallState.IDLE) {
                     val rid = currentCallModel?.notificationKey?.hashCode() ?: 0
-                    if (BuildConfig.DEBUG) {
-                        Log.d("HI_CALL", "RID=$rid EVT=CALL_STATE_IDLE_DETECTED reason=STATE_TRANSITION")
-                    }
+                    // FIX: Get stableCallKey from model first, fallback to cached lastStableCallKey
+                    // NEVER use "unknown_..." - if no key available, set pendingCallReset
+                    val stableCallKey = currentCallModel?.callKey 
+                        ?: CallManager.getActiveSession()?.callKey 
+                        ?: lastStableCallKey
+                    val legacySbnKey = currentCallModel?.notificationKey
+                    
                     // Set cooldown timestamp to ignore stale MIUI bridge events
                     lastCallEndTs = System.currentTimeMillis()
+                    
+                    // HARDENING#2: FULL MODEL RESET on IDLE transition
+                    // This is the truth source - CallManager reports call ended
+                    // LOCK the state so stale events cannot recreate ONGOING
+                    idleStateLocked = true
+                    
+                    if (stableCallKey != null) {
+                        idleLockCallKey = stableCallKey
+                        if (BuildConfig.DEBUG) {
+                            Log.d("HI_CALL", "RID=$rid EVT=CALL_RESET reason=CALL_MANAGER_IDLE stableCallKey=$stableCallKey legacySbnKey=$legacySbnKey idleStateLocked=true")
+                        }
+                        // Clear lastStableCallKey after successful reset
+                        lastStableCallKey = null
+                        pendingCallReset = false
+                    } else {
+                        // No valid key available - set pending reset flag
+                        pendingCallReset = true
+                        if (BuildConfig.DEBUG) {
+                            Log.d("HI_CALL", "RID=$rid EVT=CALL_RESET_PENDING reason=NO_STABLE_KEY legacySbnKey=$legacySbnKey idleStateLocked=true")
+                        }
+                    }
+                    
+                    // Clear all call-related state
+                    currentCallModel?.notificationKey?.let { key ->
+                        callExpandedState.remove(key)
+                        callMediaExpandedState.keys.filter { it.startsWith("${key}_") }
+                            .forEach { callMediaExpandedState.remove(it) }
+                        // Add to removed keys to prevent late MIUI bridge events
+                        removedCallNotificationKeys[key] = lastCallEndTs
+                    }
+                    
+                    // Reset model
+                    currentCallModel = null
+                    isCallOverlayActive = false
                 }
                 
                 lastCallState = currentState
@@ -401,7 +470,37 @@ class IslandOverlayService : Service() {
             is OverlayEvent.NavigationEvent -> showNavigationOverlay(event.model)
             is OverlayEvent.NotificationEvent -> showNotificationOverlay(event.model)
             is OverlayEvent.DismissEvent -> dismissOverlay(event.notificationKey, "NOTIF_REMOVED")
-            is OverlayEvent.DismissAllEvent -> dismissAllOverlays("DISMISS_ALL_EVENT")
+            is OverlayEvent.DismissAllEvent -> {
+                // BUG FIX: Guard dismissAllOverlays when call is ONGOING
+                // Prevents flicker when dialer→home transition triggers DISMISS_ALL
+                // FIX: Block if callState is OFFHOOK/RINGING regardless of hasActiveCallModel
+                val callState = CallManager.getCallState(applicationContext)
+                val isCallOngoing = callState == CallManager.CallState.OFFHOOK || 
+                                    callState == CallManager.CallState.RINGING
+                val hasActiveCallModel = currentCallModel != null && isCallOverlayActive
+                
+                if (isCallOngoing) {
+                    // Block dismiss - call state is ongoing, regardless of model state
+                    // activeCallModel may be null due to timing but call is still active
+                    if (BuildConfig.DEBUG) {
+                        val stableCallKey = currentCallModel?.callKey ?: lastStableCallKey ?: "unknown"
+                        Log.d(
+                            "HI_CALL",
+                            "EVT=DISMISS_ALL_BLOCKED reason=CALL_STATE_ONGOING callState=${callState.name} stableCallKey=$stableCallKey hasActiveCallModel=$hasActiveCallModel"
+                        )
+                    }
+                    // Don't dismiss - call is still active, this is a layout change not call end
+                } else {
+                    // Allow dismiss - call state is IDLE
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "HI_CALL",
+                            "EVT=DISMISS_ALL_ALLOWED callState=${callState.name} hasActiveCallModel=$hasActiveCallModel"
+                        )
+                    }
+                    dismissAllOverlays("DISMISS_ALL_EVENT")
+                }
+            }
         }
     }
 
@@ -429,6 +528,64 @@ class IslandOverlayService : Service() {
         val wasCallOverlay =
             overlayController.currentEvent is OverlayEvent.CallEvent && overlayController.isShowing()
         val rid = model.notificationKey.hashCode()
+        
+        // HARDENING#4: Debounce overlay show - callKey + overlayType based
+        // Prevents multiple overlays for same call during CALL_UI_FOREGROUND → HOME transition
+        val now = System.currentTimeMillis()
+        val overlayType = if (isOngoing) "ONGOING" else "INCOMING"
+        val debounceKey = DebounceKey(model.callKey, overlayType)
+        val lastShowTs = lastOverlayShowTs[debounceKey]
+        
+        // TELEMETRY: Log stableCallKey vs legacy sbn key for call tracking
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "HI_CALL",
+                "RID=$rid EVT=CALLKEY_USED stable=${model.callKey} legacySbnKey=${model.notificationKey} state=$overlayType"
+            )
+        }
+        
+        // BUG#2 FIX: Cache stableCallKey for CALL_RESET - prevents "unknown_..." keys
+        lastStableCallKey = model.callKey
+        
+        // BUG#2 FIX: If pendingCallReset was set, finalize it now that we have a valid key
+        if (pendingCallReset) {
+            pendingCallReset = false
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_CALL", "RID=$rid EVT=CALL_RESET_FINALIZED stableCallKey=${model.callKey}")
+            }
+        }
+        
+        if (lastShowTs != null) {
+            val elapsed = now - lastShowTs
+            if (elapsed < CALL_OVERLAY_DEBOUNCE_MS) {
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_CALL", "RID=$rid EVT=OVERLAY_DEBOUNCE callKey=${model.callKey} type=$overlayType elapsed=${elapsed}ms debounce=${CALL_OVERLAY_DEBOUNCE_MS}ms")
+                }
+                // Don't re-show - debounce in progress
+                return
+            }
+        }
+        // Update debounce tracking
+        lastOverlayShowTs[debounceKey] = now
+        // Cleanup old debounce entries (older than 5 seconds)
+        lastOverlayShowTs.entries.removeIf { now - it.value > 5000L }
+
+        // HARDENING#2: Check IDLE state lock - prevents stale events from recreating ONGOING state
+        // If we locked the IDLE state for this callKey, reject the event
+        if (idleStateLocked && isOngoing && model.callKey == idleLockCallKey) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_CALL", "RID=$rid EVT=CALL_STALE_BLOCKED reason=IDLE_STATE_LOCKED callKey=${model.callKey}")
+            }
+            return
+        }
+        
+        // HARDENING#2: Check if CallManager session is locked
+        if (CallManager.isSessionLocked() && isOngoing) {
+            if (BuildConfig.DEBUG) {
+                Log.d("HI_CALL", "RID=$rid EVT=CALL_STALE_BLOCKED reason=SESSION_LOCKED callKey=${model.callKey}")
+            }
+            return
+        }
 
         // BUG#2 FIX: Truth source check - CallManager is the authoritative source for call state
         // If CallManager reports IDLE, do NOT show call overlay regardless of MIUI bridge state
@@ -452,6 +609,15 @@ class IslandOverlayService : Service() {
                 }
             }
             return
+        }
+        
+        // HARDENING#2: Clear IDLE lock if we're receiving a NEW call (different callKey or INCOMING)
+        if (isIncoming || (isOngoing && model.callKey != idleLockCallKey)) {
+            if (idleStateLocked && BuildConfig.DEBUG) {
+                Log.d("HI_CALL", "RID=$rid EVT=IDLE_LOCK_CLEARED reason=NEW_CALL newKey=${model.callKey} oldKey=$idleLockCallKey")
+            }
+            idleStateLocked = false
+            idleLockCallKey = null
         }
 
         // Check if notification was removed (call ended) - ignore late CALL_STATE events from MIUI bridge
@@ -787,7 +953,8 @@ class IslandOverlayService : Service() {
                         )
                     }
                     isExpanded -> {
-                        // BUG#1 FIX: Always provide action handlers - AudioManager fallback works even without PendingIntent
+                        // BUG#1 FIX: Pass capability flags - button disabled when false
+                        // BUG#3 FIX: Pass audio state for UI feedback
                         ActiveCallExpandedPill(
                             callerLabel = activeModel.callerName,
                             durationText = activeModel.durationText,
@@ -815,6 +982,10 @@ class IslandOverlayService : Service() {
                                     pkg = activeModel.packageName
                                 )
                             },
+                            canSpeaker = activeModel.canSpeaker,
+                            canMute = activeModel.canMute,
+                            isSpeakerOn = activeModel.isSpeakerOn,
+                            isMuted = activeModel.isMuted,
                             debugRid = rid
                         )
                     }
@@ -1019,7 +1190,9 @@ class IslandOverlayService : Service() {
             return
         }
         val restoreCallAfterDismiss = callState == CallOverlayState.ONGOING
-        deferCallOverlay = restoreCallAfterDismiss
+        // BUG#5 FIX: Do NOT set deferCallOverlay - this was preventing call overlay from showing
+        // Instead, we just show a quick notification peek and auto-restore call UI
+        // The call overlay state machine should NOT be affected by notification peek
         if (contextRestricted) {
             Log.d(
                 "HyperIsleIsland",
@@ -1238,7 +1411,38 @@ class IslandOverlayService : Service() {
                 )
             }
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // ANIMATION: Popup/dismiss animation from camera cutout area
+            // Scale and alpha animation for smooth entry/exit
+            var isVisible by remember { mutableStateOf(false) }
+            val animatedScale by animateFloatAsState(
+                targetValue = if (isVisible) 1f else 0.3f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "island_scale"
+            )
+            val animatedAlpha by animateFloatAsState(
+                targetValue = if (isVisible) 1f else 0f,
+                animationSpec = tween(durationMillis = 200),
+                label = "island_alpha"
+            )
+            
+            LaunchedEffect(Unit) {
+                isVisible = true
+            }
+            
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .graphicsLayer {
+                        scaleX = animatedScale
+                        scaleY = animatedScale
+                        alpha = animatedAlpha
+                        // Transform origin at top-center (camera cutout area)
+                        transformOrigin = TransformOrigin(0.5f, 0f)
+                    }
+            ) {
                 if (isNotificationCollapsed) {
                     MiniNotificationPill(
                         sender = model.sender,
@@ -1726,15 +1930,63 @@ class IslandOverlayService : Service() {
                 endResult.success
             }
             "speaker" -> {
+                // BUG#3 FIX: Get current state and compute desired toggle state
+                val currentSpeaker = CallManager.isSpeakerOn(applicationContext)
+                val desiredSpeaker = !currentSpeaker
+                
+                // Log click with desired state for debugging
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_CALL", "RID=$rid EVT=CALL_TOGGLE_CLICK action=speaker current=$currentSpeaker desired=$desiredSpeaker")
+                }
+                
+                // HARDENING#3: Apply optimistic state immediately
+                applyOptimisticAudioState(isSpeakerOn = desiredSpeaker, isMuted = null, rid = rid)
+                
                 // BUG#1 FIX: AudioManager fallback for speaker toggle when MIUI sends actions=0
                 val speakerResult = CallManager.toggleSpeaker(applicationContext, pendingIntent)
-                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${speakerResult.success} method=${speakerResult.method} pkg=$pkg")
+                if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=speaker success=${speakerResult.success} method=${speakerResult.method}")
+                }
+                
+                // HARDENING#3: Schedule verification and potential revert
+                // NOTE: This only reverts audio state, does NOT affect overlay expand/collapse
+                scheduleAudioStateVerification(
+                    expectedSpeaker = desiredSpeaker,
+                    expectedMute = null,
+                    rid = rid,
+                    actionType = "speaker"
+                )
+                
                 speakerResult.success
             }
             "mute" -> {
+                // BUG#3 FIX: Get current state and compute desired toggle state
+                val currentMute = CallManager.isMuted(applicationContext)
+                val desiredMute = !currentMute
+                
+                // Log click with desired state for debugging
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_CALL", "RID=$rid EVT=CALL_TOGGLE_CLICK action=mute current=$currentMute desired=$desiredMute")
+                }
+                
+                // HARDENING#3: Apply optimistic state immediately
+                applyOptimisticAudioState(isSpeakerOn = null, isMuted = desiredMute, rid = rid)
+                
                 // BUG#1 FIX: AudioManager fallback for mute toggle when MIUI sends actions=0
                 val muteResult = CallManager.toggleMute(applicationContext, pendingIntent)
-                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${muteResult.success} method=${muteResult.method} pkg=$pkg")
+                if (BuildConfig.DEBUG) {
+                    Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=mute success=${muteResult.success} method=${muteResult.method}")
+                }
+                
+                // HARDENING#3: Schedule verification and potential revert
+                // NOTE: This only reverts audio state, does NOT affect overlay expand/collapse
+                scheduleAudioStateVerification(
+                    expectedSpeaker = null,
+                    expectedMute = desiredMute,
+                    rid = rid,
+                    actionType = "mute"
+                )
+                
                 muteResult.success
             }
             else -> {
@@ -1756,36 +2008,99 @@ class IslandOverlayService : Service() {
             }
         }
         
-        // FIX#2: UI Fail-Safe - If action failed, show toast and fallback to in-call UI
+        // BUG#1 FIX: Do NOT open call screen when mute/speaker fails
+        // Opening call screen is bad UX - user clicked mute button, not "open call app"
+        // Just log the failure - the button is already disabled via canMute/canSpeaker flags
         if (!result && (actionType == "speaker" || actionType == "mute")) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_CALL", "RID=$rid EVT=CALL_ACTION_FAILSAFE action=$actionType fallback=SHOW_INCALL_SCREEN")
+                Log.d("HI_CALL", "RID=$rid EVT=CALL_ACTION_FAILED action=$actionType canRetry=false")
             }
-            // Show short toast to inform user
-            serviceScope.launch(Dispatchers.Main) {
-                try {
-                    android.widget.Toast.makeText(
-                        applicationContext,
-                        getString(R.string.call_action_failed_toast),
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                } catch (e: Exception) {
-                    if (BuildConfig.DEBUG) {
-                        Log.d("HI_CALL", "RID=$rid EVT=TOAST_FAIL reason=${e.javaClass.simpleName}")
-                    }
-                }
-            }
-            // Fallback: Show in-call UI so user can perform action there
-            try {
-                val telecomManager = getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
-                telecomManager?.showInCallScreen(true)
-                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAILSAFE_OK action=$actionType fallback=INCALL_SCREEN_SHOWN")
-            } catch (e: Exception) {
-                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAILSAFE_FAIL action=$actionType reason=${e.javaClass.simpleName}")
-            }
+            // BUG#1 FIX: REMOVED call screen fallback - this was causing bad UX
+            // The capability flags (canMute=false) already prevent future clicks
         }
         
         return result
+    }
+    
+    /**
+     * HARDENING#3: Apply optimistic audio state immediately for responsive UI.
+     * The UI will show this state until verification confirms or reverts it.
+     */
+    private fun applyOptimisticAudioState(isSpeakerOn: Boolean?, isMuted: Boolean?, rid: Int) {
+        val now = System.currentTimeMillis()
+        optimisticAudioState = OptimisticAudioState(
+            isSpeakerOn = isSpeakerOn,
+            isMuted = isMuted,
+            appliedAtMs = now
+        )
+        
+        if (BuildConfig.DEBUG) {
+            Log.d("HI_CALL", "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=OPTIMISTIC speaker=$isSpeakerOn mute=$isMuted")
+        }
+    }
+    
+    /**
+     * HARDENING#3: Schedule verification of audio state after action.
+     * If real state doesn't match expected state within timeout, revert optimistic state.
+     */
+    private fun scheduleAudioStateVerification(
+        expectedSpeaker: Boolean?,
+        expectedMute: Boolean?,
+        rid: Int,
+        actionType: String
+    ) {
+        // Cancel any previous verification job
+        audioStateRevertJob?.cancel()
+        
+        audioStateRevertJob = serviceScope.launch {
+            delay(OPTIMISTIC_REVERT_MS)
+            
+            // Check real state from AudioManager
+            val realSpeaker = CallManager.isSpeakerOn(applicationContext)
+            val realMute = CallManager.isMuted(applicationContext)
+            
+            val speakerMatches = expectedSpeaker == null || realSpeaker == expectedSpeaker
+            val muteMatches = expectedMute == null || realMute == expectedMute
+            
+            if (speakerMatches && muteMatches) {
+                // State confirmed - clear optimistic state
+                optimisticAudioState = null
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_CALL", "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=TELECOM action=$actionType confirmed=true realSpeaker=$realSpeaker realMute=$realMute")
+                }
+            } else {
+                // State mismatch - revert optimistic state
+                optimisticAudioState = null
+                if (BuildConfig.DEBUG) {
+                    Log.d("HI_CALL", "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=AUDIO_MANAGER action=$actionType confirmed=false expectedSpeaker=$expectedSpeaker expectedMute=$expectedMute realSpeaker=$realSpeaker realMute=$realMute REVERTED=true")
+                }
+                // Note: UI will pick up real state on next model update
+            }
+        }
+    }
+    
+    /**
+     * HARDENING#3: Get effective audio state (optimistic if recent, otherwise real).
+     */
+    private fun getEffectiveAudioState(): Pair<Boolean, Boolean> {
+        val optimistic = optimisticAudioState
+        val now = System.currentTimeMillis()
+        
+        // Use optimistic state if within timeout window
+        if (optimistic != null && (now - optimistic.appliedAtMs) < OPTIMISTIC_REVERT_MS) {
+            val realSpeaker = CallManager.isSpeakerOn(applicationContext)
+            val realMute = CallManager.isMuted(applicationContext)
+            return Pair(
+                optimistic.isSpeakerOn ?: realSpeaker,
+                optimistic.isMuted ?: realMute
+            )
+        }
+        
+        // Use real state from AudioManager
+        return Pair(
+            CallManager.isSpeakerOn(applicationContext),
+            CallManager.isMuted(applicationContext)
+        )
     }
 
     /**

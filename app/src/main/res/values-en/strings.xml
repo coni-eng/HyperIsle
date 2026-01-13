@@ -234,6 +234,11 @@
     <string name="nav_layout_desc">Choose where information appears</string>
     <string name="left_content">Left Side</string>
     <string name="right_content">Right Side</string>
+    <string name="nav_island_size_title">Island Size</string>
+    <string name="nav_island_size_compact">Compact Island</string>
+    <string name="nav_island_size_compact_desc">2 info areas (left and right of camera)</string>
+    <string name="nav_island_size_expanded">Expanded Island</string>
+    <string name="nav_island_size_expanded_desc">4 info areas with more detailed view</string>
 
     <string name="nav_content_instruction">Instruction</string>
     <string name="nav_content_distance">Distance</string>

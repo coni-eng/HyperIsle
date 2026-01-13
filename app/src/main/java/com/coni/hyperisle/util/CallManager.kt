@@ -23,6 +23,119 @@ import kotlinx.coroutines.delay
  */
 object CallManager {
     private const val TAG = "CallManager"
+    
+    // ========== HARDENING: CALL SESSION TRACKING ==========
+    // CallKey must be generated from call session, NOT notification
+    // This ensures callKey is stable throughout a single call
+    
+    /**
+     * Active call session data - truth source for callKey generation.
+     * Reset only when call state transitions to IDLE.
+     */
+    data class CallSession(
+        val callHandle: String,           // Phone number or contact identifier
+        val direction: String,             // INCOMING or OUTGOING
+        val startedAtElapsedRealtime: Long, // SystemClock.elapsedRealtime() at call start
+        val callKey: String                // Generated stable key for this session
+    )
+    
+    @Volatile
+    private var activeSession: CallSession? = null
+    
+    @Volatile
+    private var lastCallState: CallState = CallState.IDLE
+    
+    @Volatile
+    private var sessionLockedUntil: Long = 0L // HARDENING: Lock session after IDLE transition
+    private const val SESSION_LOCK_MS = 3000L // 3 seconds lock after call ends
+    
+    /**
+     * HARDENING: Generate or retrieve stable callKey for the current call session.
+     * 
+     * Priority order:
+     * 1. Existing session callKey (if call is ongoing)
+     * 2. New session from callHandle + direction + elapsedRealtime
+     * 
+     * RULE: Same call = same callKey. New call = new callKey.
+     */
+    fun getOrCreateCallKey(
+        context: Context,
+        callHandle: String?,
+        direction: String = "UNKNOWN"
+    ): String {
+        val currentState = getCallState(context)
+        val now = android.os.SystemClock.elapsedRealtime()
+        
+        // HARDENING: If IDLE and within lock period, return empty (no call)
+        if (currentState == CallState.IDLE) {
+            if (now < sessionLockedUntil) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "EVT=CALLKEY_BLOCKED reason=SESSION_LOCKED lockRemaining=${sessionLockedUntil - now}ms")
+                }
+                return ""
+            }
+            // Clear session on IDLE
+            if (activeSession != null) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "EVT=CALL_SESSION_CLEARED oldKey=${activeSession?.callKey}")
+                }
+                activeSession = null
+            }
+            return ""
+        }
+        
+        // Reuse existing session if available
+        val session = activeSession
+        if (session != null) {
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "EVT=CALLKEY_REUSED value=${session.callKey}")
+            }
+            return session.callKey
+        }
+        
+        // Create new session
+        val handle = callHandle?.takeIf { it.isNotBlank() } ?: "unknown"
+        val newKey = "${handle}_${direction}_${now}"
+        val newSession = CallSession(
+            callHandle = handle,
+            direction = direction,
+            startedAtElapsedRealtime = now,
+            callKey = newKey
+        )
+        activeSession = newSession
+        
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "EVT=CALLKEY_CREATED value=$newKey source=CALL_SESSION handle=$handle direction=$direction")
+        }
+        
+        return newKey
+    }
+    
+    /**
+     * HARDENING: Lock call session after IDLE transition.
+     * Prevents stale MIUI bridge events from creating new sessions.
+     */
+    fun lockSessionOnIdle() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        sessionLockedUntil = now + SESSION_LOCK_MS
+        activeSession = null
+        
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "EVT=SESSION_LOCKED until=${sessionLockedUntil} lockMs=$SESSION_LOCK_MS")
+        }
+    }
+    
+    /**
+     * Check if we're in session lock period (call just ended).
+     */
+    fun isSessionLocked(): Boolean {
+        return android.os.SystemClock.elapsedRealtime() < sessionLockedUntil
+    }
+    
+    /**
+     * Get current active session (for debugging/logging).
+     */
+    fun getActiveSession(): CallSession? = activeSession
 
     /**
      * Call state for verification after accept/reject actions.
@@ -199,17 +312,29 @@ object CallManager {
      * Get current call state for verification.
      * 
      * Use this after accept/reject to verify the action worked.
+     * HARDENING: Also tracks state transitions for session management.
      */
     @Suppress("DEPRECATION")
     fun getCallState(context: Context): CallState {
         return try {
             val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-            when (telephonyManager?.callState) {
+            val newState = when (telephonyManager?.callState) {
                 TelephonyManager.CALL_STATE_IDLE -> CallState.IDLE
                 TelephonyManager.CALL_STATE_RINGING -> CallState.RINGING
                 TelephonyManager.CALL_STATE_OFFHOOK -> CallState.OFFHOOK
                 else -> CallState.UNKNOWN
             }
+            
+            // HARDENING: Detect IDLE transition and lock session
+            if (lastCallState != CallState.IDLE && newState == CallState.IDLE) {
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "EVT=CALL_STATE_IDLE_TRANSITION old=${lastCallState.name} callKey=${activeSession?.callKey}")
+                }
+                lockSessionOnIdle()
+            }
+            
+            lastCallState = newState
+            newState
         } catch (e: Exception) {
             Log.w(TAG, "Failed to get call state: ${e.message}")
             CallState.UNKNOWN

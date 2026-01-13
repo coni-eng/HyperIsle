@@ -510,6 +510,28 @@ class NotificationReaderService : NotificationListenerService() {
                 Log.d("HI_WHATSAPP", "EVT=WHATSAPP_PROCESSING_START rid=${ctx.rid}")
             }
             
+            // BUG#4 FIX: IMMEDIATE SNOOZE to beat MIUI dynamic island
+            // MIUI's system island triggers immediately when notification arrives.
+            // By snoozing BEFORE processing, we prevent MIUI from showing its island.
+            // Only for clearable non-ongoing notifications from messaging apps.
+            val isClearableStandard = it.isClearable && !ctx.isOngoing && 
+                it.notification.category != Notification.CATEGORY_CALL &&
+                it.notification.category != Notification.CATEGORY_NAVIGATION &&
+                it.notification.category != Notification.CATEGORY_TRANSPORT
+            if (isClearableStandard && useMiuiBridgeIsland) {
+                try {
+                    snoozeNotification(it.key, POPUP_SUPPRESS_SNOOZE_MS)
+                    markSelfCancel(it.key, ctx.keyHash)
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_NOTIF", "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_OK pkg=${it.packageName} reason=BEAT_MIUI_ISLAND")
+                    }
+                } catch (e: Exception) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("HI_NOTIF", "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_FAIL pkg=${it.packageName} error=${e.message}")
+                    }
+                }
+            }
+            
             serviceScope.launch { processAndPost(it, ctx) }
         }
     }
@@ -1552,9 +1574,13 @@ class NotificationReaderService : NotificationListenerService() {
             val forceOverlayRoute = type == NotificationType.STANDARD || type == NotificationType.NAVIGATION
             val preferOverlay = forceOverlayRoute && canUseOverlay
             
+            // BUG FIX: Notification types (Telegram/WhatsApp) MUST use APP_OVERLAY, never MIUI bridge
+            // MIUI bridge renders a narrow island view that's not suitable for messaging notifications
+            val blockMiuiBridgeForNotif = type == NotificationType.STANDARD && canUseOverlay
+            
             // BUG#2 DEBUG: Log overlay routing decision
             if (BuildConfig.DEBUG && isWhatsApp) {
-                Log.d("HI_WHATSAPP", "EVT=OVERLAY_DECISION rid=$rid overlaySupported=$overlaySupported canUseOverlay=$canUseOverlay forceOverlayRoute=$forceOverlayRoute preferOverlay=$preferOverlay")
+                Log.d("HI_WHATSAPP", "EVT=OVERLAY_DECISION rid=$rid overlaySupported=$overlaySupported canUseOverlay=$canUseOverlay forceOverlayRoute=$forceOverlayRoute preferOverlay=$preferOverlay blockMiuiBridge=$blockMiuiBridgeForNotif")
             }
             if (preferOverlay) {
                 if (BuildConfig.DEBUG) {
@@ -1612,10 +1638,24 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 return
             }
+            // BUG FIX: Block MIUI bridge for notification types - force APP_OVERLAY
             val route = when {
-                useMiuiBridgeIsland -> IslandRoute.MIUI_BRIDGE
+                blockMiuiBridgeForNotif -> IslandRoute.APP_OVERLAY  // Notifications always use APP_OVERLAY
+                useMiuiBridgeIsland -> IslandRoute.MIUI_BRIDGE      // Calls can use MIUI bridge
                 canUseOverlay -> IslandRoute.APP_OVERLAY
                 else -> null
+            }
+            
+            // TELEMETRY: Log notification route decision for ALL notification types
+            // BUG#4 FIX: Log NOTIF_ROUTE_FINAL for every notification, not just STANDARD
+            if (BuildConfig.DEBUG) {
+                val suppressedRoute = if (blockMiuiBridgeForNotif && useMiuiBridgeIsland) "MIUI_ISLAND_BRIDGE" else "NONE"
+                val isMiuiBridgeNotif = sbn.packageName == "com.android.systemui" && 
+                    sbn.notification.extras?.getString("android.title")?.contains("MIUI") == true
+                Log.d(
+                    "HI_NOTIF",
+                    "EVT=NOTIF_ROUTE_FINAL pkg=${sbn.packageName} type=${type.name} chosen=${route?.name ?: "NULL"} suppressed=$suppressedRoute reason=${if (isMiuiBridgeNotif) "MIUI_BRIDGE_NOTIF_NOOP" else if (blockMiuiBridgeForNotif) "NOTIF_MUST_USE_APP_OVERLAY" else "DEFAULT"}"
+                )
             }
 
             when (route) {
@@ -2870,6 +2910,38 @@ class NotificationReaderService : NotificationListenerService() {
 
         val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
         
+        // BUG#1 FIX: Determine capabilities based on intent availability
+        // AudioManager fallback only works reliably for speaker, not mute on all devices
+        val canHangup = hangUpIntent != null || isOngoingCall // TelecomManager fallback available
+        val canSpeaker = speakerIntent != null || isOngoingCall // AudioManager fallback available
+        val canMute = muteIntent != null // NO reliable fallback - AudioManager.setMicrophoneMute often fails
+        
+        // HARDENING#1: Generate callKey from CALL SESSION, not notification
+        // This ensures callKey is stable throughout a single call and changes for new calls
+        // Priority: callHandle (callerName) + direction + elapsedRealtime
+        val direction = if (isOngoingCall) "ONGOING" else "INCOMING"
+        val callKey = com.coni.hyperisle.util.CallManager.getOrCreateCallKey(
+            context = this,
+            callHandle = callerName,
+            direction = direction
+        )
+        
+        // HARDENING#1: If callKey is empty, session is locked (call just ended) - don't build model
+        if (callKey.isEmpty()) {
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_MODEL_BLOCKED reason=SESSION_LOCKED")
+            }
+            return null
+        }
+        
+        // BUG#3 FIX: Get current audio state for UI feedback
+        val isSpeakerOn = com.coni.hyperisle.util.CallManager.isSpeakerOn(this)
+        val isMuted = com.coni.hyperisle.util.CallManager.isMuted(this)
+        
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_MODEL_BUILD canHangup=$canHangup canSpeaker=$canSpeaker canMute=$canMute callKey=$callKey isSpeakerOn=$isSpeakerOn isMuted=$isMuted source=CALL_SESSION")
+        }
+        
         return IosCallOverlayModel(
             title = if (isOngoingCall) getString(R.string.call_ongoing) else getString(R.string.call_incoming),
             callerName = callerName,
@@ -2884,7 +2956,13 @@ class NotificationReaderService : NotificationListenerService() {
             state = if (isOngoingCall) CallOverlayState.ONGOING else CallOverlayState.INCOMING,
             packageName = sbn.packageName,
             notificationKey = sbn.key,
-            accentColor = accentColor
+            accentColor = accentColor,
+            canHangup = canHangup,
+            canSpeaker = canSpeaker,
+            canMute = canMute,
+            isSpeakerOn = isSpeakerOn,
+            isMuted = isMuted,
+            callKey = callKey
         )
     }
 

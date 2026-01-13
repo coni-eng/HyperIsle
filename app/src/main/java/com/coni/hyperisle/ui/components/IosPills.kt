@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -54,6 +56,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.painterResource
@@ -360,6 +363,12 @@ fun ActiveCallExpandedPill(
     onHangUp: (() -> Unit)?,
     onSpeaker: (() -> Unit)?,
     onMute: (() -> Unit)?,
+    // BUG#1 FIX: Capability flags - button disabled when false
+    canSpeaker: Boolean = true,
+    canMute: Boolean = true,
+    // BUG#3 FIX: Audio state flags for UI feedback
+    isSpeakerOn: Boolean = false,
+    isMuted: Boolean = false,
     debugRid: Int? = null
 ) {
     Surface(
@@ -419,20 +428,22 @@ fun ActiveCallExpandedPill(
                     onClick = onHangUp,
                     modifier = Modifier.debugLayoutModifier(debugRid, "call_active_end")
                 )
-                // Speaker button
+                // Speaker button - BUG#1: disabled when canSpeaker=false, BUG#3: highlighted when active
                 CallActionButton(
                     icon = Icons.AutoMirrored.Filled.VolumeUp,
                     contentDescription = "Speaker",
-                    background = Color(0xFF48484A),
-                    onClick = onSpeaker,
+                    background = if (isSpeakerOn) Color(0xFF34C759) else Color(0xFF48484A),
+                    onClick = if (canSpeaker) onSpeaker else null,
+                    isActive = isSpeakerOn,
                     modifier = Modifier.debugLayoutModifier(debugRid, "call_active_speaker")
                 )
-                // Mute button
+                // Mute button - BUG#1: disabled when canMute=false, BUG#3: highlighted when active
                 CallActionButton(
                     icon = Icons.Default.MicOff,
                     contentDescription = "Mute",
-                    background = Color(0xFF48484A),
-                    onClick = onMute,
+                    background = if (isMuted) Color(0xFFFF9500) else Color(0xFF48484A),
+                    onClick = if (canMute) onMute else null,
+                    isActive = isMuted,
                     modifier = Modifier.debugLayoutModifier(debugRid, "call_active_mute")
                 )
             }
@@ -446,6 +457,7 @@ private fun CallActionButton(
     contentDescription: String,
     background: Color,
     onClick: (() -> Unit)?,
+    isActive: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val enabled = onClick != null
@@ -1030,6 +1042,11 @@ fun NotificationPill(
                 "HyperIsleIsland",
                 "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION senderLen=${sender.length} timeLen=${timeLabel.length} messageLen=${message.length} hasAvatar=$hasAvatar hasDismiss=$hasDismiss hasClick=$hasClick hasLongPress=$hasLongPress"
             )
+            // BUG#4 FIX: Log iOS pill render for notification routing verification
+            Log.d(
+                "HI_NOTIF",
+                "RID=$debugRid EVT=NOTIF_RENDER style=IOS_PILL sender=$sender hasAvatar=$hasAvatar"
+            )
         }
     }
     val tapModifier = if (onClick != null || onLongPress != null) {
@@ -1044,13 +1061,26 @@ fun NotificationPill(
     }
     
     // iOS-style notification pill - compact and clean
+    // BUG#4 FIX: Use widthIn with min constraint instead of fillMaxWidth
+    // fillMaxWidth doesn't work when parent uses WRAP_CONTENT (overlay window)
+    // This ensures the pill is wide enough to show sender + message text
+    // ACCENT COLOR: Use app's accent color for pill background, fallback to dark
+    val pillBackgroundColor = accentColor?.let { 
+        try { 
+            // Parse accent color and make it darker/semi-transparent for readability
+            val parsed = android.graphics.Color.parseColor(it)
+            Color(parsed).copy(alpha = 0.85f)
+        } catch (e: Exception) { null }
+    } ?: Color(0xFF030302)
+    
     Surface(
         modifier = tapModifier
+            .widthIn(min = 360.dp)
             .fillMaxWidth()
-            .shadow(elevation = 14.dp, shape = RoundedCornerShape(24.dp))
+            .shadow(elevation = 14.dp, shape = RoundedCornerShape(29.dp))
             .debugLayoutModifier(debugRid, "notif_root"),
-        shape = RoundedCornerShape(24.dp),
-        color = Color(0xFF030302) // Slightly more opaque for better readability
+        shape = RoundedCornerShape(29.dp),
+        color = pillBackgroundColor
     ) {
         Row(
             modifier = Modifier
@@ -1060,37 +1090,39 @@ fun NotificationPill(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: App icon (rounded square like iOS)
-            val borderColor = accentColor?.let { 
-                try { Color(android.graphics.Color.parseColor(it)) } catch (e: Exception) { null }
-            }
+            // Avatar fills entire 42dp space - no border, no background gap
             Box(
                 modifier = Modifier
                     .size(42.dp)
-                    .then(
-                        if (borderColor != null) {
-                            Modifier.border(2.dp, borderColor, RoundedCornerShape(10.dp))
-                        } else Modifier
-                    )
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF030302))
                     .debugLayoutModifier(debugRid, "notif_avatar"),
                 contentAlignment = Alignment.Center
             ) {
                 if (avatarBitmap != null) {
+                    // Avatar/icon fills entire space with contentScale
                     Image(
                         bitmap = avatarBitmap.asImageBitmap(),
                         contentDescription = "App icon",
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(42.dp)
+                            .fillMaxSize()
                             .clip(RoundedCornerShape(10.dp))
                     )
                 } else {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Default icon",
-                        tint = borderColor ?: Color(0xFF8E8E93),
-                        modifier = Modifier.size(22.dp)
-                    )
+                    // Fallback: dark background with person icon
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF030302)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Default icon",
+                            tint = Color(0xFF8E8E93),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
 
