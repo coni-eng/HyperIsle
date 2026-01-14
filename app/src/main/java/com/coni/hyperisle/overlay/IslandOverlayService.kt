@@ -1754,7 +1754,8 @@ class IslandOverlayService : Service() {
             },
             modifier = Modifier
                 .widthIn(max = LocalConfiguration.current.screenWidthDp.dp - 32.dp)
-                .padding(horizontal = 20.dp, vertical = 8.dp)  // Increased from 16dp to accommodate shadow
+                // Increased top padding to lower the expanded notification as requested
+                .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 8.dp)
         ) {
             LaunchedEffect(isNotificationCollapsed) {
                 if (isNotificationCollapsed) {

@@ -142,17 +142,26 @@ fun AnchorOverlayHost(
         AnimatedVisibility(
             visible = isExpanded && expandedContent != null,
             enter = scaleIn(
-                initialScale = 0.4f, // Start small (from anchor size)
-                animationSpec = EXPAND_ANIM_SPEC,
+                initialScale = 0.8f,
+                animationSpec = spring(
+                    dampingRatio = 0.7f,
+                    stiffness = Spring.StiffnessLow
+                ),
                 transformOrigin = TransformOrigin(0.5f, 0f)
-            ) + fadeIn(animationSpec = tween(150)),
+            ) + fadeIn(animationSpec = tween(200)),
             exit = scaleOut(
-                targetScale = 0.4f, // Shrink back to anchor size
-                animationSpec = SHRINK_ANIM_SPEC,
+                targetScale = 0.8f,
+                animationSpec = spring(
+                    dampingRatio = 0.7f,
+                    stiffness = Spring.StiffnessLow
+                ),
                 transformOrigin = TransformOrigin(0.5f, 0f)
-            ) + fadeOut(animationSpec = tween(ANIM_DURATION))
+            ) + fadeOut(animationSpec = tween(200))
         ) {
-            expandedContent?.invoke()
+            // Add top padding to lower the expanded notification as requested
+            Box(modifier = Modifier.padding(top = 12.dp)) {
+                expandedContent?.invoke()
+            }
         }
     }
 }

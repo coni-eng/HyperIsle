@@ -65,9 +65,10 @@ fun AnchorPill(
     debugRid: Int = 0
 ) {
     val density = LocalDensity.current
-
-    val cutoutGapWidth = with(density) { cutoutInfo.width.toDp() + 16.dp }
-    val slotMinWidth = 60.dp
+    
+    // Reduced padding and min width for a more compact look as requested
+    val cutoutGapWidth = with(density) { cutoutInfo.width.toDp() + 12.dp }
+    val slotMinWidth = 48.dp
     val slotMaxWidth = 120.dp
     val pillHeight = 36.dp
     val pillPadding = 4.dp
