@@ -15,6 +15,8 @@ import androidx.compose.ui.res.stringResource
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.SettingsLayoutIds
 
+
+
 data class SettingsEntrySpec(
     val id: String,
     val icon: ImageVector,

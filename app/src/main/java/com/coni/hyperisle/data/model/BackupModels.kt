@@ -2,6 +2,8 @@ package com.coni.hyperisle.data.model
 
 import com.google.gson.annotations.SerializedName
 
+
+
 /**
  * Root Container
  */

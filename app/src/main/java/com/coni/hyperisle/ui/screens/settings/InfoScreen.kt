@@ -2,7 +2,6 @@ package com.coni.hyperisle.ui.screens.settings
 
 import android.content.Intent
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.net.toUri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,24 +28,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.BugReport
-import com.coni.hyperisle.BuildConfig
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -88,10 +86,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.DEFAULT_CONFIG_IDS
@@ -103,6 +103,8 @@ import com.coni.hyperisle.util.isNotificationServiceEnabled
 import com.coni.hyperisle.util.isOverlayPermissionGranted
 import com.coni.hyperisle.util.isPostNotificationsEnabled
 import com.coni.hyperisle.util.parseBold
+
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -264,16 +266,14 @@ fun InfoScreen(
                     SetupBanner(
                         missingCount = missingRequiredCount,
                         onFixNow = {
-                            HiLog.d(
-                                HiLog.TAG_PREF,
+                            HiLog.d(HiLog.TAG_PREF,
                                 "SETTINGS_SETUP_BANNER",
                                 mapOf("action" to "fix_now")
                             )
                             onSetupClick()
                         },
                         onLater = {
-                            HiLog.d(
-                                HiLog.TAG_PREF,
+                            HiLog.d(HiLog.TAG_PREF,
                                 "SETTINGS_SETUP_BANNER",
                                 mapOf("action" to "later")
                             )
@@ -291,8 +291,7 @@ fun InfoScreen(
                     recommendedTotal = 2,
                     missingRequiredCount = missingRequiredCount,
                     onClick = {
-                        HiLog.d(
-                            HiLog.TAG_PREF,
+                        HiLog.d(HiLog.TAG_PREF,
                             "SETTINGS_SETUP_SUMMARY",
                             mapOf("action" to "open")
                         )
@@ -332,8 +331,7 @@ fun InfoScreen(
                                         accent = accent,
                                         modifier = Modifier.weight(1f),
                                         onClick = {
-                                            HiLog.d(
-                                                HiLog.TAG_PREF,
+                                            HiLog.d(HiLog.TAG_PREF,
                                                 "SETTINGS_QUICK_ACTION",
                                                 mapOf("target" to item.id)
                                             )
@@ -366,8 +364,7 @@ fun InfoScreen(
                             title = stringResource(R.string.settings_customize_title),
                             subtitle = stringResource(R.string.settings_customize_desc),
                             onClick = {
-                                HiLog.d(
-                                    HiLog.TAG_PREF,
+                                HiLog.d(HiLog.TAG_PREF,
                                     "SETTINGS_CUSTOMIZE_OPEN",
                                     mapOf("source" to "info")
                                 )
@@ -390,8 +387,7 @@ fun InfoScreen(
                                 title = item.title,
                                 subtitle = item.subtitle,
                                 onClick = {
-                                    HiLog.d(
-                                        HiLog.TAG_PREF,
+                                    HiLog.d(HiLog.TAG_PREF,
                                         "SETTINGS_CONFIG_OPEN",
                                         mapOf("target" to item.id)
                                     )

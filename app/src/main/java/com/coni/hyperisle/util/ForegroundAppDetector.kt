@@ -6,6 +6,8 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.Process
 
+
+
 object ForegroundAppDetector {
     private const val LOOKBACK_MS = 5000L
 

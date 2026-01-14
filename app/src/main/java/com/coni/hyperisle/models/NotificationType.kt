@@ -3,6 +3,8 @@ package com.coni.hyperisle.models
 import androidx.annotation.StringRes
 import com.coni.hyperisle.R
 
+
+
 enum class NotificationType(@StringRes val labelRes: Int) {
     STANDARD(R.string.type_standard),
     PROGRESS(R.string.type_progress),

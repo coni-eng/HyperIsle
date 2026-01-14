@@ -3,7 +3,6 @@ package com.coni.hyperisle.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
 import com.coni.hyperisle.BuildConfig
@@ -23,6 +22,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+
+
 
 /**
  * BroadcastReceiver for handling island action button clicks.
@@ -54,7 +55,7 @@ class IslandActionReceiver : BroadcastReceiver() {
             return
         }
         
-        Log.d(TAG, "Received focus action")
+        HiLog.d(HiLog.TAG_INPUT, "Received focus action")
 
         // STEP: ACTION_RECEIVED - Log action receipt
         val actionType = when {
@@ -70,7 +71,7 @@ class IslandActionReceiver : BroadcastReceiver() {
 
         // Safety: if focus action detected but ID parsing failed, log and early return
         if (notificationId == null) {
-            Log.w(TAG, "Focus action detected but notification ID parsing failed")
+            HiLog.w(HiLog.TAG_INPUT, "Focus action detected but notification ID parsing failed")
             if (ActionDiagnostics.isEnabled()) {
                 ActionDiagnostics.record("focus_action_parse_failed")
             }
@@ -97,7 +98,7 @@ class IslandActionReceiver : BroadcastReceiver() {
     }
 
     private fun handleOptions(context: Context, notificationId: Int?) {
-        Log.d(TAG, "Opening Notification Management screen for notificationId: $notificationId")
+        HiLog.d(HiLog.TAG_INPUT, "Opening Notification Management screen for notificationId: $notificationId")
         
         // Show debug route toast if enabled
         showDebugRouteToast(context, "Broadcast")
@@ -112,7 +113,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         val islandStyle = meta?.second ?: "UNKNOWN"
         val rid = targetId ?: 0
 
-        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_SETTINGS_CLICK pkg=${targetPackage ?: "unknown"}")
+        HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=BTN_SETTINGS_CLICK pkg=${targetPackage ?: "unknown"}")
         
         // Telemetry: ISLAND_CLICK_RECEIVED
         HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
@@ -154,7 +155,7 @@ class IslandActionReceiver : BroadcastReceiver() {
     }
 
     private fun handleDismiss(context: Context, notificationId: Int?) {
-        Log.d(TAG, "Dismissing island for notificationId: $notificationId")
+        HiLog.d(HiLog.TAG_INPUT, "Dismissing island for notificationId: $notificationId")
         
         // Show debug route toast if enabled
         showDebugRouteToast(context, "Broadcast")
@@ -170,7 +171,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         val islandStyle = targetType ?: "UNKNOWN"
         val rid = targetId ?: 0
 
-        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK pkg=${targetPackage ?: "unknown"}")
+        HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=BTN_RED_X_CLICK pkg=${targetPackage ?: "unknown"}")
         
         // Telemetry: ISLAND_CLICK_RECEIVED
         HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
@@ -205,7 +206,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         if (targetId != null) {
             try {
                 NotificationManagerCompat.from(context).cancel(targetId)
-                Log.d(TAG, "Cancelled notification id: $targetId")
+                HiLog.d(HiLog.TAG_INPUT, "Cancelled notification id: $targetId")
                 
                 // Timeline: autoDismissTriggered event for user dismiss
                 DebugTimeline.log(
@@ -215,7 +216,7 @@ class IslandActionReceiver : BroadcastReceiver() {
                     mapOf("reason" to "USER_DISMISS")
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to cancel notification: ${e.message}")
+                HiLog.w(HiLog.TAG_INPUT, "Failed to cancel notification: ${e.message}")
                 actionSuccess = false
                 failReason = "cancel notification failed"
                 failException = e
@@ -225,7 +226,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         // Record cooldown for the correct pkg:type
         if (targetPackage != null && targetType != null) {
             IslandCooldownManager.recordDismissal(targetPackage, targetType)
-            Log.d(TAG, "Recorded cooldown for $targetPackage:$targetType")
+            HiLog.d(HiLog.TAG_INPUT, "Recorded cooldown for $targetPackage:$targetType")
             
             // Increment dismiss counter for PriorityEngine (auto-throttle)
             CoroutineScope(Dispatchers.IO).launch {
@@ -233,9 +234,9 @@ class IslandActionReceiver : BroadcastReceiver() {
                     val preferences = AppPreferences(context)
                     val aggressiveness = preferences.smartPriorityAggressivenessFlow.first()
                     PriorityEngine.recordDismiss(preferences, targetPackage, targetType, aggressiveness)
-                    Log.d(TAG, "Recorded PriorityEngine dismiss for $targetPackage:$targetType")
+                    HiLog.d(HiLog.TAG_INPUT, "Recorded PriorityEngine dismiss for $targetPackage:$targetType")
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to record PriorityEngine dismiss: ${e.message}")
+                    HiLog.w(HiLog.TAG_INPUT, "Failed to record PriorityEngine dismiss: ${e.message}")
                 }
             }
         }
@@ -249,7 +250,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         Haptics.hapticOnIslandSuccess(context)
 
         if (OverlayEventBus.emitDismissAll()) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=BTN_RED_X")
+            HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=BTN_RED_X")
         }
         
         // Telemetry: ISLAND_ACTION_OK or ISLAND_ACTION_FAIL
@@ -289,7 +290,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         val islandStyle = meta?.second ?: "UNKNOWN"
         val rid = targetId ?: 0
 
-        Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_TAP_OPEN_CLICK pkg=${targetPackage ?: "unknown"}")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=BTN_TAP_OPEN_CLICK pkg=${targetPackage ?: "unknown"}")
         
         // Telemetry: ISLAND_CLICK_RECEIVED
         HiLog.d(HiLog.TAG_INPUT, "ISLAND_CLICK_RECEIVED", mapOf(
@@ -304,7 +305,7 @@ class IslandActionReceiver : BroadcastReceiver() {
         
         // Debug log: tapOpen event
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "event=tapOpen pkg=${targetPackage ?: "unknown"} keyHash=${targetId?.hashCode() ?: "N/A"}")
+            HiLog.d(HiLog.TAG_INPUT, "event=tapOpen pkg=${targetPackage ?: "unknown"} keyHash=${targetId?.hashCode() ?: "N/A"}")
         }
         
         // Timeline: tapOpenSourceApp event (PII-safe)
@@ -332,7 +333,7 @@ class IslandActionReceiver : BroadcastReceiver() {
                 
                 // Debug log: autoDismissTriggered event
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "event=autoDismissTriggered reason=OPENED_APP pkg=${targetPackage ?: "unknown"} keyHash=${targetId.hashCode()}")
+                    HiLog.d(HiLog.TAG_INPUT, "event=autoDismissTriggered reason=OPENED_APP pkg=${targetPackage ?: "unknown"} keyHash=${targetId.hashCode()}")
                 }
                 
                 // Timeline: autoDismissTriggered event
@@ -343,7 +344,7 @@ class IslandActionReceiver : BroadcastReceiver() {
                     mapOf("reason" to "OPENED_APP")
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to cancel island notification: ${e.message}")
+                HiLog.w(HiLog.TAG_INPUT, "Failed to cancel island notification: ${e.message}")
             }
         }
         
@@ -351,15 +352,15 @@ class IslandActionReceiver : BroadcastReceiver() {
         if (originalIntent != null) {
             try {
                 originalIntent.send()
-                Log.d(TAG, "Fired original content intent for $targetPackage")
+                HiLog.d(HiLog.TAG_INPUT, "Fired original content intent for $targetPackage")
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to fire original content intent: ${e.message}")
+                HiLog.w(HiLog.TAG_INPUT, "Failed to fire original content intent: ${e.message}")
                 actionSuccess = false
                 failReason = "send intent failed"
                 failException = e
             }
         } else {
-            Log.w(TAG, "No original content intent found for notificationId: $notificationId")
+            HiLog.w(HiLog.TAG_INPUT, "No original content intent found for notificationId: $notificationId")
             actionSuccess = false
             failReason = "no content intent"
         }
@@ -370,9 +371,9 @@ class IslandActionReceiver : BroadcastReceiver() {
                 try {
                     val preferences = AppPreferences(context)
                     PriorityEngine.recordTapOpen(preferences, targetPackage)
-                    Log.d(TAG, "Recorded PriorityEngine tap-open for $targetPackage")
+                    HiLog.d(HiLog.TAG_INPUT, "Recorded PriorityEngine tap-open for $targetPackage")
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to record PriorityEngine tap-open: ${e.message}")
+                    HiLog.w(HiLog.TAG_INPUT, "Failed to record PriorityEngine tap-open: ${e.message}")
                 }
             }
         }
@@ -425,7 +426,7 @@ class IslandActionReceiver : BroadcastReceiver() {
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to show debug route toast: ${e.message}")
+                HiLog.w(HiLog.TAG_INPUT, "Failed to show debug route toast: ${e.message}")
             }
         }
     }

@@ -20,6 +20,8 @@ import com.coni.hyperisle.util.PendingIntentHelper
 import io.github.d4viddf.hyperisland_kit.HyperAction
 import io.github.d4viddf.hyperisland_kit.HyperPicture
 
+
+
 abstract class BaseTranslator(protected val context: Context) {
 
     // Options for how actions should be rendered

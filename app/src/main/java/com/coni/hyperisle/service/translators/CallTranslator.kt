@@ -10,15 +10,16 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import androidx.core.graphics.createBitmap
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
+import com.coni.hyperisle.debug.IslandUiSnapshotLogger
 import com.coni.hyperisle.models.BridgeAction
 import com.coni.hyperisle.models.HyperIslandData
 import com.coni.hyperisle.models.IslandConfig
+import com.coni.hyperisle.util.CallManager
 import com.coni.hyperisle.util.DebugTimeline
-import com.coni.hyperisle.debug.IslandUiSnapshotLogger
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.PendingIntentHelper
 import com.coni.hyperisle.util.getStringCompat
 import com.coni.hyperisle.util.getStringCompatOrEmpty
@@ -30,7 +31,8 @@ import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
 import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
 import java.util.Locale
-import com.coni.hyperisle.util.CallManager
+
+
 
 class CallTranslator(context: Context) : BaseTranslator(context) {
 
@@ -70,7 +72,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             else -> "ENDED"
         }
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "event=callState $callState pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()}")
+            HiLog.d(HiLog.TAG_ISLAND, "event=callState $callState pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()}")
             // UI Snapshot: CALL_STATE
             val snapshotCtx = IslandUiSnapshotLogger.ctxFromSbn(
                 rid = IslandUiSnapshotLogger.rid(),
@@ -154,8 +156,7 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             val keyHash = sbn.key.hashCode()
             val actionKeyList = actionKeys.joinToString("|")
             val showShade = config.isShowShade ?: true
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=MIUI_UI_BUILD type=CALL state=$callState titleLen=${title.length} contentLen=${rightText.length} actions=${actionKeys.size} actionKeys=$actionKeyList picKey=$picKey hiddenKey=$hiddenKey float=$shouldFloat timeout=$finalTimeout showShade=$showShade firstFloat=${!isOngoing}"
             )
         }

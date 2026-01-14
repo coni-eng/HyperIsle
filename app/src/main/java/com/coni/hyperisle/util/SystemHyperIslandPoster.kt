@@ -7,19 +7,21 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
 import com.coni.hyperisle.R
+import com.coni.hyperisle.util.HiLog
 import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
 import io.github.d4viddf.hyperisland_kit.HyperPicture
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
 import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
+
+
 
 /**
  * Helper class to post system mode change notifications as Hyper Island notifications.
@@ -94,7 +96,7 @@ class SystemHyperIslandPoster(private val context: Context) {
         message: String
     ) {
         if (!hasNotificationPermission()) {
-            Log.d(TAG, "No notification permission, skipping post")
+            HiLog.d(HiLog.TAG_ISLAND, "No notification permission, skipping post")
             return
         }
 
@@ -102,7 +104,7 @@ class SystemHyperIslandPoster(private val context: Context) {
             // Try Hyper Island first
             postHyperIslandNotification(notificationId, title, message)
         } catch (e: Exception) {
-            Log.w(TAG, "Hyper Island posting failed, falling back to standard", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Hyper Island posting failed, falling back to standard", emptyMap(), e)
             postFallbackNotification(notificationId, title, message)
         }
     }
@@ -162,7 +164,7 @@ class SystemHyperIslandPoster(private val context: Context) {
         notification.extras.putString("miui.focus.param", builder.buildJsonParam())
 
         NotificationManagerCompat.from(context).notify(notificationId, notification)
-        Log.d(TAG, "Posted Hyper Island notification: $message")
+        HiLog.d(HiLog.TAG_ISLAND, "Posted Hyper Island notification: $message")
     }
 
     private fun getAppIconBitmap(): Bitmap {
@@ -197,6 +199,6 @@ class SystemHyperIslandPoster(private val context: Context) {
             .build()
 
         NotificationManagerCompat.from(context).notify(notificationId, notification)
-        Log.d(TAG, "Posted fallback notification: $message")
+        HiLog.d(HiLog.TAG_ISLAND, "Posted fallback notification: $message")
     }
 }

@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.R
 
+
+
 /**
  * Banner shown when required permissions are missing.
  * Only triggers for REQUIRED permissions (Notification Listener, Overlay).

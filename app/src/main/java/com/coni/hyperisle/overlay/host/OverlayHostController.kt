@@ -1,13 +1,15 @@
 package com.coni.hyperisle.overlay.host
 
 import android.content.Context
-import android.util.Log
 import androidx.compose.runtime.Composable
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.overlay.OverlayWindowController
 import com.coni.hyperisle.overlay.engine.ActiveIsland
 import com.coni.hyperisle.overlay.engine.IslandPolicy
 import com.coni.hyperisle.overlay.engine.IslandRoute
+import com.coni.hyperisle.util.HiLog
+
+
 
 /**
  * Host controller that wraps OverlayWindowController.
@@ -50,7 +52,7 @@ class OverlayHostController(
     ) {
         if (!hasOverlayPermission()) {
             if (BuildConfig.DEBUG) {
-                Log.w(TAG, "EVT=HOST_SHOW_BLOCKED reason=NO_PERMISSION")
+                HiLog.w(HiLog.TAG_ISLAND, "EVT=HOST_SHOW_BLOCKED reason=NO_PERMISSION")
             }
             return
         }
@@ -58,7 +60,7 @@ class OverlayHostController(
         // Clear hard-hide when showing new content
         if (isHardHidden) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=HOST_HARD_HIDE_CLEAR prevReason=$hardHideReason")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=HOST_HARD_HIDE_CLEAR prevReason=$hardHideReason")
             }
             isHardHidden = false
             hardHideReason = null
@@ -71,7 +73,7 @@ class OverlayHostController(
         val interactive = !island.policy.allowPassThrough || island.policy.isModal || island.policy.needsFocus
 
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=HOST_SHOW rid=$rid feature=${island.featureId} route=${island.route} interactive=$interactive isUpdate=$isUpdate")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=HOST_SHOW rid=$rid feature=${island.featureId} route=${island.route} interactive=$interactive isUpdate=$isUpdate")
         }
 
         currentIsland = island
@@ -79,7 +81,7 @@ class OverlayHostController(
         // Route check - only APP_OVERLAY renders via this controller
         if (!island.route.isOverlay()) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=HOST_ROUTE_SKIP rid=$rid route=${island.route} reason=NOT_APP_OVERLAY")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=HOST_ROUTE_SKIP rid=$rid route=${island.route} reason=NOT_APP_OVERLAY")
             }
             return
         }
@@ -91,7 +93,7 @@ class OverlayHostController(
         )
 
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=HOST_MEASURE rid=$rid w=PENDING h=PENDING")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=HOST_MEASURE rid=$rid w=PENDING h=PENDING")
         }
     }
 
@@ -130,7 +132,7 @@ class OverlayHostController(
         val rid = currentIsland?.notificationKey?.hashCode() ?: 0
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=HOST_DISMISS rid=$rid reason=$reason")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=HOST_DISMISS rid=$rid reason=$reason")
         }
 
         windowController.removeOverlay()
@@ -147,7 +149,7 @@ class OverlayHostController(
         val rid = currentIsland?.notificationKey?.hashCode() ?: 0
 
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=HOST_HARD_HIDE rid=$rid reason=$reason")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=HOST_HARD_HIDE rid=$rid reason=$reason")
         }
 
         isHardHidden = true
@@ -162,7 +164,7 @@ class OverlayHostController(
         val rid = currentIsland?.notificationKey?.hashCode() ?: 0
 
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=HOST_FORCE_DISMISS rid=$rid reason=$reason")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=HOST_FORCE_DISMISS rid=$rid reason=$reason")
         }
 
         windowController.forceDismissOverlay(reason)

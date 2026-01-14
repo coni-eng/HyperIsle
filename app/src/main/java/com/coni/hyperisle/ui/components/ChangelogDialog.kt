@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.sp
 import com.coni.hyperisle.R
 import com.coni.hyperisle.util.parseBold // Import the extension
 
+
+
 @Composable
 fun ChangelogDialog(
     currentVersionName: String,

@@ -1,6 +1,6 @@
 package com.coni.hyperisle.ui.screens.home
 
-import android.util.Log
+import com.coni.hyperisle.util.HiLog
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -48,6 +48,8 @@ import com.coni.hyperisle.ui.components.SetupBanner
 import com.coni.hyperisle.util.isContextAccessibilityEnabled
 import com.coni.hyperisle.util.openAccessibilitySettings
 import kotlinx.coroutines.launch
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,7 +110,7 @@ fun HomeScreen(
     
     // Debug log for missing permissions
     if (BuildConfig.DEBUG && missingRequiredCount > 0) {
-        Log.d("HomeScreen", "event=missingRequiredPermissions count=$missingRequiredCount")
+        HiLog.d("HomeScreen", "event=missingRequiredPermissions count=$missingRequiredCount")
     }
 
     Scaffold(

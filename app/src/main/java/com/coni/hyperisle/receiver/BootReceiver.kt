@@ -5,14 +5,17 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.util.Log
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.service.NotificationReaderService
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.worker.NotificationSummaryWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+
+
+
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
@@ -25,7 +28,7 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
         
-        Log.d("HyperIsle", "Boot completed detected.")
+        HiLog.d(HiLog.TAG_ISLAND, "Boot completed detected.")
 
         // Trick: We toggle the component state to force the Notification Manager
         // to re-evaluate and re-bind to our service.
@@ -38,12 +41,12 @@ class BootReceiver : BroadcastReceiver() {
                 val summaryEnabled = preferences.summaryEnabledFlow.first()
                 if (summaryEnabled) {
                     val summaryHour = preferences.summaryHourFlow.first()
-                    NotificationSummaryWorker.schedule(context, summaryHour)
-                }
-            } catch (e: Exception) {
-                Log.w("HyperIsle", "Failed to schedule summary worker on boot: ${e.message}")
+                NotificationSummaryWorker.schedule(context, summaryHour)
             }
+        } catch (e: Exception) {
+            HiLog.w(HiLog.TAG_ISLAND, "Failed to schedule summary worker on boot: ${e.message}")
         }
+    }
     }
 
     private fun toggleNotificationListener(context: Context) {

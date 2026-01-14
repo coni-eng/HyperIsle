@@ -2,7 +2,6 @@ package com.coni.hyperisle.overlay.features
 
 import android.app.PendingIntent
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +18,9 @@ import com.coni.hyperisle.overlay.engine.IslandRoute
 import com.coni.hyperisle.ui.components.ActiveCallCompactPill
 import com.coni.hyperisle.ui.components.ActiveCallExpandedPill
 import com.coni.hyperisle.ui.components.IncomingCallPill
+import com.coni.hyperisle.util.HiLog
+
+
 
 /**
  * Feature for handling phone call islands.
@@ -105,14 +107,14 @@ class CallFeature : IslandFeature {
                     accentColor = callState.accentColor,
                     onDecline = {
                         if (BuildConfig.DEBUG) {
-                            Log.d("HI_INPUT", "RID=$rid EVT=INPUT_DECLINE_CLICK")
+                            HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=INPUT_DECLINE_CLICK")
                         }
                         actions.endCall(callState.declineIntent)
                         actions.dismiss("CALL_DECLINE")
                     },
                     onAccept = {
                         if (BuildConfig.DEBUG) {
-                            Log.d("HI_INPUT", "RID=$rid EVT=INPUT_ACCEPT_CLICK")
+                            HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=INPUT_ACCEPT_CLICK")
                         }
                         actions.acceptCall(callState.acceptIntent)
                         // Don't dismiss - wait for ONGOING state
@@ -143,7 +145,7 @@ class CallFeature : IslandFeature {
                         modifier = Modifier.combinedClickable(
                             onClick = {
                                 if (BuildConfig.DEBUG) {
-                                    Log.d("HI_INPUT", "RID=$rid EVT=CALL_COMPACT_TAP")
+                                    HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_COMPACT_TAP")
                                 }
                                 actions.showInCallScreen()
                             },

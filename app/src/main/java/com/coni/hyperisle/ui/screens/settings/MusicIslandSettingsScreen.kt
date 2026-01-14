@@ -24,6 +24,8 @@ import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.MusicIslandMode
 import kotlinx.coroutines.launch
 
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicIslandSettingsScreen(onBack: () -> Unit) {

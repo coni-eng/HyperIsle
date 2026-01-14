@@ -6,6 +6,8 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.createBitmap
 
+
+
 fun Drawable.toBitmap(): Bitmap {
     if (this is BitmapDrawable && this.bitmap != null) {
         return this.bitmap

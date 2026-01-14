@@ -1,7 +1,9 @@
 package com.coni.hyperisle.util
 
 import android.app.PendingIntent
-import android.util.Log
+import com.coni.hyperisle.util.HiLog
+
+
 
 /**
  * Helper for safely inferring PendingIntent types for HyperAction.
@@ -78,7 +80,7 @@ object PendingIntentHelper {
             InferenceResult(result.first, result.second)
         } catch (t: Throwable) {
             // Any failure (including Error subclasses) -> fall back to Activity (existing behavior)
-            Log.d(TAG, "PendingIntent type inference failed, defaulting to ACTIVITY: ${t.message}")
+            HiLog.d(HiLog.TAG_ISLAND, "PendingIntent type inference failed, defaulting to ACTIVITY: ${t.message}")
             InferenceResult(TYPE_ACTIVITY, fallbackUsed = true)
         }
     }
@@ -98,15 +100,15 @@ object PendingIntentHelper {
         
         return when {
             description.contains("broadcast") -> {
-                Log.d(TAG, "Inferred BROADCAST from PendingIntent description")
+                HiLog.d(HiLog.TAG_ISLAND, "Inferred BROADCAST from PendingIntent description")
                 Pair(TYPE_BROADCAST, false)
             }
             description.contains("service") -> {
-                Log.d(TAG, "Inferred SERVICE from PendingIntent description")
+                HiLog.d(HiLog.TAG_ISLAND, "Inferred SERVICE from PendingIntent description")
                 Pair(TYPE_SERVICE, false)
             }
             description.contains("activity") -> {
-                Log.d(TAG, "Inferred ACTIVITY from PendingIntent description")
+                HiLog.d(HiLog.TAG_ISLAND, "Inferred ACTIVITY from PendingIntent description")
                 Pair(TYPE_ACTIVITY, false)
             }
             else -> {

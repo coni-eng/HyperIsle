@@ -1,10 +1,12 @@
 package com.coni.hyperisle.ui.screens.settings
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,35 +24,35 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import android.content.Intent
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
+import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.models.ContextPreset
+import com.coni.hyperisle.models.NotificationType
 import com.coni.hyperisle.util.ActionDiagnostics
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.DiagnosticsFileHelper
 import com.coni.hyperisle.util.PriorityDiagnostics
 import com.coni.hyperisle.util.isContextAccessibilityEnabled
 import com.coni.hyperisle.util.openAccessibilitySettings
-import com.coni.hyperisle.data.AppPreferences
-import com.coni.hyperisle.models.ContextPreset
-import com.coni.hyperisle.models.NotificationType
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

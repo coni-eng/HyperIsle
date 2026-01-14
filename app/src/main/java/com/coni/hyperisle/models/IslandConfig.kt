@@ -1,5 +1,7 @@
 package com.coni.hyperisle.models
 
+
+
 data class IslandConfig(
     val isFloat: Boolean? = null,
     val isShowShade: Boolean? = null,

@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Warning
@@ -59,8 +60,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -92,6 +93,8 @@ import com.coni.hyperisle.util.isNotificationServiceEnabled
 import com.coni.hyperisle.util.isPostNotificationsEnabled
 import com.coni.hyperisle.util.toBitmap
 import kotlinx.coroutines.launch
+
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -569,6 +572,41 @@ fun PostPermissionPage(stepIndex: Int, stepCount: Int, isGranted: Boolean, onReq
         ) {
             Text(
                 stringResource(if (isGranted) R.string.perm_granted else R.string.onboarding_enable),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (isGranted) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+// --- 5a. PHONE PERMISSION PAGE ---
+@Composable
+fun PhonePermissionPage(stepIndex: Int, stepCount: Int, isGranted: Boolean, onRequest: () -> Unit) {
+    OnboardingPageLayout(
+        stepIndex = stepIndex,
+        stepCount = stepCount,
+        title = stringResource(R.string.perm_phone_calls_title),
+        description = stringResource(R.string.perm_phone_calls_desc),
+        icon = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Phone,
+        iconColor = if (isGranted) Color(0xFF34C759) else MaterialTheme.colorScheme.primary
+    ) {
+        Button(
+            onClick = { if (!isGranted) onRequest() },
+            enabled = !isGranted,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = Color(0xFF34C759),
+                disabledContentColor = Color.White
+            )
+        ) {
+            Text(
+                stringResource(if (isGranted) R.string.perm_granted else R.string.grant_permission),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )

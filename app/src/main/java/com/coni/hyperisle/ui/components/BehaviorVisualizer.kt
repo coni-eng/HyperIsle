@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.models.IslandLimitMode
 
+
+
 @Composable
 fun BehaviorVisualizer(mode: IslandLimitMode) {
     val color = MaterialTheme.colorScheme.primary

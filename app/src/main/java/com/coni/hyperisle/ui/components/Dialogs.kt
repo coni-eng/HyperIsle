@@ -66,6 +66,8 @@ import com.coni.hyperisle.models.ShadeCancelMode
 import com.coni.hyperisle.ui.AppInfo
 import com.coni.hyperisle.ui.AppListViewModel
 
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppConfigBottomSheet(

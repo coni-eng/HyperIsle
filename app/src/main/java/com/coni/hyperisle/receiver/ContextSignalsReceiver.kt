@@ -3,8 +3,10 @@ package com.coni.hyperisle.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.coni.hyperisle.util.ContextStateManager
+import com.coni.hyperisle.util.HiLog
+
+
 
 /**
  * Broadcast receiver for context signals (screen on/off, charging state).
@@ -47,6 +49,6 @@ class ContextSignalsReceiver : BroadcastReceiver() {
                 return
             }
         }
-        Log.d(TAG, "Processed context signal")
+        HiLog.d(HiLog.TAG_ISLAND, "Processed context signal")
     }
 }

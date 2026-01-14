@@ -14,6 +14,8 @@ import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
 import io.github.d4viddf.hyperisland_kit.models.TimerInfo
 
+
+
 class TimerTranslator(context: Context) : BaseTranslator(context) {
     private val EXTRA_CHRONOMETER_COUNTDOWN = "android.chronometerCountDown"
 

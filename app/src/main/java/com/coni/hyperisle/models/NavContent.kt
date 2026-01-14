@@ -1,5 +1,7 @@
 package com.coni.hyperisle.models
 
+
+
 enum class NavContent {
     INSTRUCTION,    // "Turn Right"
     DISTANCE,       // "200m"

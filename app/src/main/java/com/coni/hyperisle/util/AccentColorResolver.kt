@@ -13,6 +13,8 @@ import androidx.core.graphics.scale
 import androidx.core.graphics.toColorInt
 import java.util.concurrent.ConcurrentHashMap
 
+
+
 /**
  * Extracts and caches dominant accent colors from app icons.
  * Used for adaptive progress ring and accent coloring in islands.

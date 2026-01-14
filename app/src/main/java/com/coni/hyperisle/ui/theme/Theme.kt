@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+
+
 @Composable
 fun HyperIsleTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

@@ -5,15 +5,17 @@ import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.content.edit
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.util.Haptics
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.SystemHyperIslandPoster
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+
+
 
 /**
  * Broadcast receiver for Bluetooth device connection events.
@@ -44,13 +46,13 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
             return
         }
         
-        Log.d(TAG, "Received BT connection broadcast")
+        HiLog.d(HiLog.TAG_ISLAND, "Received BT connection broadcast")
 
         // Check if banner is enabled (default OFF)
         val preferences = AppPreferences(context)
         val isEnabled = runBlocking { preferences.bannerBtConnectedEnabledFlow.first() }
         if (!isEnabled) {
-            Log.d(TAG, "BT banner disabled, ignoring")
+            HiLog.d(HiLog.TAG_ISLAND, "BT banner disabled, ignoring")
             return
         }
 
@@ -69,7 +71,7 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
         val now = System.currentTimeMillis()
 
         if (deviceAddress == lastDevice && (now - lastTime) < DEBOUNCE_INTERVAL_MS) {
-            Log.d(TAG, "BT connection debounced")
+            HiLog.d(HiLog.TAG_ISLAND, "BT connection debounced")
             return
         }
 
@@ -82,7 +84,7 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
         // Post banner
         val poster = SystemHyperIslandPoster(context)
         if (!poster.hasNotificationPermission()) {
-            Log.d(TAG, "No notification permission")
+            HiLog.d(HiLog.TAG_ISLAND, "No notification permission")
             return
         }
 
@@ -92,6 +94,6 @@ class SystemBannerReceiverBT : BroadcastReceiver() {
         poster.postSystemNotification(NOTIFICATION_ID, title, message)
         Haptics.hapticOnIslandShown(context)
         
-        Log.d(TAG, "Posted BT connected banner")
+        HiLog.d(HiLog.TAG_ISLAND, "Posted BT connected banner")
     }
 }

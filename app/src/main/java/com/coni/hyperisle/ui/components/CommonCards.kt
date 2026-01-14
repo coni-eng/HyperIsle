@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.util.openAutoStartSettings // Correct Import
 import com.coni.hyperisle.util.openBatterySettings   // Correct Import
 
+
+
 // ... (Keep WarningCard and ExpandableOptimizationCard code from previous step) ...
 @Composable
 fun WarningCard(

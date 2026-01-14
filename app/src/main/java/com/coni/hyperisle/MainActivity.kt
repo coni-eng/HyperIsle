@@ -42,28 +42,31 @@ import com.coni.hyperisle.ui.screens.settings.AppPriorityScreen
 import com.coni.hyperisle.ui.screens.settings.BackupSettingsScreen
 import com.coni.hyperisle.ui.screens.settings.BlocklistAppListScreen
 import com.coni.hyperisle.ui.screens.settings.ChangelogHistoryScreen
+import com.coni.hyperisle.ui.screens.settings.DiagnosticsScreen
 import com.coni.hyperisle.ui.screens.settings.GlobalBlocklistScreen
 import com.coni.hyperisle.ui.screens.settings.GlobalSettingsScreen
 import com.coni.hyperisle.ui.screens.settings.ImportPreviewScreen
 import com.coni.hyperisle.ui.screens.settings.InfoScreen
 import com.coni.hyperisle.ui.screens.settings.IslandQuickActionsScreen
+import com.coni.hyperisle.ui.screens.settings.IslandStylePreviewScreen
 import com.coni.hyperisle.ui.screens.settings.LicensesScreen
 import com.coni.hyperisle.ui.screens.settings.MusicIslandSettingsScreen
 import com.coni.hyperisle.ui.screens.settings.NavCustomizationScreen
+import com.coni.hyperisle.ui.screens.settings.NotificationLabScreen
+import com.coni.hyperisle.ui.screens.settings.NotificationManagementAppsScreen
+import com.coni.hyperisle.ui.screens.settings.NotificationManagementScreen
+import com.coni.hyperisle.ui.screens.settings.NotificationSummaryScreenV2
 import com.coni.hyperisle.ui.screens.settings.PrioritySettingsScreen
-import com.coni.hyperisle.ui.screens.settings.SetupHealthScreen
 import com.coni.hyperisle.ui.screens.settings.SettingsCustomizationScreen
+import com.coni.hyperisle.ui.screens.settings.SetupHealthScreen
 import com.coni.hyperisle.ui.screens.settings.SmartFeaturesScreen
-import com.coni.hyperisle.ui.screens.settings.NotificationSummaryScreenV2       
-import com.coni.hyperisle.ui.screens.settings.NotificationManagementScreen      
-import com.coni.hyperisle.ui.screens.settings.NotificationManagementAppsScreen  
-import com.coni.hyperisle.ui.screens.settings.DiagnosticsScreen
-import com.coni.hyperisle.ui.screens.settings.IslandStylePreviewScreen
 import com.coni.hyperisle.ui.screens.settings.TypePriorityScreen
 import com.coni.hyperisle.ui.theme.HyperIsleTheme
 import com.coni.hyperisle.util.BackupManager
 import com.coni.hyperisle.worker.NotificationSummaryWorker
 import kotlinx.coroutines.launch
+
+
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,7 +102,8 @@ enum class Screen(val depth: Int) {
     NOTIFICATION_MANAGEMENT(3), NOTIFICATION_MANAGEMENT_APPS(4), // Notification Management (v0.9.7)
     SETTINGS_CUSTOMIZE(3), // Settings layout customization
     DIAGNOSTICS(3), // Debug-only diagnostics screen
-    ISLAND_STYLE_PREVIEW(4) // Debug-only island style preview
+    ISLAND_STYLE_PREVIEW(4), // Debug-only island style preview
+    NOTIFICATION_LAB(4) // Debug-only notification testing lab
 }
 
 @Composable
@@ -197,6 +201,7 @@ fun MainRootNavigation(
             Screen.NOTIFICATION_MANAGEMENT_APPS -> Screen.NOTIFICATION_MANAGEMENT
             Screen.INFO -> Screen.HOME
             Screen.ISLAND_STYLE_PREVIEW -> Screen.DIAGNOSTICS
+            Screen.NOTIFICATION_LAB -> Screen.DIAGNOSTICS
             else -> Screen.HOME
         }
     }
@@ -336,11 +341,17 @@ fun MainRootNavigation(
                 // --- DIAGNOSTICS (Debug only) ---
                 Screen.DIAGNOSTICS -> DiagnosticsScreen(
                     onBack = { currentScreen = Screen.INFO },
-                    onIslandStylePreviewClick = { currentScreen = Screen.ISLAND_STYLE_PREVIEW }
+                    onIslandStylePreviewClick = { currentScreen = Screen.ISLAND_STYLE_PREVIEW },
+                    onNotificationLabClick = { currentScreen = Screen.NOTIFICATION_LAB }
                 )
 
                 // --- ISLAND STYLE PREVIEW (Debug only) ---
                 Screen.ISLAND_STYLE_PREVIEW -> IslandStylePreviewScreen(
+                    onBack = { currentScreen = Screen.DIAGNOSTICS }
+                )
+
+                // --- NOTIFICATION LAB (Debug only) ---
+                Screen.NOTIFICATION_LAB -> NotificationLabScreen(
                     onBack = { currentScreen = Screen.DIAGNOSTICS }
                 )
             }

@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 
+
+
 data class Library(val name: String, val author: String, val license: String, val url: String)
 
 @OptIn(ExperimentalMaterial3Api::class)

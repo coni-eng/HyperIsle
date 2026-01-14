@@ -3,6 +3,8 @@ package com.coni.hyperisle.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+
+
 @Entity(tableName = "settings")
 data class AppSetting(
     @PrimaryKey val key: String,
@@ -125,4 +127,8 @@ object SettingsKeys {
     
     // First-time shade cancel setup (v1.0.0)
     const val SHADE_CANCEL_FIRST_SETUP_DONE = "shade_cancel_first_setup_done"
+
+    // Anchor mode (camera cutout island)
+    const val ANCHOR_MODE_ENABLED = "anchor_mode_enabled"
+    const val ANCHOR_VISIBILITY_MODE = "anchor_visibility_mode"
 }

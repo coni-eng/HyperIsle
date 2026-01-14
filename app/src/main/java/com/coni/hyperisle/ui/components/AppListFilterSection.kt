@@ -53,6 +53,8 @@ import com.coni.hyperisle.ui.SortOption
 import com.coni.hyperisle.ui.appCategoryIcon
 import com.coni.hyperisle.ui.appCategoryLabelRes
 
+
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AppListFilterSection(

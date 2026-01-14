@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.R
 import com.coni.hyperisle.ui.AppInfo
 
+
+
 @Composable
 fun AppListItem(
     app: AppInfo,

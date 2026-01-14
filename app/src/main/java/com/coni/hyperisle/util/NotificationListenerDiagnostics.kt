@@ -6,9 +6,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import android.util.Log
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.service.NotificationReaderService
+import com.coni.hyperisle.util.HiLog
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,7 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
+
+
 
 /**
  * Diagnostics utility for NotificationListenerService issues.
@@ -88,7 +90,7 @@ object NotificationListenerDiagnostics {
 
     fun onServiceCreated() {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=SERVICE_CREATED ts=${System.currentTimeMillis()}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=SERVICE_CREATED ts=${System.currentTimeMillis()}")
         }
     }
 
@@ -99,7 +101,7 @@ object NotificationListenerDiagnostics {
         _activeNotificationCount.value = activeCount
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=LISTENER_CONNECTED ts=$now activeNotifications=$activeCount")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=LISTENER_CONNECTED ts=$now activeNotifications=$activeCount")
         }
         
         // Start heartbeat when connected
@@ -113,7 +115,7 @@ object NotificationListenerDiagnostics {
         _activeNotificationCount.value = -1
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=LISTENER_DISCONNECTED ts=$now")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=LISTENER_DISCONNECTED ts=$now")
         }
         
         // Stop heartbeat when disconnected
@@ -125,7 +127,7 @@ object NotificationListenerDiagnostics {
         _activeNotificationCount.value = -1
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=SERVICE_DESTROYED ts=${System.currentTimeMillis()}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=SERVICE_DESTROYED ts=${System.currentTimeMillis()}")
         }
         
         stopHeartbeat()
@@ -140,7 +142,7 @@ object NotificationListenerDiagnostics {
         _lastHeartbeatTime.value = now
         _activeNotificationCount.value = activeCount
         
-        Log.d(TAG, "EVT=HEARTBEAT ts=$now activeNotifications=$activeCount connected=${_listenerConnected.value}")
+        HiLog.d(HiLog.TAG_ISLAND, "EVT=HEARTBEAT ts=$now activeNotifications=$activeCount connected=${_listenerConnected.value}")
     }
 
     private fun startHeartbeat() {
@@ -152,9 +154,9 @@ object NotificationListenerDiagnostics {
             while (isActive) {
                 delay(30_000L) // Every 30 seconds
                 if (_listenerConnected.value) {
-                    Log.d(TAG, "EVT=HEARTBEAT_TICK ts=${System.currentTimeMillis()} connected=true activeNotifications=${_activeNotificationCount.value}")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=HEARTBEAT_TICK ts=${System.currentTimeMillis()} connected=true activeNotifications=${_activeNotificationCount.value}")
                 } else {
-                    Log.w(TAG, "EVT=HEARTBEAT_TICK ts=${System.currentTimeMillis()} connected=false WARN=LISTENER_NOT_CONNECTED")
+                    HiLog.w(HiLog.TAG_ISLAND, "EVT=HEARTBEAT_TICK ts=${System.currentTimeMillis()} connected=false WARN=LISTENER_NOT_CONNECTED")
                 }
             }
         }
@@ -181,7 +183,7 @@ object NotificationListenerDiagnostics {
             val componentName = ComponentName(context, NotificationReaderService::class.java).flattenToString()
             flat.contains(componentName)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to check enabled_notification_listeners: ${e.message}")
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to check enabled_notification_listeners: ${e.message}")
             false
         }
     }
@@ -199,7 +201,7 @@ object NotificationListenerDiagnostics {
                 true
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to check battery optimization: ${e.message}")
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to check battery optimization: ${e.message}")
             true
         }
     }
@@ -293,12 +295,12 @@ object NotificationListenerDiagnostics {
      */
     fun attemptRebind(context: Context): Boolean {
         if (!BuildConfig.DEBUG) {
-            Log.w(TAG, "Rebind is only available in debug builds")
+            HiLog.w(HiLog.TAG_ISLAND, "Rebind is only available in debug builds")
             return false
         }
         
         if (_isRebinding.value) {
-            Log.w(TAG, "Rebind already in progress")
+            HiLog.w(HiLog.TAG_ISLAND, "Rebind already in progress")
             return false
         }
         
@@ -308,7 +310,7 @@ object NotificationListenerDiagnostics {
             val componentName = ComponentName(context, NotificationReaderService::class.java)
             val pm = context.packageManager
             
-            Log.d(TAG, "EVT=REBIND_START disabling component")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=REBIND_START disabling component")
             
             // Disable the component
             pm.setComponentEnabledSetting(
@@ -327,13 +329,13 @@ object NotificationListenerDiagnostics {
                 PackageManager.DONT_KILL_APP
             )
             
-            Log.d(TAG, "EVT=REBIND_COMPLETE re-enabled component")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=REBIND_COMPLETE re-enabled component")
             
             // Note: User may need to re-grant notification access permission
             _isRebinding.value = false
             true
         } catch (e: Exception) {
-            Log.e(TAG, "EVT=REBIND_FAILED error=${e.message}")
+            HiLog.e(HiLog.TAG_ISLAND, "EVT=REBIND_FAILED error=${e.message}")
             _isRebinding.value = false
             false
         }

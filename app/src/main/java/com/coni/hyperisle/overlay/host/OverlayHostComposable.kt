@@ -1,6 +1,5 @@
 package com.coni.hyperisle.overlay.host
 
-import android.util.Log
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
@@ -9,8 +8,8 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,9 +29,12 @@ import com.coni.hyperisle.overlay.engine.ActiveIsland
 import com.coni.hyperisle.overlay.engine.IslandActions
 import com.coni.hyperisle.overlay.features.FeatureUiState
 import com.coni.hyperisle.overlay.features.IslandFeature
-import kotlinx.coroutines.launch
+import com.coni.hyperisle.util.HiLog
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
+
+
 
 /**
  * Host composable that renders the active feature's UI.
@@ -147,7 +149,7 @@ fun SwipeDismissContainer(
 
     LaunchedEffect(stateLabel) {
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_LAYOUT state=$stateLabel")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_LAYOUT state=$stateLabel")
         }
     }
 
@@ -182,7 +184,7 @@ fun SwipeDismissContainer(
                                         // Swipe up dismiss
                                         isDismissible && offsetY < -dismissThreshold -> {
                                             if (BuildConfig.DEBUG) {
-                                                Log.d("HyperIsleIsland", "RID=$rid EVT=SWIPE_DISMISS offsetY=$offsetY")
+                                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=SWIPE_DISMISS offsetY=$offsetY")
                                             }
                                             onDismiss()
                                             offsetY = 0f
@@ -190,7 +192,7 @@ fun SwipeDismissContainer(
                                         // Long press (if no significant drag)
                                         elapsed >= longPressTimeout && totalDrag < 30f && onLongPress != null -> {
                                             if (BuildConfig.DEBUG) {
-                                                Log.d("HyperIsleIsland", "RID=$rid EVT=LONG_PRESS elapsed=$elapsed")
+                                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=LONG_PRESS elapsed=$elapsed")
                                             }
                                             onLongPress()
                                             offsetY = 0f
@@ -198,7 +200,7 @@ fun SwipeDismissContainer(
                                         // Tap (quick release, no significant drag)
                                         elapsed < tapTimeout && totalDrag < 30f && onTap != null -> {
                                             if (BuildConfig.DEBUG) {
-                                                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP elapsed=$elapsed")
+                                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP elapsed=$elapsed")
                                             }
                                             onTap()
                                             offsetY = 0f

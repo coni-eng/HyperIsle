@@ -1,12 +1,12 @@
 package com.coni.hyperisle.service.translators
 
+import com.coni.hyperisle.util.HiLog
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.HyperIslandData
@@ -23,6 +23,8 @@ import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
 import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
 import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
+
+
 
 class StandardTranslator(context: Context) : BaseTranslator(context) {
 
@@ -151,8 +153,7 @@ class StandardTranslator(context: Context) : BaseTranslator(context) {
             val keyHash = sbn.key.hashCode()
             val actionKeyList = actionKeys.joinToString("|")
             val showShade = config.isShowShade ?: true
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=MIUI_UI_BUILD type=STANDARD titleLen=${displayTitle.length} contentLen=${displayContent.length} actions=${actionKeys.size} actionKeys=$actionKeyList picKey=$picKey hiddenKey=$hiddenKey float=$shouldFloat timeout=$finalTimeout showShade=$showShade dismissible=true media=$isMedia"
             )
         }

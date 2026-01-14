@@ -65,6 +65,8 @@ import com.coni.hyperisle.models.NotificationType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TypePriorityScreen(onBack: () -> Unit) {

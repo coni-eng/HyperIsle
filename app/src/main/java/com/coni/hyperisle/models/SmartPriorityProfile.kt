@@ -1,5 +1,7 @@
 package com.coni.hyperisle.models
 
+
+
 /**
  * Per-app Smart Priority profile that affects throttling aggressiveness.
  * 

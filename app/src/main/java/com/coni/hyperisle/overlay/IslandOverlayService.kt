@@ -8,21 +8,25 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.RemoteInput
 import android.app.Service
-import android.graphics.Bitmap
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.IBinder
-import android.util.Log
+import android.telephony.TelephonyManager
 import android.view.MotionEvent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.content.Context
+import com.coni.hyperisle.models.AnchorVisibilityMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
@@ -61,8 +66,17 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
+import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.debug.IslandRuntimeDump
 import com.coni.hyperisle.debug.IslandUiSnapshotLogger
+import com.coni.hyperisle.debug.LegacyPathTelemetry
+import com.coni.hyperisle.overlay.anchor.AnchorCoordinator
+import com.coni.hyperisle.overlay.anchor.AnchorOverlayHost
+import com.coni.hyperisle.overlay.anchor.CallAnchorState
+import com.coni.hyperisle.overlay.anchor.CutoutHelper
+import com.coni.hyperisle.overlay.anchor.IslandMode
+import com.coni.hyperisle.overlay.anchor.NavAnchorState
+import com.coni.hyperisle.overlay.anchor.NavInfoType
 import com.coni.hyperisle.ui.components.ActiveCallCompactPill
 import com.coni.hyperisle.ui.components.ActiveCallExpandedPill
 import com.coni.hyperisle.ui.components.IncomingCallPill
@@ -75,22 +89,23 @@ import com.coni.hyperisle.ui.components.NotificationReplyPill
 import com.coni.hyperisle.ui.components.TimerDot
 import com.coni.hyperisle.ui.components.TimerPill
 import com.coni.hyperisle.util.AccessibilityContextSignals
-import androidx.compose.ui.graphics.asImageBitmap
 import com.coni.hyperisle.util.AccessibilityContextState
 import com.coni.hyperisle.util.CallManager
 import com.coni.hyperisle.util.ContextStateManager
 import com.coni.hyperisle.util.Haptics
+import com.coni.hyperisle.util.HiLog
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
-import kotlin.math.abs
-import kotlin.math.roundToInt
-import android.telephony.TelephonyManager
+import kotlinx.coroutines.launch
+
+
 
 /**
  * Foreground service that manages iOS-style pill overlays.
@@ -114,6 +129,67 @@ class IslandOverlayService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private lateinit var overlayController: OverlayWindowController
+    private lateinit var appPreferences: AppPreferences
+
+    // Anchor system
+    private var anchorCoordinator: AnchorCoordinator? = null
+    private var currentAnchorMode: AnchorVisibilityMode = AnchorVisibilityMode.TRIGGERED_ONLY
+    private var isDeviceLocked: Boolean = false
+    private val lockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    isDeviceLocked = true
+                    updateAnchorVisibility()
+                }
+                Intent.ACTION_USER_PRESENT -> {
+                    isDeviceLocked = false
+                    updateAnchorVisibility()
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    checkLockStatus()
+                    updateAnchorVisibility()
+                }
+            }
+        }
+    }
+
+    private fun checkLockStatus() {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        isDeviceLocked = keyguardManager.isKeyguardLocked
+    }
+
+    private fun updateAnchorVisibility() {
+        if (!::overlayController.isInitialized) return
+        
+        val shouldBeVisible = when (currentAnchorMode) {
+            AnchorVisibilityMode.ALWAYS -> true
+            AnchorVisibilityMode.UNLOCKED_ONLY -> !isDeviceLocked
+            AnchorVisibilityMode.LOCK_SCREEN_ONLY -> isDeviceLocked
+            AnchorVisibilityMode.TRIGGERED_ONLY -> false
+        }
+
+        if (shouldBeVisible) {
+            // Ensure overlay is showing if it's hidden
+            if (!overlayController.isShowing()) {
+                ensureForeground()
+                // Re-init logic if needed
+                if (anchorCoordinator == null) {
+                    initAnchorSystem() 
+                } else {
+                    showAnchorIdleOverlay()
+                }
+            }
+        } else {
+            // If it should be hidden, check if we have other content (calls, etc.)
+            // If nothing else is showing, schedule stop
+            scheduleStopIfIdle("ANCHOR_VISIBILITY_CHANGE")
+        }
+    }
+
+    private var isAnchorModeEnabled: Boolean = false
+    private var callDurationTickerJob: Job? = null
+    private var callStartTimeMs: Long = 0L
 
     // Current overlay state
     private var currentCallModel: IosCallOverlayModel? by mutableStateOf(null)
@@ -182,25 +258,285 @@ class IslandOverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service created")
+        HiLog.d(HiLog.TAG_ISLAND, "Service created")
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=OVL_CREATE STAGE=LIFECYCLE ACTION=OVERLAY_SVC_CREATED")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_CREATE STAGE=LIFECYCLE ACTION=OVERLAY_SVC_CREATED")
             IslandRuntimeDump.recordOverlay(null, "SERVICE_CREATED", reason = "onCreate")
         }
 
         overlayController = OverlayWindowController(applicationContext)
+        appPreferences = AppPreferences(applicationContext)
         createNotificationChannel()
+        
+        // Register lock receiver
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        registerReceiver(lockReceiver, filter)
+        checkLockStatus()
+
         startEventCollection()
         startCallStateGuard()
+        initAnchorSystem()
+    }
+
+    private fun initAnchorSystem() {
+        serviceScope.launch {
+            appPreferences.anchorModeFlow.collectLatest { mode ->
+                currentAnchorMode = mode
+                // Enable anchor mode if it's not strictly TRIGGERED_ONLY
+                isAnchorModeEnabled = mode != AnchorVisibilityMode.TRIGGERED_ONLY
+                
+                if (isAnchorModeEnabled) {
+                    if (anchorCoordinator == null) {
+                        anchorCoordinator = AnchorCoordinator(applicationContext)
+                    }
+                    val cutoutInfo = CutoutHelper.getCutoutInfoOrDefault(applicationContext)
+                    
+                    if (BuildConfig.DEBUG) {
+                        HiLog.d("HyperIsleAnchor",
+                            "EVT=ANCHOR_BOOT service=IslandOverlayService cutoutW=${cutoutInfo.width} pillW=${cutoutInfo.width + 120 + 16}"
+                        )
+                        HiLog.d("HyperIsleAnchor", "EVT=ANCHOR_READY mode=$mode")
+                    }
+                }
+                updateAnchorVisibility()
+            }
+        }
+    }
+
+    private fun showAnchorIdleOverlay() {
+        val coordinator = anchorCoordinator ?: return
+        if (!isAnchorModeEnabled) return
+        if (!overlayController.hasOverlayPermission()) return
+        
+        val rid = System.currentTimeMillis().toInt()
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_IDLE_SHOW")
+        }
+        
+        overlayController.showOverlay(
+            OverlayEvent.DismissAllEvent,
+            interactive = true
+        ) {
+            AnchorOverlayHost(
+                anchorCoordinator = coordinator,
+                expandedContent = { currentExpandedContent() },
+                onAnchorTap = { handleAnchorTap() },
+                onAnchorLongPress = { handleAnchorLongPress() },
+                debugRid = rid
+            )
+        }
+    }
+
+    @Composable
+    private fun currentExpandedContent() {
+        val coordinator = anchorCoordinator ?: return
+        val anchorState by coordinator.anchorState.collectAsState()
+        
+        if (anchorState.mode == IslandMode.NOTIF_EXPANDED) {
+            currentNotificationModel?.let { model ->
+                NotificationOverlayContent(
+                    model = model,
+                    rid = model.notificationKey.hashCode(),
+                    isReplying = false,
+                    onReplyingChange = {},
+                    replyText = "",
+                    onReplyTextChange = {},
+                    allowExpand = true,
+                    allowReply = model.replyAction != null,
+                    restoreCallAfterDismiss = false
+                )
+            }
+        }
+    }
+
+    private fun handleAnchorTap() {
+        val coordinator = anchorCoordinator ?: return
+        val mode = coordinator.getCurrentMode()
+        val rid = System.currentTimeMillis().toInt()
+        
+        when (mode) {
+            IslandMode.CALL_ACTIVE -> {
+                currentCallModel?.let { model ->
+                    if (BuildConfig.DEBUG) {
+                        HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_TAP_CALL pkg=${model.packageName}")
+                    }
+                    handleCallTap(rid, model.packageName, model.contentIntent)
+                }
+            }
+            IslandMode.NAV_ACTIVE -> {
+                currentNavigationModel?.let { model ->
+                    if (BuildConfig.DEBUG) {
+                        HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_TAP_NAV pkg=${model.packageName}")
+                    }
+                    handleNotificationTap(model.contentIntent, rid, model.packageName)
+                }
+            }
+            else -> {
+                if (BuildConfig.DEBUG) {
+                    HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_TAP_IDLE")
+                }
+            }
+        }
+    }
+
+    private fun handleAnchorLongPress() {
+        val coordinator = anchorCoordinator ?: return
+        val mode = coordinator.getCurrentMode()
+        val rid = System.currentTimeMillis().toInt()
+        
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_LONGPRESS mode=$mode")
+        }
+    }
+
+    private fun updateAnchorCallState(model: IosCallOverlayModel?) {
+        val coordinator = anchorCoordinator ?: return
+        if (!isAnchorModeEnabled) return
+        
+        if (model == null) {
+            callDurationTickerJob?.cancel()
+            callDurationTickerJob = null
+            callStartTimeMs = 0L
+            coordinator.updateCallState(null)
+            
+            if (BuildConfig.DEBUG) {
+                HiLog.d("HyperIsleAnchor", "EVT=CALL_ANCHOR_UPDATE state=ended")
+                HiLog.d("HyperIsleAnchor", "EVT=MODE_SWITCH reason=CALL_END")
+            }
+            return
+        }
+        
+        val isActive = model.state == CallOverlayState.ONGOING
+        val isIncoming = model.state == CallOverlayState.INCOMING
+        
+        if (isActive && callStartTimeMs == 0L) {
+            callStartTimeMs = System.currentTimeMillis()
+            startCallDurationTicker(model)
+        }
+        
+        val callState = CallAnchorState(
+            notificationKey = model.notificationKey,
+            packageName = model.packageName,
+            callerName = model.callerName,
+            durationText = model.durationText.ifEmpty { formatCallDuration(0L) },
+            isIncoming = isIncoming,
+            isActive = isActive,
+            avatarBitmap = model.avatarBitmap
+        )
+        
+        coordinator.updateCallState(callState)
+        
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor",
+                "EVT=CALL_ANCHOR_UPDATE state=${if (isIncoming) "incoming" else "active"} duration=${callState.durationText}"
+            )
+        }
+    }
+
+    private fun startCallDurationTicker(model: IosCallOverlayModel) {
+        callDurationTickerJob?.cancel()
+        callDurationTickerJob = serviceScope.launch {
+            while (isActive) {
+                delay(1000L)
+                val elapsed = System.currentTimeMillis() - callStartTimeMs
+                val durationText = formatCallDuration(elapsed)
+                
+                val updatedState = CallAnchorState(
+                    notificationKey = model.notificationKey,
+                    packageName = model.packageName,
+                    callerName = model.callerName,
+                    durationText = durationText,
+                    isIncoming = false,
+                    isActive = true,
+                    avatarBitmap = model.avatarBitmap
+                )
+                
+                anchorCoordinator?.updateCallState(updatedState)
+            }
+        }
+    }
+
+    private fun formatCallDuration(elapsedMs: Long): String {
+        val totalSeconds = elapsedMs / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format("%02d:%02d", minutes, seconds)
+    }
+
+    private fun updateAnchorNavState(model: NavigationOverlayModel?) {
+        val coordinator = anchorCoordinator ?: return
+        if (!isAnchorModeEnabled) return
+        
+        if (model == null) {
+            coordinator.updateNavState(null)
+            if (BuildConfig.DEBUG) {
+                HiLog.d("HyperIsleAnchor", "EVT=NAV_ANCHOR_UPDATE left= right=")
+                HiLog.d("HyperIsleAnchor", "EVT=MODE_SWITCH reason=NAV_END")
+            }
+            return
+        }
+        
+        val navState = NavAnchorState(
+            notificationKey = model.notificationKey,
+            packageName = model.packageName,
+            instruction = model.instruction,
+            distance = model.distance,
+            eta = model.eta,
+            remainingTime = model.remainingTime,
+            appIcon = model.appIcon,
+            leftInfoType = NavInfoType.INSTRUCTION,
+            rightInfoType = NavInfoType.ETA
+        )
+        
+        coordinator.updateNavState(navState)
+        
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor",
+                "EVT=NAV_ANCHOR_UPDATE left=${model.instruction.take(20)} right=${model.eta}"
+            )
+        }
+    }
+
+    private fun expandNotificationFromAnchor(notificationKey: String) {
+        val coordinator = anchorCoordinator ?: return
+        if (!isAnchorModeEnabled) return
+        
+        val rid = System.currentTimeMillis().toInt()
+        val pkg = currentNotificationModel?.packageName ?: "unknown"
+        
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor", "RID=$rid EVT=NOTIF_EXPAND_CALL site=expandNotificationFromAnchor pkg=$pkg key=${notificationKey.hashCode()}")
+        }
+        
+        coordinator.expandNotification(notificationKey)
+        
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor", "EVT=NOTIF_EXPAND_FROM_ANCHOR pkg=$pkg")
+        }
+    }
+
+    private fun shrinkToAnchor(reason: String) {
+        val coordinator = anchorCoordinator ?: return
+        if (!isAnchorModeEnabled) return
+        
+        coordinator.shrinkToAnchor(reason)
+        
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor", "EVT=OVERLAY_SHRINK_TO_ANCHOR reason=$reason")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                Log.d(TAG, "Stopping service")
+                HiLog.d(HiLog.TAG_ISLAND, "Stopping service")
                 // INSTRUMENTATION: Overlay service stop
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "RID=OVL_STOP STAGE=LIFECYCLE ACTION=OVERLAY_SVC_STOP")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_STOP STAGE=LIFECYCLE ACTION=OVERLAY_SVC_STOP")
                     IslandRuntimeDump.recordOverlay(null, "SERVICE_STOP", reason = "ACTION_STOP")
                 }
                 stopForeground(true)
@@ -209,10 +545,10 @@ class IslandOverlayService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START, null -> {
-                Log.d(TAG, "Starting foreground service")
+                HiLog.d(HiLog.TAG_ISLAND, "Starting foreground service")
                 // INSTRUMENTATION: Overlay service start
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START")
                     IslandRuntimeDump.recordOverlay(null, "SERVICE_START", reason = "ACTION_START")
                 }
                 ensureForeground()
@@ -225,14 +561,17 @@ class IslandOverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "Service destroyed")
+        HiLog.d(HiLog.TAG_ISLAND, "Service destroyed")
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=OVL_DEST STAGE=LIFECYCLE ACTION=OVERLAY_SVC_DESTROYED")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_DEST STAGE=LIFECYCLE ACTION=OVERLAY_SVC_DESTROYED")
             IslandRuntimeDump.recordOverlay(null, "SERVICE_DESTROYED", reason = "onDestroy")
         }
         autoCollapseJob?.cancel()
         stopForegroundJob?.cancel()
         callStateGuardJob?.cancel()
+        callDurationTickerJob?.cancel()
+        anchorCoordinator?.clearAll()
+        anchorCoordinator = null
         overlayController.forceDismissOverlay("SERVICE_DESTROYED")
         serviceScope.cancel()
         isForegroundActive = false
@@ -280,13 +619,22 @@ class IslandOverlayService : Service() {
         stopForegroundJob?.cancel()
         stopForegroundJob = serviceScope.launch {
             delay(3000L)
+            
+            val shouldStayAlive = when (currentAnchorMode) {
+                AnchorVisibilityMode.ALWAYS -> true
+                AnchorVisibilityMode.UNLOCKED_ONLY -> !isDeviceLocked
+                AnchorVisibilityMode.LOCK_SCREEN_ONLY -> isDeviceLocked
+                AnchorVisibilityMode.TRIGGERED_ONLY -> false
+            }
+
             if (!overlayController.isShowing() &&
                 currentCallModel == null &&
                 currentNotificationModel == null &&
                 currentMediaModel == null &&
-                currentTimerModel == null
+                currentTimerModel == null &&
+                !shouldStayAlive
             ) {
-                Log.d("HyperIsleIsland", "RID=OVL_STOP EVT=OVERLAY_SVC_STOP reason=$reason")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_STOP EVT=OVERLAY_SVC_STOP reason=$reason")
                 stopForeground(true)
                 isForegroundActive = false
                 stopSelf()
@@ -313,7 +661,7 @@ class IslandOverlayService : Service() {
                 val currentState = CallManager.getCallState(applicationContext)
                 
                 if (BuildConfig.DEBUG && currentState != lastCallState) {
-                    Log.d("HI_CALL", "EVT=CALL_STATE_CHANGED old=${lastCallState.name} new=${currentState.name}")
+                    HiLog.d(HiLog.TAG_CALL, "EVT=CALL_STATE_CHANGED old=${lastCallState.name} new=${currentState.name}")
                 }
                 
                 // Detect stuck overlay: call ended but overlay still showing
@@ -323,12 +671,12 @@ class IslandOverlayService : Service() {
                     val rid = currentCallModel?.notificationKey?.hashCode() ?: 0
                     val notifKey = currentCallModel?.notificationKey
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_GUARD", "RID=$rid EVT=GUARD_CLEANUP reason=CALL_ENDED_OVERLAY_STUCK")
+                        HiLog.d("HI_GUARD", "RID=$rid EVT=GUARD_CLEANUP reason=CALL_ENDED_OVERLAY_STUCK")
                     }
                     // BUG#2 FIX: Set call end timestamp for cooldown
                     lastCallEndTs = System.currentTimeMillis()
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_CALL", "RID=$rid EVT=CALL_END_TS_SET ts=$lastCallEndTs cooldown=${CALL_END_COOLDOWN_MS}ms reason=GUARD_CLEANUP")
+                        HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_END_TS_SET ts=$lastCallEndTs cooldown=${CALL_END_COOLDOWN_MS}ms reason=GUARD_CLEANUP")
                     }
                     
                     // FIX#4: Clear all call-related state when call ends
@@ -341,6 +689,7 @@ class IslandOverlayService : Service() {
                     
                     overlayController.forceDismissOverlay("GUARD_CLEANUP_CALL_ENDED")
                     currentCallModel = null
+                    updateAnchorCallState(null)
                     isCallOverlayActive = false
                     
                     // Restore other overlays if needed
@@ -374,7 +723,7 @@ class IslandOverlayService : Service() {
                     if (stableCallKey != null) {
                         idleLockCallKey = stableCallKey
                         if (BuildConfig.DEBUG) {
-                            Log.d("HI_CALL", "RID=$rid EVT=CALL_RESET reason=CALL_MANAGER_IDLE stableCallKey=$stableCallKey legacySbnKey=$legacySbnKey idleStateLocked=true")
+                            HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_RESET reason=CALL_MANAGER_IDLE stableCallKey=$stableCallKey legacySbnKey=$legacySbnKey idleStateLocked=true")
                         }
                         // Clear lastStableCallKey after successful reset
                         lastStableCallKey = null
@@ -383,7 +732,7 @@ class IslandOverlayService : Service() {
                         // No valid key available - set pending reset flag
                         pendingCallReset = true
                         if (BuildConfig.DEBUG) {
-                            Log.d("HI_CALL", "RID=$rid EVT=CALL_RESET_PENDING reason=NO_STABLE_KEY legacySbnKey=$legacySbnKey idleStateLocked=true")
+                            HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_RESET_PENDING reason=NO_STABLE_KEY legacySbnKey=$legacySbnKey idleStateLocked=true")
                         }
                     }
                     
@@ -398,6 +747,7 @@ class IslandOverlayService : Service() {
                     
                     // Reset model
                     currentCallModel = null
+                    updateAnchorCallState(null)
                     isCallOverlayActive = false
                 }
                 
@@ -408,10 +758,10 @@ class IslandOverlayService : Service() {
 
     private fun handleOverlayEvent(event: OverlayEvent) {
         if (!overlayController.hasOverlayPermission()) {
-            Log.w(TAG, "Overlay permission not granted, ignoring event: $event")
+            HiLog.w(HiLog.TAG_ISLAND, "Overlay permission not granted, ignoring event: $event")
             // INSTRUMENTATION: Overlay permission denied
             if (BuildConfig.DEBUG) {
-                Log.d("HyperIsleIsland", "RID=OVL_PERM STAGE=OVERLAY ACTION=PERM_DENIED reason=canDrawOverlays_false")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_PERM STAGE=OVERLAY ACTION=PERM_DENIED reason=canDrawOverlays_false")
                 IslandRuntimeDump.recordOverlay(null, "PERM_DENIED", reason = "canDrawOverlays_false")
                 // UI Snapshot: OVERLAY_PERMISSION denied
                 val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
@@ -484,8 +834,7 @@ class IslandOverlayService : Service() {
                     // activeCallModel may be null due to timing but call is still active
                     if (BuildConfig.DEBUG) {
                         val stableCallKey = currentCallModel?.callKey ?: lastStableCallKey ?: "unknown"
-                        Log.d(
-                            "HI_CALL",
+                        HiLog.d(HiLog.TAG_CALL,
                             "EVT=DISMISS_ALL_BLOCKED reason=CALL_STATE_ONGOING callState=${callState.name} stableCallKey=$stableCallKey hasActiveCallModel=$hasActiveCallModel"
                         )
                     }
@@ -493,8 +842,7 @@ class IslandOverlayService : Service() {
                 } else {
                     // Allow dismiss - call state is IDLE
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HI_CALL",
+                        HiLog.d(HiLog.TAG_CALL,
                             "EVT=DISMISS_ALL_ALLOWED callState=${callState.name} hasActiveCallModel=$hasActiveCallModel"
                         )
                     }
@@ -507,14 +855,14 @@ class IslandOverlayService : Service() {
     private fun canRenderOverlay(rid: Int, allowOnKeyguard: Boolean): Boolean {
         val screenOn = ContextStateManager.getEffectiveScreenOn(applicationContext)
         if (!screenOn) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=SCREEN_OFF")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_SKIP reason=SCREEN_OFF")
             return false
         }
 
         val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager
         val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true
         if (isKeyguardLocked && !allowOnKeyguard) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=KEYGUARD_LOCKED")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_SKIP reason=KEYGUARD_LOCKED")
             return false
         }
 
@@ -538,8 +886,7 @@ class IslandOverlayService : Service() {
         
         // TELEMETRY: Log stableCallKey vs legacy sbn key for call tracking
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HI_CALL",
+            HiLog.d(HiLog.TAG_CALL,
                 "RID=$rid EVT=CALLKEY_USED stable=${model.callKey} legacySbnKey=${model.notificationKey} state=$overlayType"
             )
         }
@@ -551,7 +898,7 @@ class IslandOverlayService : Service() {
         if (pendingCallReset) {
             pendingCallReset = false
             if (BuildConfig.DEBUG) {
-                Log.d("HI_CALL", "RID=$rid EVT=CALL_RESET_FINALIZED stableCallKey=${model.callKey}")
+                HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_RESET_FINALIZED stableCallKey=${model.callKey}")
             }
         }
         
@@ -559,7 +906,7 @@ class IslandOverlayService : Service() {
             val elapsed = now - lastShowTs
             if (elapsed < CALL_OVERLAY_DEBOUNCE_MS) {
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_CALL", "RID=$rid EVT=OVERLAY_DEBOUNCE callKey=${model.callKey} type=$overlayType elapsed=${elapsed}ms debounce=${CALL_OVERLAY_DEBOUNCE_MS}ms")
+                    HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=OVERLAY_DEBOUNCE callKey=${model.callKey} type=$overlayType elapsed=${elapsed}ms debounce=${CALL_OVERLAY_DEBOUNCE_MS}ms")
                 }
                 // Don't re-show - debounce in progress
                 return
@@ -574,7 +921,7 @@ class IslandOverlayService : Service() {
         // If we locked the IDLE state for this callKey, reject the event
         if (idleStateLocked && isOngoing && model.callKey == idleLockCallKey) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_CALL", "RID=$rid EVT=CALL_STALE_BLOCKED reason=IDLE_STATE_LOCKED callKey=${model.callKey}")
+                HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_STALE_BLOCKED reason=IDLE_STATE_LOCKED callKey=${model.callKey}")
             }
             return
         }
@@ -582,7 +929,7 @@ class IslandOverlayService : Service() {
         // HARDENING#2: Check if CallManager session is locked
         if (CallManager.isSessionLocked() && isOngoing) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_CALL", "RID=$rid EVT=CALL_STALE_BLOCKED reason=SESSION_LOCKED callKey=${model.callKey}")
+                HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_STALE_BLOCKED reason=SESSION_LOCKED callKey=${model.callKey}")
             }
             return
         }
@@ -592,8 +939,7 @@ class IslandOverlayService : Service() {
         val callManagerState = CallManager.getCallState(applicationContext)
         if (callManagerState == CallManager.CallState.IDLE && isOngoing) {
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HI_CALL",
+                HiLog.d(HiLog.TAG_CALL,
                     "RID=$rid EVT=CALL_ENDED_TRUTH_SOURCE modelState=${model.state.name} callManagerState=IDLE action=IGNORE"
                 )
             }
@@ -602,8 +948,7 @@ class IslandOverlayService : Service() {
             val elapsed = System.currentTimeMillis() - lastCallEndTs
             if (lastCallEndTs > 0 && elapsed < CALL_END_COOLDOWN_MS) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(
-                        "HI_CALL",
+                    HiLog.d(HiLog.TAG_CALL,
                         "RID=$rid EVT=CALL_BRIDGE_STALE_IGNORED cooldownRemaining=${CALL_END_COOLDOWN_MS - elapsed}ms"
                     )
                 }
@@ -614,7 +959,7 @@ class IslandOverlayService : Service() {
         // HARDENING#2: Clear IDLE lock if we're receiving a NEW call (different callKey or INCOMING)
         if (isIncoming || (isOngoing && model.callKey != idleLockCallKey)) {
             if (idleStateLocked && BuildConfig.DEBUG) {
-                Log.d("HI_CALL", "RID=$rid EVT=IDLE_LOCK_CLEARED reason=NEW_CALL newKey=${model.callKey} oldKey=$idleLockCallKey")
+                HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=IDLE_LOCK_CLEARED reason=NEW_CALL newKey=${model.callKey} oldKey=$idleLockCallKey")
             }
             idleStateLocked = false
             idleLockCallKey = null
@@ -625,8 +970,7 @@ class IslandOverlayService : Service() {
         if (removedTime != null) {
             val elapsed = System.currentTimeMillis() - removedTime
             if (elapsed < REMOVED_CALL_TTL_MS) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${model.notificationKey.hashCode()} EVT=CALL_SKIP_REMOVED ttl=${REMOVED_CALL_TTL_MS - elapsed}ms reason=NOTIF_ALREADY_REMOVED state=${model.state.name}"
                 )
                 return // Don't show - call notification was already removed
@@ -642,8 +986,7 @@ class IslandOverlayService : Service() {
         if (isOngoing && dismissTime != null) {
             val elapsed = System.currentTimeMillis() - dismissTime
             if (elapsed < CALL_DEDUPE_TTL_MS) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${model.notificationKey.hashCode()} EVT=DEDUP_SUPPRESS_UPDATE ttl=${CALL_DEDUPE_TTL_MS - elapsed}ms reason=USER_DISMISSED state=${model.state.name}"
                 )
                 // BUG#4 FIX: Do NOT set currentCallModel here - keep it null so overlay doesn't render
@@ -651,8 +994,7 @@ class IslandOverlayService : Service() {
             } else {
                 // TTL expired, remove from dismissed set
                 userDismissedCallKeys.remove(model.notificationKey)
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${model.notificationKey.hashCode()} EVT=DEDUP_TTL_EXPIRED elapsed=${elapsed}ms"
                 )
             }
@@ -660,8 +1002,7 @@ class IslandOverlayService : Service() {
 
         if (deferCallOverlay && currentNotificationModel != null && isOngoing) {
             currentCallModel = model
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=${model.notificationKey.hashCode()} EVT=CALL_DEFERRED reason=NOTIF_PEEK state=${model.state.name}"
             )
             return
@@ -674,15 +1015,15 @@ class IslandOverlayService : Service() {
         isNotificationCollapsed = false
         currentNotificationModel = null
         currentCallModel = model
+        updateAnchorCallState(model)
 
         if (!wasCallOverlay) {
-            Log.d(TAG, "Showing call overlay for: ${model.callerName}")
+            HiLog.d(HiLog.TAG_ISLAND, "Showing call overlay for: ${model.callerName}")
             // Haptic feedback when overlay is shown
             Haptics.hapticOnIslandShown(applicationContext)
             // INSTRUMENTATION: Overlay show call
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${model.notificationKey.hashCode()} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=CALL pkg=${model.packageName}"
                 )
                 IslandRuntimeDump.recordOverlay(
@@ -719,8 +1060,7 @@ class IslandOverlayService : Service() {
                 )
             }
 
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_META type=CALL pkg=${model.packageName} state=${model.state.name} titleLen=${model.title.length} nameLen=${model.callerName.length} hasAvatar=${model.avatarBitmap != null} hasTimer=$hasTimer"
             )
         }
@@ -742,13 +1082,11 @@ class IslandOverlayService : Service() {
         }
         
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HI_CALL",
+            HiLog.d(HiLog.TAG_CALL,
                 "RID=$rid EVT=CALL_OVERLAY_MODE interactive=$isInteractive callState=${currentCallState.name} modelState=${model.state.name}"
             )
             // Log touchability state for debugging
-            Log.d(
-                "HI_CALL",
+            HiLog.d(HiLog.TAG_CALL,
                 "RID=$rid EVT=CALL_OVERLAY_TOUCHABLE touchable=$isInteractive reason=${if (isOngoing) "ONGOING_MUST_BE_TOUCHABLE" else if (isIncoming) "INCOMING_BUTTONS" else "DEFAULT"}"
             )
         }
@@ -773,7 +1111,7 @@ class IslandOverlayService : Service() {
             if (isRemoved) {
                 LaunchedEffect(Unit) {
                     if (BuildConfig.DEBUG) {
-                        Log.d("HyperIsleIsland", "RID=${activeModel.notificationKey.hashCode()} EVT=RENDER_SKIP_REMOVED reason=CALL_NOTIF_REMOVED")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=${activeModel.notificationKey.hashCode()} EVT=RENDER_SKIP_REMOVED reason=CALL_NOTIF_REMOVED")
                     }
                     isCallOverlayActive = false
                     dismissAllOverlays("CALL_NOTIF_REMOVED")
@@ -791,7 +1129,7 @@ class IslandOverlayService : Service() {
             if (isUserDismissed) {
                 LaunchedEffect(Unit) {
                     if (BuildConfig.DEBUG) {
-                        Log.d("HyperIsleIsland", "RID=${activeModel.notificationKey.hashCode()} EVT=RENDER_SKIP_DISMISSED reason=USER_DISMISSED")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=${activeModel.notificationKey.hashCode()} EVT=RENDER_SKIP_DISMISSED reason=USER_DISMISSED")
                     }
                     isCallOverlayActive = false
                     dismissAllOverlays("USER_DISMISSED_RENDER")
@@ -816,8 +1154,7 @@ class IslandOverlayService : Service() {
             )
             LaunchedEffect(suppressOverlay, contextSignals.foregroundPackage) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=${activeModel.notificationKey.hashCode()} EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=CALL fg=${contextSignals.foregroundPackage ?: "unknown"} pkg=${activeModel.packageName}"
                     )
                 }
@@ -825,7 +1162,7 @@ class IslandOverlayService : Service() {
                 // Empty Spacer causes half-rendered/shifted overlay issue
                 if (suppressOverlay) {
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_CALL", "RID=${activeModel.notificationKey.hashCode()} EVT=OVERLAY_FORCE_HIDE reason=CALL_UI_FOREGROUND")
+                        HiLog.d(HiLog.TAG_CALL, "RID=${activeModel.notificationKey.hashCode()} EVT=OVERLAY_FORCE_HIDE reason=CALL_UI_FOREGROUND")
                     }
                     overlayController.forceDismissOverlay("CALL_UI_FOREGROUND")
                 }
@@ -862,8 +1199,7 @@ class IslandOverlayService : Service() {
             }
             LaunchedEffect(layoutState) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=$rid EVT=OVERLAY_LAYOUT type=CALL state=$layoutState"
                     )
                 }
@@ -904,10 +1240,9 @@ class IslandOverlayService : Service() {
                             onDecline = if (isInteractive) {
                                 {
                                     if (BuildConfig.DEBUG) {
-                                        Log.d("HI_INPUT", "RID=$rid EVT=INPUT_DECLINE_CLICK")
+                                        HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=INPUT_DECLINE_CLICK")
                                     }
-                                    Log.d(
-                                        "HyperIsleIsland",
+                                    HiLog.d(HiLog.TAG_ISLAND,
                                         "RID=$rid EVT=BTN_CALL_DECLINE_CLICK pkg=${activeModel.packageName}"
                                     )
                                     val result = handleCallAction(
@@ -917,8 +1252,7 @@ class IslandOverlayService : Service() {
                                         pkg = activeModel.packageName
                                     )
                                     val resultLabel = if (result) "OK" else "FAIL"
-                                    Log.d(
-                                        "HyperIsleIsland",
+                                    HiLog.d(HiLog.TAG_ISLAND,
                                         "RID=$rid EVT=BTN_CALL_DECLINE_RESULT result=$resultLabel pkg=${activeModel.packageName}"
                                     )
                                     isCallOverlayActive = false
@@ -928,10 +1262,9 @@ class IslandOverlayService : Service() {
                             onAccept = if (isInteractive) {
                                 {
                                     if (BuildConfig.DEBUG) {
-                                        Log.d("HI_INPUT", "RID=$rid EVT=INPUT_ACCEPT_CLICK")
+                                        HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=INPUT_ACCEPT_CLICK")
                                     }
-                                    Log.d(
-                                        "HyperIsleIsland",
+                                    HiLog.d(HiLog.TAG_ISLAND,
                                         "RID=$rid EVT=BTN_CALL_ACCEPT_CLICK pkg=${activeModel.packageName}"
                                     )
                                     val result = handleCallAction(
@@ -941,8 +1274,7 @@ class IslandOverlayService : Service() {
                                         pkg = activeModel.packageName
                                     )
                                     val resultLabel = if (result) "OK" else "FAIL"
-                                    Log.d(
-                                        "HyperIsleIsland",
+                                    HiLog.d(HiLog.TAG_ISLAND,
                                         "RID=$rid EVT=BTN_CALL_ACCEPT_RESULT result=$resultLabel pkg=${activeModel.packageName}"
                                     )
                                     // Don't dismiss - wait for system to send ongoing call notification
@@ -1017,8 +1349,7 @@ class IslandOverlayService : Service() {
                                     .widthIn(min = 180.dp, max = 240.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            Log.d(
-                                                "HyperIsleIsland",
+                                            HiLog.d(HiLog.TAG_ISLAND,
                                                 "RID=$rid EVT=SPLIT_TAP target=CALL pkg=${activeModel.packageName}"
                                             )
                                             handleNotificationTap(
@@ -1041,8 +1372,7 @@ class IslandOverlayService : Service() {
                                 modifier = Modifier.combinedClickable(
                                     onClick = {
                                         val mediaRid = media.notificationKey.hashCode()
-                                        Log.d(
-                                            "HyperIsleIsland",
+                                        HiLog.d(HiLog.TAG_ISLAND,
                                             "RID=$mediaRid EVT=SPLIT_TAP target=MEDIA pkg=${media.packageName}"
                                         )
                                         handleNotificationTap(
@@ -1066,15 +1396,14 @@ class IslandOverlayService : Service() {
                             durationText = activeModel.durationText,
                             modifier = Modifier.combinedClickable(
                                 onClick = {
-                                    Log.d(
-                                        "HyperIsleIsland",
+                                    HiLog.d(HiLog.TAG_ISLAND,
                                         "RID=$rid EVT=CALL_COMPACT_TAP pkg=${activeModel.packageName}"
                                     )
                                     // BUG#1 FIX: Use TelecomManager to show in-call UI, do NOT dismiss
                                     // This ensures tap opens call UI without killing the overlay
                                     val opened = handleCallTap(rid, activeModel.packageName, activeModel.contentIntent)
                                     if (BuildConfig.DEBUG) {
-                                        Log.d("HI_INPUT", "RID=$rid EVT=CALL_COMPACT_TAP_RESULT opened=$opened")
+                                        HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_COMPACT_TAP_RESULT opened=$opened")
                                     }
                                     // DO NOT dismiss - call overlay should stay visible
                                     // User-dismissed calls are tracked separately via swipe
@@ -1106,9 +1435,10 @@ class IslandOverlayService : Service() {
     }
 
     private fun showNavigationOverlay(model: NavigationOverlayModel) {
-        Log.d(TAG, "Showing navigation overlay: ${model.instruction}")
+        HiLog.d(HiLog.TAG_ISLAND, "Showing navigation overlay: ${model.instruction}")
         Haptics.hapticOnIslandShown(applicationContext)
         currentNavigationModel = model
+        updateAnchorNavState(model)
         
         // Navigation has lower priority than calls and notifications
         if (currentCallModel != null || currentNotificationModel != null) {
@@ -1117,8 +1447,7 @@ class IslandOverlayService : Service() {
         
         val rid = model.notificationKey.hashCode()
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NAVIGATION pkg=${model.packageName}"
             )
         }
@@ -1152,8 +1481,7 @@ class IslandOverlayService : Service() {
             else -> 0
         }
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=OVERLAY_ACTIVITY_SHOW media=${currentMediaModel != null} timer=${currentTimerModel != null}"
             )
         }
@@ -1175,7 +1503,7 @@ class IslandOverlayService : Service() {
     }
 
     private fun showNotificationOverlay(model: IosNotificationOverlayModel) {
-        Log.d(TAG, "Showing notification overlay from: ${model.sender}")
+        HiLog.d(HiLog.TAG_ISLAND, "Showing notification overlay from: ${model.sender}")
         // Haptic feedback when overlay is shown
         Haptics.hapticOnIslandShown(applicationContext)
         val rid = model.notificationKey.hashCode()
@@ -1183,8 +1511,7 @@ class IslandOverlayService : Service() {
         val contextRestricted = contextSignals.isImeVisible
         val callState = currentCallModel?.state
         if (callState == CallOverlayState.INCOMING) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=OVERLAY_SKIP reason=CALL_INCOMING pkg=${model.packageName}"
             )
             return
@@ -1194,24 +1521,21 @@ class IslandOverlayService : Service() {
         // Instead, we just show a quick notification peek and auto-restore call UI
         // The call overlay state machine should NOT be affected by notification peek
         if (contextRestricted) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=OVERLAY_CONTEXT fullscreen=${contextSignals.isFullscreen} ime=${contextSignals.isImeVisible} fg=${contextSignals.foregroundPackage ?: "unknown"}"
             )
         }
         if (restoreCallAfterDismiss) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=OVERLAY_PEEK reason=CALL_ONGOING pkg=${model.packageName}"
             )
         }
-        Log.d(
-            "HyperIsleIsland",
+        HiLog.d(HiLog.TAG_ISLAND,
             "RID=$rid EVT=OVERLAY_META type=NOTIFICATION pkg=${model.packageName} senderLen=${model.sender.length} messageLen=${model.message.length} timeLen=${model.timeLabel.length} hasAvatar=${model.avatarBitmap != null} hasReplyAction=${model.replyAction != null}"
         )
         // INSTRUMENTATION: Overlay show notification
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=${model.notificationKey?.hashCode() ?: 0} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NOTIFICATION pkg=${model.packageName}")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=${model.notificationKey?.hashCode() ?: 0} STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NOTIFICATION pkg=${model.packageName}")
             IslandRuntimeDump.recordOverlay(null, "OVERLAY_SHOW", reason = "NOTIFICATION", pkg = model.packageName, overlayType = "NOTIFICATION")
             // UI Snapshot: OVERLAY_SHOW for notification
             val slots = IslandUiSnapshotLogger.slotsOverlay(
@@ -1242,7 +1566,36 @@ class IslandOverlayService : Service() {
             currentCallModel = null
         }
         currentNotificationModel = model
-        isNotificationCollapsed = contextRestricted
+        
+        // ANCHOR MODE: Log notification arrival for expand tracking
+        if (isAnchorModeEnabled) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d("HyperIsleAnchor", "RID=$rid EVT=NOTIF_ARRIVE_ANCHOR pkg=${model.packageName} key=${model.notificationKey.hashCode()} contextRestricted=$contextRestricted")
+            }
+            // Trigger expand from anchor
+            expandNotificationFromAnchor(model.notificationKey)
+        }
+        
+        // LEGACY GUARD: If anchor mode enabled and contextRestricted would set collapsed=true, bypass
+        if (isAnchorModeEnabled && contextRestricted) {
+            LegacyPathTelemetry.logNotifBypass(
+                branch = "showNotificationOverlay_contextRestricted",
+                reason = "CONTEXT_RESTRICTED_COLLAPSED",
+                anchorEnabled = true
+            )
+            // Keep false - anchor mode doesn't use collapsed state
+            isNotificationCollapsed = false
+        } else {
+            if (contextRestricted) {
+                LegacyPathTelemetry.logObservation(
+                    feature = LegacyPathTelemetry.Feature.NOTIF,
+                    branch = "showNotificationOverlay_contextRestricted",
+                    reason = "CONTEXT_RESTRICTED_COLLAPSED",
+                    anchorEnabled = false
+                )
+            }
+            isNotificationCollapsed = contextRestricted
+        }
         scheduleAutoCollapse(model, restoreCallAfterDismiss)
 
         overlayController.showOverlay(OverlayEvent.NotificationEvent(model)) {
@@ -1259,8 +1612,7 @@ class IslandOverlayService : Service() {
             )
             LaunchedEffect(suppressOverlay, contextState.foregroundPackage) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=$rid EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=NOTIFICATION fg=${contextState.foregroundPackage ?: "unknown"} pkg=${model.packageName}"
                     )
                 }
@@ -1339,32 +1691,30 @@ class IslandOverlayService : Service() {
             onDismiss = { dismissFromUser("SWIPE_DISMISSED") },
             onTap = {
                 if (isReplying) {
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_IGNORED reason=REPLY_OPEN")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_IGNORED reason=REPLY_OPEN")
                     return@SwipeDismissContainer
                 }
                 if (isNotificationCollapsed) {
                     if (allowExpand) {
                         isNotificationCollapsed = false
                         scheduleAutoCollapse(model, restoreCallAfterDismiss)
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_EXPAND reason=TAP")
                     } else {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY_CONTEXT pkg=${model.packageName}"
                         )
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_TRIGGERED")
                         handleNotificationTap(model.contentIntent, rid, model.packageName)
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
                         dismissFromUser("TAP_OPEN")
                     }
                 } else {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=$rid EVT=BTN_TAP_OPEN_CLICK reason=OVERLAY pkg=${model.packageName}"
                     )
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_TRIGGERED")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_TRIGGERED")
                     handleNotificationTap(model.contentIntent, rid, model.packageName)
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_DISMISS_CALLED")
                     dismissFromUser("TAP_OPEN")
                 }
             },
@@ -1375,8 +1725,8 @@ class IslandOverlayService : Service() {
                         scheduleAutoCollapse(model, restoreCallAfterDismiss)
                     }
                     onReplyingChange(true)
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_LONG_PRESS")
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_OPEN reason=LONG_PRESS")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_LONG_PRESS")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_OPEN reason=LONG_PRESS")
                 }
             } else {
                 null
@@ -1388,7 +1738,7 @@ class IslandOverlayService : Service() {
             LaunchedEffect(isNotificationCollapsed) {
                 if (isNotificationCollapsed) {
                     if (isReplying) {
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_CLOSE reason=COLLAPSE")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_CLOSE reason=COLLAPSE")
                     }
                     onReplyingChange(false)
                     onReplyTextChange("")
@@ -1405,8 +1755,7 @@ class IslandOverlayService : Service() {
                     reason = if (isReplying) "REPLY_OPEN" else "REPLY_CLOSE",
                     rid = rid
                 )
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$rid EVT=REPLY_STATE state=${if (isReplying) "OPEN" else "CLOSED"}"
                 )
             }
@@ -1444,15 +1793,41 @@ class IslandOverlayService : Service() {
                     }
             ) {
                 if (isNotificationCollapsed) {
-                    MiniNotificationPill(
-                        sender = model.sender,
-                        avatarBitmap = model.avatarBitmap,
-                        onDismiss = {
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
-                            dismissFromUser("BTN_RED_X")
-                        },
-                        debugRid = rid
-                    )
+                    // LEGACY GUARD: If anchor mode enabled, bypass legacy mini pill render
+                    if (isAnchorModeEnabled) {
+                        // Log legacy path hit and bypass
+                        LaunchedEffect(Unit) {
+                            LegacyPathTelemetry.logNotifBypass(
+                                branch = "NotificationOverlayContent_renderMini",
+                                reason = "COLLAPSED_STATE",
+                                anchorEnabled = true
+                            )
+                            // Redirect to anchor - dismiss the legacy overlay
+                            shrinkToAnchor("LEGACY_BYPASS_MINI_RENDER")
+                            dismissFromUser("LEGACY_BYPASS_MINI")
+                        }
+                        // Render nothing while dismissing - anchor will take over
+                        Spacer(modifier = Modifier.height(0.dp))
+                    } else {
+                        // Legacy path (anchor disabled) - render mini pill as before
+                        LaunchedEffect(Unit) {
+                            LegacyPathTelemetry.logObservation(
+                                feature = LegacyPathTelemetry.Feature.NOTIF,
+                                branch = "NotificationOverlayContent_renderMini",
+                                reason = "COLLAPSED_STATE",
+                                anchorEnabled = false
+                            )
+                        }
+                        MiniNotificationPill(
+                            sender = model.sender,
+                            avatarBitmap = model.avatarBitmap,
+                            onDismiss = {
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                dismissFromUser("BTN_RED_X")
+                            },
+                            debugRid = rid
+                        )
+                    }
                 } else if (replyAction != null && isReplying) {
                     NotificationReplyPill(
                         sender = model.sender,
@@ -1463,13 +1838,13 @@ class IslandOverlayService : Service() {
                         onSend = send@{
                             val trimmed = replyText.trim()
                             if (trimmed.isEmpty()) {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
                                 return@send
                             }
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
+                            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_TRY")
                             val result = sendInlineReply(replyAction, trimmed, rid)
                             if (result) {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_OK")
                                 onReplyingChange(false)
                                 onReplyTextChange("")
                                 dismissFromUser("REPLY_SENT")
@@ -1488,7 +1863,7 @@ class IslandOverlayService : Service() {
                         mediaType = model.mediaType,
                         mediaBitmap = model.mediaBitmap,
                         onDismiss = {
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                             dismissFromUser("BTN_RED_X")
                         },
                         debugRid = rid
@@ -1517,16 +1892,14 @@ class IslandOverlayService : Service() {
             ?: 0
         LaunchedEffect(layoutState) {
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$rid EVT=OVERLAY_LAYOUT type=ACTIVITY state=$layoutState"
                 )
             }
         }
         LaunchedEffect(suppressOverlay, contextSignals.foregroundPackage) {
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$rid EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=ACTIVITY fg=${contextSignals.foregroundPackage ?: "unknown"}"
                 )
             }
@@ -1587,8 +1960,7 @@ class IslandOverlayService : Service() {
                                 .widthIn(min = 200.dp, max = 260.dp)
                                 .combinedClickable(
                                     onClick = {
-                                        Log.d(
-                                            "HyperIsleIsland",
+                                        HiLog.d(HiLog.TAG_ISLAND,
                                             "RID=$rid EVT=SPLIT_TAP target=MEDIA pkg=${mediaModel.packageName}"
                                         )
                                         handleNotificationTap(
@@ -1608,8 +1980,7 @@ class IslandOverlayService : Service() {
                             modifier = Modifier.combinedClickable(
                                 onClick = {
                                     val timerRid = timerModel.notificationKey.hashCode()
-                                    Log.d(
-                                        "HyperIsleIsland",
+                                    HiLog.d(HiLog.TAG_ISLAND,
                                         "RID=$timerRid EVT=SPLIT_TAP target=TIMER pkg=${timerModel.packageName}"
                                     )
                                     handleNotificationTap(
@@ -1685,8 +2056,7 @@ class IslandOverlayService : Service() {
         
         LaunchedEffect(suppressOverlay) {
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$rid EVT=OVERLAY_SUPPRESS state=${if (suppressOverlay) "ON" else "OFF"} type=NAVIGATION fg=${contextSignals.foregroundPackage ?: "unknown"}"
                 )
             }
@@ -1821,8 +2191,7 @@ class IslandOverlayService : Service() {
         val collapseAfterMs = model.collapseAfterMs
         if (collapseAfterMs == 0L) {
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_AUTOCOLLAPSE_SKIP reason=STICKY"
                 )
             }
@@ -1833,10 +2202,29 @@ class IslandOverlayService : Service() {
             autoCollapseJob = serviceScope.launch {
                 delay(5000L)
                 if (currentNotificationModel?.notificationKey == model.notificationKey) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    // LEGACY GUARD: If anchor mode enabled, bypass legacy mini path
+                    if (isAnchorModeEnabled) {
+                        LegacyPathTelemetry.logNotifBypass(
+                            branch = "scheduleAutoCollapse_default",
+                            reason = "AUTO_TIMEOUT",
+                            anchorEnabled = true
+                        )
+                        shrinkToAnchor("LEGACY_BYPASS_AUTO_TIMEOUT")
+                        dismissNotificationOverlay("AUTO_TIMEOUT_ANCHOR", restoreCall = restoreCallAfterDismiss)
+                        return@launch
+                    }
+                    
+                    // Legacy path (anchor disabled) - log observation only
+                    LegacyPathTelemetry.logObservation(
+                        feature = LegacyPathTelemetry.Feature.NOTIF,
+                        branch = "scheduleAutoCollapse_default",
+                        reason = "AUTO_TIMEOUT",
+                        anchorEnabled = false
+                    )
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_DISMISS reason=AUTO_TIMEOUT"
                     )
+                    // ANCHOR FIX: Dismiss directly to anchor - no mini layout
                     dismissNotificationOverlay("AUTO_TIMEOUT", restoreCall = restoreCallAfterDismiss)
                 }
             }
@@ -1844,29 +2232,35 @@ class IslandOverlayService : Service() {
         }
 
         autoCollapseJob = serviceScope.launch {
-            // First: collapse after collapseAfterMs
+            // ANCHOR FIX: After collapseAfterMs, dismiss directly to anchor
+            // No intermediate "mini" layout - notification shrinks directly to anchor
             delay(collapseAfterMs)
             if (currentNotificationModel?.notificationKey == model.notificationKey) {
-                if (restoreCallAfterDismiss) {
-                    Log.d(
-                        "HyperIsleIsland",
-                        "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_DISMISS reason=TIMEOUT"
+                // LEGACY GUARD: If anchor mode enabled, bypass legacy mini path
+                if (isAnchorModeEnabled) {
+                    LegacyPathTelemetry.logNotifBypass(
+                        branch = "scheduleAutoCollapse_timed",
+                        reason = "TIMEOUT_${collapseAfterMs}ms",
+                        anchorEnabled = true
                     )
-                    dismissNotificationOverlay("TIMEOUT", restoreCall = true)
-                } else if (!isNotificationCollapsed) {
-                    isNotificationCollapsed = true
-                    Log.d("HyperIsleIsland", "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_COLLAPSE reason=TIMEOUT")
-                    
-                    // Second: auto-dismiss 3 seconds after collapse
-                    delay(3000L)
-                    if (currentNotificationModel?.notificationKey == model.notificationKey && isNotificationCollapsed) {
-                        Log.d(
-                            "HyperIsleIsland",
-                            "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_DISMISS reason=COLLAPSE_TIMEOUT"
-                        )
-                        dismissNotificationOverlay("COLLAPSE_TIMEOUT", restoreCall = false)
-                    }
+                    shrinkToAnchor("LEGACY_BYPASS_TIMEOUT")
+                    dismissNotificationOverlay("SHRINK_TO_ANCHOR", restoreCall = restoreCallAfterDismiss)
+                    return@launch
                 }
+                
+                // Legacy path (anchor disabled) - log observation only
+                LegacyPathTelemetry.logObservation(
+                    feature = LegacyPathTelemetry.Feature.NOTIF,
+                    branch = "scheduleAutoCollapse_timed",
+                    reason = "TIMEOUT_${collapseAfterMs}ms",
+                    anchorEnabled = false
+                )
+                HiLog.d(HiLog.TAG_ISLAND,
+                    "RID=${model.notificationKey.hashCode()} EVT=OVERLAY_SHRINK_TO_ANCHOR reason=TIMEOUT"
+                )
+                // ANCHOR FIX: Direct dismiss - no isNotificationCollapsed = true
+                // The overlay dismisses and anchor takes over
+                dismissNotificationOverlay("SHRINK_TO_ANCHOR", restoreCall = restoreCallAfterDismiss)
             }
         }
     }
@@ -1882,10 +2276,10 @@ class IslandOverlayService : Service() {
             action.pendingIntent.send(this, 0, intent)
             true
         } catch (e: PendingIntent.CanceledException) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=CANCELED")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_FAIL reason=CANCELED")
             false
         } catch (e: Exception) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=${e.javaClass.simpleName}")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_FAIL reason=${e.javaClass.simpleName}")
             false
         }
     }
@@ -1896,7 +2290,7 @@ class IslandOverlayService : Service() {
         rid: Int,
         pkg: String?
     ): Boolean {
-        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_START action=$actionType hasIntent=${pendingIntent != null} pkg=$pkg")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_START action=$actionType hasIntent=${pendingIntent != null} pkg=$pkg")
         
         // Use enhanced CallManager for all call actions with AudioManager fallbacks
         val result = when (actionType) {
@@ -1904,20 +2298,20 @@ class IslandOverlayService : Service() {
                 // PRIMARY: TelecomManager.acceptRingingCall()
                 // FALLBACK: PendingIntent from notification
                 val acceptResult = CallManager.acceptCall(applicationContext, pendingIntent)
-                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${acceptResult.success} method=${acceptResult.method} pkg=$pkg")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${acceptResult.success} method=${acceptResult.method} pkg=$pkg")
                 
                 // Schedule verification if TelecomManager was used
                 if (acceptResult.success && acceptResult.method == "TELECOM") {
                     serviceScope.launch {
                         val verified = CallManager.verifyCallAccepted(applicationContext)
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACCEPT_VERIFIED verified=$verified pkg=$pkg")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACCEPT_VERIFIED verified=$verified pkg=$pkg")
                         if (!verified && pendingIntent != null) {
                             // Retry with PendingIntent if verification failed
-                            Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACCEPT_RETRY method=PENDING_INTENT pkg=$pkg")
+                            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACCEPT_RETRY method=PENDING_INTENT pkg=$pkg")
                             try {
                                 pendingIntent.send()
                             } catch (e: Exception) {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACCEPT_RETRY_FAIL reason=${e.javaClass.simpleName}")
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACCEPT_RETRY_FAIL reason=${e.javaClass.simpleName}")
                             }
                         }
                     }
@@ -1928,7 +2322,7 @@ class IslandOverlayService : Service() {
                 // PRIMARY: TelecomManager.endCall()
                 // FALLBACK: PendingIntent from notification
                 val endResult = CallManager.endCall(applicationContext, pendingIntent)
-                Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${endResult.success} method=${endResult.method} pkg=$pkg")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${endResult.success} method=${endResult.method} pkg=$pkg")
                 endResult.success
             }
             "speaker" -> {
@@ -1938,7 +2332,7 @@ class IslandOverlayService : Service() {
                 
                 // Log click with desired state for debugging
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_CALL", "RID=$rid EVT=CALL_TOGGLE_CLICK action=speaker current=$currentSpeaker desired=$desiredSpeaker")
+                    HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_TOGGLE_CLICK action=speaker current=$currentSpeaker desired=$desiredSpeaker")
                 }
                 
                 // HARDENING#3: Apply optimistic state immediately
@@ -1947,7 +2341,7 @@ class IslandOverlayService : Service() {
                 // BUG#1 FIX: AudioManager fallback for speaker toggle when MIUI sends actions=0
                 val speakerResult = CallManager.toggleSpeaker(applicationContext, pendingIntent)
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=speaker success=${speakerResult.success} method=${speakerResult.method}")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=speaker success=${speakerResult.success} method=${speakerResult.method}")
                 }
                 
                 // HARDENING#3: Schedule verification and potential revert
@@ -1968,7 +2362,7 @@ class IslandOverlayService : Service() {
                 
                 // Log click with desired state for debugging
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_CALL", "RID=$rid EVT=CALL_TOGGLE_CLICK action=mute current=$currentMute desired=$desiredMute")
+                    HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_TOGGLE_CLICK action=mute current=$currentMute desired=$desiredMute")
                 }
                 
                 // HARDENING#3: Apply optimistic state immediately
@@ -1977,7 +2371,7 @@ class IslandOverlayService : Service() {
                 // BUG#1 FIX: AudioManager fallback for mute toggle when MIUI sends actions=0
                 val muteResult = CallManager.toggleMute(applicationContext, pendingIntent)
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_RESULT action=mute success=${muteResult.success} method=${muteResult.method}")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=mute success=${muteResult.success} method=${muteResult.method}")
                 }
                 
                 // HARDENING#3: Schedule verification and potential revert
@@ -1994,16 +2388,16 @@ class IslandOverlayService : Service() {
             else -> {
                 // Unknown action type - try PendingIntent directly
                 if (pendingIntent == null) {
-                    Log.w(TAG, "No PendingIntent for unknown call action: $actionType")
-                    Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=NO_INTENT pkg=$pkg")
+                    HiLog.w(HiLog.TAG_ISLAND, "No PendingIntent for unknown call action: $actionType")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=NO_INTENT pkg=$pkg")
                     false
                 } else {
                     try {
                         pendingIntent.send()
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=PENDING_INTENT pkg=$pkg")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=PENDING_INTENT pkg=$pkg")
                         true
                     } catch (e: Exception) {
-                        Log.d("HyperIsleIsland", "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=${e.javaClass.simpleName} pkg=$pkg")
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=${e.javaClass.simpleName} pkg=$pkg")
                         false
                     }
                 }
@@ -2015,7 +2409,7 @@ class IslandOverlayService : Service() {
         // Just log the failure - the button is already disabled via canMute/canSpeaker flags
         if (!result && (actionType == "speaker" || actionType == "mute")) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_CALL", "RID=$rid EVT=CALL_ACTION_FAILED action=$actionType canRetry=false")
+                HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_ACTION_FAILED action=$actionType canRetry=false")
             }
             // BUG#1 FIX: REMOVED call screen fallback - this was causing bad UX
             // The capability flags (canMute=false) already prevent future clicks
@@ -2037,7 +2431,7 @@ class IslandOverlayService : Service() {
         )
         
         if (BuildConfig.DEBUG) {
-            Log.d("HI_CALL", "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=OPTIMISTIC speaker=$isSpeakerOn mute=$isMuted")
+            HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=OPTIMISTIC speaker=$isSpeakerOn mute=$isMuted")
         }
     }
     
@@ -2068,13 +2462,13 @@ class IslandOverlayService : Service() {
                 // State confirmed - clear optimistic state
                 optimisticAudioState = null
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_CALL", "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=TELECOM action=$actionType confirmed=true realSpeaker=$realSpeaker realMute=$realMute")
+                    HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=TELECOM action=$actionType confirmed=true realSpeaker=$realSpeaker realMute=$realMute")
                 }
             } else {
                 // State mismatch - revert optimistic state
                 optimisticAudioState = null
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_CALL", "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=AUDIO_MANAGER action=$actionType confirmed=false expectedSpeaker=$expectedSpeaker expectedMute=$expectedMute realSpeaker=$realSpeaker realMute=$realMute REVERTED=true")
+                    HiLog.d(HiLog.TAG_CALL, "RID=$rid EVT=CALL_AUDIO_STATE_SYNC source=AUDIO_MANAGER action=$actionType confirmed=false expectedSpeaker=$expectedSpeaker expectedMute=$expectedMute realSpeaker=$realSpeaker realMute=$realMute REVERTED=true")
                 }
                 // Note: UI will pick up real state on next model update
             }
@@ -2112,7 +2506,7 @@ class IslandOverlayService : Service() {
      * @return true if in-call UI was shown, false otherwise
      */
     private fun handleCallTap(rid: Int, pkg: String, fallbackIntent: PendingIntent?): Boolean {
-        Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_START pkg=$pkg")
+        HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_START pkg=$pkg")
         
         // BUG#2 FIX: Check READ_PHONE_STATE permission before trying showInCallScreen
         val hasPhoneStatePermission = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -2126,20 +2520,20 @@ class IslandOverlayService : Service() {
                 val telecomManager = getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
                 if (telecomManager != null) {
                     telecomManager.showInCallScreen(true)
-                    Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=TELECOM_SHOW_INCALL pkg=$pkg")
+                    HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_OK method=TELECOM_SHOW_INCALL pkg=$pkg")
                     Haptics.hapticOnIslandSuccess(applicationContext)
                     return true
                 } else {
-                    Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_WARN reason=NO_TELECOM_SERVICE pkg=$pkg")
+                    HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_WARN reason=NO_TELECOM_SERVICE pkg=$pkg")
                 }
             } catch (e: SecurityException) {
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=SECURITY_EXCEPTION msg=${e.message} pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_FAIL reason=SECURITY_EXCEPTION msg=${e.message} pkg=$pkg")
             } catch (e: Exception) {
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=${e.javaClass.simpleName} msg=${e.message} pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_FAIL reason=${e.javaClass.simpleName} msg=${e.message} pkg=$pkg")
             }
         } else {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_SKIP reason=NO_READ_PHONE_STATE method=TELECOM_SHOW_INCALL pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_SKIP reason=NO_READ_PHONE_STATE method=TELECOM_SHOW_INCALL pkg=$pkg")
             }
         }
         
@@ -2167,11 +2561,11 @@ class IslandOverlayService : Service() {
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 startActivity(inCallIntent)
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=INCALL_ACTIVITY activity=$activity pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_OK method=INCALL_ACTIVITY activity=$activity pkg=$pkg")
                 Haptics.hapticOnIslandSuccess(applicationContext)
                 return true
             } catch (e: Exception) {
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_TRY reason=INCALL_${e.javaClass.simpleName} activity=$activity pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_TRY reason=INCALL_${e.javaClass.simpleName} activity=$activity pkg=$pkg")
             }
         }
         
@@ -2186,23 +2580,23 @@ class IslandOverlayService : Service() {
             val resolveInfo = packageManager.resolveActivity(dialIntent, 0)
             if (resolveInfo != null) {
                 startActivity(dialIntent)
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=DIAL_MAIN pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_OK method=DIAL_MAIN pkg=$pkg")
                 Haptics.hapticOnIslandSuccess(applicationContext)
                 return true
             }
         } catch (e: Exception) {
-            Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_TRY reason=DIAL_MAIN_${e.javaClass.simpleName} pkg=$pkg")
+            HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_TRY reason=DIAL_MAIN_${e.javaClass.simpleName} pkg=$pkg")
         }
         
         // Method 4: Try contentIntent (notification's original intent)
         if (fallbackIntent != null) {
             try {
                 fallbackIntent.send()
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=CONTENT_INTENT pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_OK method=CONTENT_INTENT pkg=$pkg")
                 Haptics.hapticOnIslandSuccess(applicationContext)
                 return true
             } catch (e: Exception) {
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_TRY reason=CONTENT_INTENT_${e.javaClass.simpleName} pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_TRY reason=CONTENT_INTENT_${e.javaClass.simpleName} pkg=$pkg")
             }
         }
         
@@ -2213,15 +2607,15 @@ class IslandOverlayService : Service() {
                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 startActivity(launchIntent)
-                Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_OK method=LAUNCH_INTENT pkg=$pkg")
+                HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_OK method=LAUNCH_INTENT pkg=$pkg")
                 Haptics.hapticOnIslandSuccess(applicationContext)
                 return true
             }
         } catch (e: Exception) {
-            Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=LAUNCH_INTENT_${e.javaClass.simpleName} pkg=$pkg")
+            HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_FAIL reason=LAUNCH_INTENT_${e.javaClass.simpleName} pkg=$pkg")
         }
         
-        Log.d("HI_INPUT", "RID=$rid EVT=CALL_TAP_FAIL reason=ALL_METHODS_FAILED pkg=$pkg")
+        HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=CALL_TAP_FAIL reason=ALL_METHODS_FAILED pkg=$pkg")
         return false
     }
 
@@ -2239,15 +2633,15 @@ class IslandOverlayService : Service() {
                     null,
                     null
                 )
-                Log.d(TAG, "Notification tap intent sent successfully")
-                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_OK method=CONTENT_INTENT pkg=$pkg")
+                HiLog.d(HiLog.TAG_ISLAND, "Notification tap intent sent successfully")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_OK method=CONTENT_INTENT pkg=$pkg")
                 return
             } catch (e: PendingIntent.CanceledException) {
-                Log.e(TAG, "Notification contentIntent was cancelled", e)
-                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=CANCELED pkg=$pkg")
+                HiLog.e(HiLog.TAG_ISLAND, "Notification contentIntent was cancelled", emptyMap(), e)
+                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_FAIL reason=CANCELED pkg=$pkg")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to send notification tap intent", e)
-                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=${e.javaClass.simpleName} pkg=$pkg")
+                HiLog.e(HiLog.TAG_ISLAND, "Failed to send notification tap intent", emptyMap(), e)
+                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_FAIL reason=${e.javaClass.simpleName} pkg=$pkg")
             }
         }
 
@@ -2257,15 +2651,15 @@ class IslandOverlayService : Service() {
             if (launchIntent != null) {
                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(launchIntent)
-                Log.d(TAG, "App launched via launch intent")
-                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_OK method=LAUNCH_INTENT pkg=$pkg")
+                HiLog.d(HiLog.TAG_ISLAND, "App launched via launch intent")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_OK method=LAUNCH_INTENT pkg=$pkg")
             } else {
-                Log.w(TAG, "No launch intent found for package: $pkg")
-                Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=NO_LAUNCH_INTENT pkg=$pkg")
+                HiLog.w(HiLog.TAG_ISLAND, "No launch intent found for package: $pkg")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_FAIL reason=NO_LAUNCH_INTENT pkg=$pkg")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to launch app", e)
-            Log.d("HyperIsleIsland", "RID=$rid EVT=TAP_OPEN_FAIL reason=${e.javaClass.simpleName} pkg=$pkg")
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to launch app", emptyMap(), e)
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_FAIL reason=${e.javaClass.simpleName} pkg=$pkg")
         }
     }
 
@@ -2284,6 +2678,7 @@ class IslandOverlayService : Service() {
 
         if (matchesNavigation) {
             currentNavigationModel = null
+            updateAnchorNavState(null)
             if (currentCallModel == null && currentNotificationModel == null) {
                 dismissAllOverlays(reason)
             }
@@ -2291,8 +2686,7 @@ class IslandOverlayService : Service() {
         }
 
         if (matchesCall && currentNotificationModel != null) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=${notificationKey.hashCode()} EVT=CALL_CLEARED reason=$reason"
             )
             currentCallModel = null
@@ -2335,19 +2729,18 @@ class IslandOverlayService : Service() {
             removedCallNotificationKeys[notificationKey] = System.currentTimeMillis()
             // BUG#2 FIX: Set call end timestamp for cooldown
             lastCallEndTs = System.currentTimeMillis()
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=${notificationKey.hashCode()} EVT=CALL_NOTIF_REMOVED_TRACKED ttl=${REMOVED_CALL_TTL_MS}ms"
             )
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HI_CALL",
+                HiLog.d(HiLog.TAG_CALL,
                     "RID=${notificationKey.hashCode()} EVT=CALL_END_TS_SET ts=$lastCallEndTs cooldown=${CALL_END_COOLDOWN_MS}ms"
                 )
             }
             // Clear dismissed tracking when call ends
             userDismissedCallKeys.remove(notificationKey)
             currentCallModel = null
+            updateAnchorCallState(null)
             isCallOverlayActive = false
             if (currentMediaModel != null || currentTimerModel != null) {
                 showActivityOverlayFromState()
@@ -2359,10 +2752,10 @@ class IslandOverlayService : Service() {
 
     private fun dismissNotificationOverlay(reason: String, restoreCall: Boolean) {
         val rid = currentNotificationModel?.notificationKey?.hashCode() ?: 0
-        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=$reason")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=$reason")
         if (BuildConfig.DEBUG) {
             val pkg = currentNotificationModel?.packageName
-            Log.d("HyperIsleIsland", "RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=NOTIFICATION pkg=$pkg")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=NOTIFICATION pkg=$pkg")
             IslandRuntimeDump.recordOverlay(
                 null,
                 "OVERLAY_DISMISS",
@@ -2387,16 +2780,14 @@ class IslandOverlayService : Service() {
         isNotificationCollapsed = false
         deferCallOverlay = false
         overlayController.removeOverlay()
-        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
         if (restoreCall && currentCallModel != null) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=OVERLAY_RESTORE reason=$reason type=CALL"
             )
             showCallOverlay(currentCallModel ?: return)
         } else if (currentMediaModel != null || currentTimerModel != null) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=OVERLAY_RESTORE reason=$reason type=ACTIVITY"
             )
             showActivityOverlayFromState()
@@ -2406,9 +2797,9 @@ class IslandOverlayService : Service() {
     }
 
     private fun dismissAllOverlays(reason: String) {
-        Log.d(TAG, "Dismissing all overlays")
+        HiLog.d(HiLog.TAG_ISLAND, "Dismissing all overlays")
         val rid = (currentCallModel?.notificationKey ?: currentNotificationModel?.notificationKey)?.hashCode() ?: 0
-        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=$reason")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_HIDE_CALLED reason=$reason")
         // INSTRUMENTATION: Overlay dismiss
         if (BuildConfig.DEBUG) {
             val overlayType = when {
@@ -2421,7 +2812,7 @@ class IslandOverlayService : Service() {
                 ?: currentNotificationModel?.packageName
                 ?: currentMediaModel?.packageName
                 ?: currentTimerModel?.packageName
-            Log.d("HyperIsleIsland", "RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=$overlayType pkg=$pkg")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=$overlayType pkg=$pkg")
             IslandRuntimeDump.recordOverlay(null, "OVERLAY_DISMISS", reason = "dismissAllOverlays", pkg = pkg, overlayType = overlayType)
             // UI Snapshot: OVERLAY_DISMISS
             val snapshotCtx = IslandUiSnapshotLogger.ctxSynthetic(
@@ -2445,23 +2836,24 @@ class IslandOverlayService : Service() {
             // Set call end timestamp for cooldown
             lastCallEndTs = System.currentTimeMillis()
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HI_CALL",
+                HiLog.d(HiLog.TAG_CALL,
                     "RID=${key.hashCode()} EVT=CALL_END_TS_SET ts=$lastCallEndTs cooldown=${CALL_END_COOLDOWN_MS}ms reason=dismissAllOverlays"
                 )
             }
         }
         currentCallModel = null
+        updateAnchorCallState(null)
         currentNotificationModel = null
         currentMediaModel = null
         currentTimerModel = null
         currentNavigationModel = null
+        updateAnchorNavState(null)
         isNotificationCollapsed = false
         deferCallOverlay = false
         isCallOverlayActive = false
         overlayController.removeOverlay()
-        Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
-        Log.d("HyperIsleIsland", "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
         scheduleStopIfIdle(reason)
     }
 
@@ -2490,7 +2882,7 @@ class IslandOverlayService : Service() {
         if (currentCallModel != null && currentNotificationModel == null) {
             currentCallModel?.notificationKey?.let { key ->
                 userDismissedCallKeys[key] = System.currentTimeMillis()
-                Log.d("HyperIsleIsland", "RID=${key.hashCode()} EVT=CALL_USER_DISMISSED reason=$reason ttl=${CALL_DEDUPE_TTL_MS}ms")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=${key.hashCode()} EVT=CALL_USER_DISMISSED reason=$reason ttl=${CALL_DEDUPE_TTL_MS}ms")
             }
         }
         
@@ -2533,8 +2925,7 @@ class IslandOverlayService : Service() {
                         else -> event.actionMasked.toString()
                     }
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=$rid EVT=RAW_TOUCH action=$actionName x=${event.x} y=${event.y} consumed=$isSwiping"
                         )
                     }
@@ -2581,8 +2972,7 @@ class IslandOverlayService : Service() {
                                         isSwiping = true
                                         longPressJob?.cancel()
                                         change.consume()
-                                        Log.d(
-                                            "HyperIsleIsland",
+                                        HiLog.d(HiLog.TAG_ISLAND,
                                             "RID=$rid EVT=SWIPE_START x=${down.position.x} y=${down.position.y} state=$state"
                                         )
                                     } else if (totalDx <= touchSlop && totalDy <= touchSlop) {
@@ -2595,7 +2985,7 @@ class IslandOverlayService : Service() {
                                     dragTotal += deltaX
                                     offsetX += deltaX
                                     change.consume()
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=SWIPE_MOVE dx=$dragTotal")
+                                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=SWIPE_MOVE dx=$dragTotal")
                                 }
 
                                 val isUp = change.previousPressed && !change.pressed
@@ -2621,8 +3011,7 @@ class IslandOverlayService : Service() {
                                         endedByCancel -> "CANCEL"
                                         else -> "IGNORED"
                                     }
-                                    Log.d(
-                                        "HyperIsleIsland",
+                                    HiLog.d(HiLog.TAG_ISLAND,
                                         "RID=$rid EVT=GESTURE_DECISION decision=$decision dx=$totalDx dy=$totalDy slop=$touchSlop state=$state"
                                     )
                                 }
@@ -2651,8 +3040,7 @@ class IslandOverlayService : Service() {
                                     onDismiss()
                                     offsetX = 0f
                                 }
-                                Log.d(
-                                    "HyperIsleIsland",
+                                HiLog.d(HiLog.TAG_ISLAND,
                                     "RID=$rid EVT=SWIPE_END result=DISMISSED dx=$dragTotal threshold=${dismissThresholdPx.roundToInt()}"
                                 )
                             } else {
@@ -2665,8 +3053,7 @@ class IslandOverlayService : Service() {
                                         offsetX = value
                                     }
                                 }
-                                Log.d(
-                                    "HyperIsleIsland",
+                                HiLog.d(HiLog.TAG_ISLAND,
                                     "RID=$rid EVT=SWIPE_END result=CANCELLED dx=$dragTotal threshold=${dismissThresholdPx.roundToInt()}"
                                 )
                             }

@@ -1,12 +1,15 @@
 package com.coni.hyperisle.overlay.engine
 
-import android.util.Log
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.debug.LegacyPathTelemetry
 import com.coni.hyperisle.overlay.features.IslandFeature
+import com.coni.hyperisle.util.HiLog
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.concurrent.ConcurrentHashMap
+
+
 
 /**
  * Central decision engine for island management.
@@ -87,7 +90,7 @@ class IslandCoordinator(
      */
     fun onEvent(event: IslandEvent, nowMs: Long = System.currentTimeMillis()) {
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=COORD_EVENT type=${event::class.simpleName} key=${event.notificationKey.hashCode()}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=COORD_EVENT type=${event::class.simpleName} key=${event.notificationKey.hashCode()}")
         }
 
         // Handle dismiss events
@@ -114,7 +117,7 @@ class IslandCoordinator(
         // Check guards
         if (!passesGuards(event, nowMs)) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=COORD_GUARD_BLOCK key=${event.notificationKey.hashCode()}")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=COORD_GUARD_BLOCK key=${event.notificationKey.hashCode()}")
             }
             return
         }
@@ -123,7 +126,7 @@ class IslandCoordinator(
         val feature = features.find { it.canHandle(event) }
         if (feature == null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=COORD_NO_FEATURE type=${event::class.simpleName}")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=COORD_NO_FEATURE type=${event::class.simpleName}")
             }
             return
         }
@@ -140,7 +143,7 @@ class IslandCoordinator(
         val newState = feature.reduce(prevState, event, nowMs)
         if (newState == null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=COORD_REDUCE_NULL feature=${feature.id}")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=COORD_REDUCE_NULL feature=${feature.id}")
             }
             return
         }
@@ -154,7 +157,7 @@ class IslandCoordinator(
         val existingRoute = activeRoutes[event.notificationKey]
         if (existingRoute != null && existingRoute != route && route.shouldRender()) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=ROUTE_DECISION key=${event.notificationKey.hashCode()} route=$route suppressed=true existingRoute=$existingRoute")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=ROUTE_DECISION key=${event.notificationKey.hashCode()} route=$route suppressed=true existingRoute=$existingRoute")
             }
             // Same key, different route - suppress if existing route is active
             if (currentIsland?.notificationKey == event.notificationKey) {
@@ -168,7 +171,7 @@ class IslandCoordinator(
             val isSpam = lastTs != null && (nowMs - lastTs) < NOTIFICATION_SPAM_DEBOUNCE_MS
             lastNotificationEventTs[event.notificationKey] = nowMs
             if (isSpam && BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=NOTIF_SPAM_UPDATE key=${event.notificationKey.hashCode()} elapsed=${nowMs - (lastTs ?: 0)}ms")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=NOTIF_SPAM_UPDATE key=${event.notificationKey.hashCode()} elapsed=${nowMs - (lastTs ?: 0)}ms")
             }
             isSpam
         } else false
@@ -201,7 +204,7 @@ class IslandCoordinator(
                     ))
                 }
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=PREEMPT_BLOCKED from=${feature.id} to=${currentIsland.featureId} reason=DETERMINISM newPri=$priority activePri=${currentIsland.priority}")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=PREEMPT_BLOCKED from=${feature.id} to=${currentIsland.featureId} reason=DETERMINISM newPri=$priority activePri=${currentIsland.priority}")
                 }
                 return
             } else {
@@ -210,7 +213,7 @@ class IslandCoordinator(
                     addToResumeStack(currentIsland)
                 }
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=PREEMPT from=${currentIsland.featureId} to=${feature.id} reason=PRIORITY")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=PREEMPT from=${currentIsland.featureId} to=${feature.id} reason=PRIORITY")
                 }
             }
         }
@@ -242,7 +245,7 @@ class IslandCoordinator(
         _activeIsland.value = newIsland
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=COORD_ACTIVE feature=${feature.id} route=$route reason=EVENT_PROCESSED isSpamUpdate=$isSpamUpdate")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=COORD_ACTIVE feature=${feature.id} route=$route reason=EVENT_PROCESSED isSpamUpdate=$isSpamUpdate")
         }
         
         onActiveIslandChanged(newIsland)
@@ -258,6 +261,24 @@ class IslandCoordinator(
         nowMs: Long = System.currentTimeMillis()
     ) {
         val current = _activeIsland.value ?: return
+        
+        // LEGACY TELEMETRY: Log when collapsed state is set to true
+        if (isCollapsed == true && !current.isCollapsed) {
+            val feature = when (current.featureId) {
+                "notification" -> LegacyPathTelemetry.Feature.NOTIF
+                "call" -> LegacyPathTelemetry.Feature.CALL
+                "navigation" -> LegacyPathTelemetry.Feature.NAV
+                "timer" -> LegacyPathTelemetry.Feature.TIMER
+                "media" -> LegacyPathTelemetry.Feature.MEDIA
+                else -> LegacyPathTelemetry.Feature.OTHER
+            }
+            LegacyPathTelemetry.logObservation(
+                feature = feature,
+                branch = "IslandCoordinator_updateUiState",
+                reason = "COLLAPSE_TRANSITION",
+                anchorEnabled = false // Coordinator doesn't know about anchor mode - observation only
+            )
+        }
         
         val updated = current.copy(
             isExpanded = isExpanded ?: current.isExpanded,
@@ -296,7 +317,7 @@ class IslandCoordinator(
             val elapsed = nowMs - dismissTime
             if (elapsed < USER_DISMISS_DEDUPE_TTL_MS) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=GUARD_USER_DISMISSED key=${key.hashCode()} ttlRemaining=${USER_DISMISS_DEDUPE_TTL_MS - elapsed}ms")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=GUARD_USER_DISMISSED key=${key.hashCode()} ttlRemaining=${USER_DISMISS_DEDUPE_TTL_MS - elapsed}ms")
                 }
                 return false
             } else {
@@ -309,7 +330,7 @@ class IslandCoordinator(
             val elapsed = nowMs - removedTime
             if (elapsed < REMOVED_NOTIFICATION_TTL_MS) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=GUARD_NOTIF_REMOVED key=${key.hashCode()} ttlRemaining=${REMOVED_NOTIFICATION_TTL_MS - elapsed}ms")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=GUARD_NOTIF_REMOVED key=${key.hashCode()} ttlRemaining=${REMOVED_NOTIFICATION_TTL_MS - elapsed}ms")
                 }
                 return false
             } else {
@@ -323,7 +344,7 @@ class IslandCoordinator(
                 val elapsed = nowMs - lastCallEndTs
                 if (elapsed < CALL_END_COOLDOWN_MS) {
                     if (BuildConfig.DEBUG) {
-                        Log.d(TAG, "EVT=GUARD_CALL_COOLDOWN key=${key.hashCode()} cooldownRemaining=${CALL_END_COOLDOWN_MS - elapsed}ms")
+                        HiLog.d(HiLog.TAG_ISLAND, "EVT=GUARD_CALL_COOLDOWN key=${key.hashCode()} cooldownRemaining=${CALL_END_COOLDOWN_MS - elapsed}ms")
                     }
                     return false
                 }
@@ -341,7 +362,7 @@ class IslandCoordinator(
             // Check minimum visible time
             if (!current.canDismiss(nowMs)) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=DISMISS_DELAYED key=${key.hashCode()} remainingMs=${current.remainingMinVisibleMs(nowMs)}")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=DISMISS_DELAYED key=${key.hashCode()} remainingMs=${current.remainingMinVisibleMs(nowMs)}")
                 }
                 // Could schedule delayed dismiss here
                 return
@@ -373,7 +394,7 @@ class IslandCoordinator(
         activeRoutes.remove(key)
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=USER_DISMISS key=${key.hashCode()} reason=$reason ttl=${USER_DISMISS_DEDUPE_TTL_MS}ms")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=USER_DISMISS key=${key.hashCode()} reason=$reason ttl=${USER_DISMISS_DEDUPE_TTL_MS}ms")
         }
     }
 
@@ -390,7 +411,7 @@ class IslandCoordinator(
         activeRoutes.remove(key)
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=CALL_ENDED_RESET done=true key=${key.hashCode()} cooldown=${CALL_END_COOLDOWN_MS}ms")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=CALL_ENDED_RESET done=true key=${key.hashCode()} cooldown=${CALL_END_COOLDOWN_MS}ms")
         }
     }
 
@@ -398,7 +419,7 @@ class IslandCoordinator(
         val prev = _activeIsland.value
         
         if (BuildConfig.DEBUG && prev != null) {
-            Log.d(TAG, "EVT=COORD_CLEAR feature=${prev.featureId} reason=$reason stackSize=${resumeStack.size}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=COORD_CLEAR feature=${prev.featureId} reason=$reason stackSize=${resumeStack.size}")
         }
         
         // Try to resume from stack
@@ -406,7 +427,7 @@ class IslandCoordinator(
         if (resumed != null) {
             _activeIsland.value = resumed
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=COORD_RESUME feature=${resumed.featureId} priority=${resumed.priority}")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=COORD_RESUME feature=${resumed.featureId} priority=${resumed.priority}")
             }
             onActiveIslandChanged(resumed)
         } else {
@@ -485,12 +506,12 @@ class IslandCoordinator(
         while (resumeStack.size > MAX_STACK_SIZE) {
             val removed = resumeStack.removeAt(0)
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=STACK_OVERFLOW_REMOVE feature=${removed.featureId}")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=STACK_OVERFLOW_REMOVE feature=${removed.featureId}")
             }
         }
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=STACK_PUSH feature=${island.featureId} stackSize=${resumeStack.size}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=STACK_PUSH feature=${island.featureId} stackSize=${resumeStack.size}")
         }
     }
 
@@ -506,7 +527,7 @@ class IslandCoordinator(
         resumeStack.remove(best)
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=STACK_POP feature=${best.featureId} remainingStackSize=${resumeStack.size}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=STACK_POP feature=${best.featureId} remainingStackSize=${resumeStack.size}")
         }
         
         return best

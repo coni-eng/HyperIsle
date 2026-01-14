@@ -2,7 +2,11 @@ package com.coni.hyperisle.ui.components
 
 import android.app.PendingIntent
 import android.graphics.Bitmap
-import android.util.Log
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,27 +20,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,12 +48,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -71,10 +70,13 @@ import androidx.compose.ui.unit.sp
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.overlay.MediaAction
-import kotlinx.coroutines.delay
+import com.coni.hyperisle.util.HiLog
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+
+
 
 private data class LayoutSnapshot(
     val x: Int,
@@ -97,8 +99,7 @@ private fun Modifier.debugLayoutModifier(rid: Int?, element: String): Modifier {
         )
         if (snapshot != lastSnapshot) {
             lastSnapshot = snapshot
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=UI_LAYOUT element=$element x=${snapshot.x} y=${snapshot.y} w=${snapshot.width} h=${snapshot.height}"
             )
         }
@@ -158,8 +159,7 @@ fun IncomingCallPill(
     if (BuildConfig.DEBUG && debugRid != null) {
         val hasAvatar = avatarBitmap != null
         LaunchedEffect(title, name, hasAvatar) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$debugRid EVT=UI_CONTENT type=CALL titleLen=${title.length} nameLen=${name.length} hasAvatar=$hasAvatar"
             )
         }
@@ -508,7 +508,7 @@ private fun CallActionButton(
                             },
                             onTap = {
                                 if (BuildConfig.DEBUG) {
-                                    Log.d("HI_CALL_ACTION", "EVT=CALL_ACTION_CLICK action=$contentDescription uiOptimistic=true")
+                                    HiLog.d(HiLog.TAG_ISLAND, "EVT=CALL_ACTION_CLICK action=$contentDescription uiOptimistic=true")
                                 }
                                 onClick?.invoke()
                             }
@@ -545,8 +545,7 @@ fun MediaPill(
     if (BuildConfig.DEBUG && debugRid != null) {
         val hasArt = albumArt != null
         LaunchedEffect(title, subtitle, hasArt) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$debugRid EVT=UI_CONTENT type=MEDIA titleLen=${title.length} subtitleLen=${subtitle.length} hasArt=$hasArt"
             )
         }
@@ -621,8 +620,7 @@ fun MediaExpandedPill(
     if (BuildConfig.DEBUG && debugRid != null) {
         val hasArt = albumArt != null
         LaunchedEffect(title, subtitle, hasArt, actions.size) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$debugRid EVT=UI_CONTENT type=MEDIA_EXPANDED titleLen=${title.length} subtitleLen=${subtitle.length} actions=${actions.size} hasArt=$hasArt"
             )
         }
@@ -757,8 +755,7 @@ fun TimerDot(
     }
     if (BuildConfig.DEBUG && debugRid != null) {
         LaunchedEffect(timerText) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$debugRid EVT=UI_CONTENT type=TIMER textLen=${timerText.length} countdown=$isCountdown"
             )
         }
@@ -962,22 +959,19 @@ private fun MediaActionButton(
                 try {
                     action.actionIntent.send()
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=${debugRid ?: 0} EVT=MEDIA_ACTION_OK label=${label.take(12)}"
                         )
                     }
                 } catch (e: PendingIntent.CanceledException) {
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=${debugRid ?: 0} EVT=MEDIA_ACTION_FAIL label=${label.take(12)} reason=CANCELED"
                         )
                     }
                 } catch (e: Exception) {
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=${debugRid ?: 0} EVT=MEDIA_ACTION_FAIL label=${label.take(12)} reason=${e.javaClass.simpleName}"
                         )
                     }
@@ -1040,13 +1034,11 @@ fun NotificationPill(
         val hasClick = onClick != null
         val hasLongPress = onLongPress != null
         LaunchedEffect(sender, timeLabel, message, hasAvatar, hasDismiss, hasClick, hasLongPress) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION senderLen=${sender.length} timeLen=${timeLabel.length} messageLen=${message.length} hasAvatar=$hasAvatar hasDismiss=$hasDismiss hasClick=$hasClick hasLongPress=$hasLongPress"
             )
             // BUG#4 FIX: Log iOS pill render for notification routing verification
-            Log.d(
-                "HI_NOTIF",
+            HiLog.d(HiLog.TAG_NOTIF,
                 "RID=$debugRid EVT=NOTIF_RENDER style=IOS_PILL sender=$sender hasAvatar=$hasAvatar"
             )
         }
@@ -1243,8 +1235,7 @@ fun NotificationReplyPill(
     if (BuildConfig.DEBUG && debugRid != null) {
         val hasAvatar = avatarBitmap != null
         LaunchedEffect(sender, message, hasAvatar) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$debugRid EVT=UI_CONTENT type=NOTIFICATION_REPLY senderLen=${sender.length} messageLen=${message.length} hasAvatar=$hasAvatar"
             )
         }

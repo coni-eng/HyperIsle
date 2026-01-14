@@ -3,12 +3,14 @@ package com.coni.hyperisle.util
 import android.content.Context
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.models.NotificationType
-import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.time.LocalTime
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.flow.first
+
+
 
 /**
  * Smart Priority Engine for reducing notification spam.

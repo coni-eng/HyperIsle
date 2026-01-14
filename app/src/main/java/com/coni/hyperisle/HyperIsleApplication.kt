@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+
+
 class HyperIsleApplication : Application() {
     
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

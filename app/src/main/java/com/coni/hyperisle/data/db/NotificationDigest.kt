@@ -8,6 +8,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
+
+
 @Entity(
     tableName = "notification_digest",
     indices = [

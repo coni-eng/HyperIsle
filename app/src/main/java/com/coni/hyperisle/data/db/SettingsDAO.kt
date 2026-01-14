@@ -6,6 +6,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
+
+
 @Dao
 interface SettingsDao {
     // Get value stream (returns null if key doesn't exist)

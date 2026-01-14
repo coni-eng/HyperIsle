@@ -3,7 +3,10 @@ package com.coni.hyperisle.util
 import android.service.notification.StatusBarNotification
 import com.coni.hyperisle.models.IslandStyle
 import com.coni.hyperisle.models.NotificationType
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.getStringCompatOrEmpty
+
+
 
 /**
  * Island UI Style Contract.

@@ -6,14 +6,16 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.content.edit
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.SystemHyperIslandPoster
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+
+
 
 /**
  * Broadcast receiver for system mode changes (ringer mode, DND).
@@ -104,13 +106,13 @@ class SystemModesReceiver : BroadcastReceiver() {
             return
         }
         
-        Log.d(TAG, "Received system mode broadcast")
+        HiLog.d(HiLog.TAG_ISLAND, "Received system mode broadcast")
 
         // System state islands are disabled by default - HyperOS handles these natively
         val appPreferences = AppPreferences(context)
         val isEnabled = runBlocking { appPreferences.systemStateIslandsEnabledFlow.first() }
         if (!isEnabled) {
-            Log.d(TAG, "System state islands disabled, ignoring broadcast")
+            HiLog.d(HiLog.TAG_ISLAND, "System state islands disabled, ignoring broadcast")
             return
         }
 
@@ -118,7 +120,7 @@ class SystemModesReceiver : BroadcastReceiver() {
         
         // Check notification permission first
         if (!poster.hasNotificationPermission()) {
-            Log.d(TAG, "No notification permission, ignoring broadcast")
+            HiLog.d(HiLog.TAG_ISLAND, "No notification permission, ignoring broadcast")
             return
         }
 
@@ -146,7 +148,7 @@ class SystemModesReceiver : BroadcastReceiver() {
 
         // Debounce: ignore if same mode within interval
         if (currentMode == lastMode && (now - lastTime) < DEBOUNCE_INTERVAL_MS) {
-            Log.d(TAG, "Ringer mode debounced: $currentMode")
+            HiLog.d(HiLog.TAG_ISLAND, "Ringer mode debounced: $currentMode")
             return
         }
 
@@ -183,7 +185,7 @@ class SystemModesReceiver : BroadcastReceiver() {
 
         // Debounce: ignore if same filter within interval
         if (currentFilter == lastFilter && (now - lastTime) < DEBOUNCE_INTERVAL_MS) {
-            Log.d(TAG, "DND filter debounced: $currentFilter")
+            HiLog.d(HiLog.TAG_ISLAND, "DND filter debounced: $currentFilter")
             return
         }
 

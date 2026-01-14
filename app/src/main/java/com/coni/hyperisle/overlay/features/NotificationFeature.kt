@@ -3,15 +3,20 @@ package com.coni.hyperisle.overlay.features
 import android.app.PendingIntent
 import android.app.RemoteInput
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.debug.LegacyPathTelemetry
 import com.coni.hyperisle.overlay.engine.ActiveIsland
 import com.coni.hyperisle.overlay.engine.IslandActions
 import com.coni.hyperisle.overlay.engine.IslandEvent
@@ -20,6 +25,9 @@ import com.coni.hyperisle.overlay.engine.IslandRoute
 import com.coni.hyperisle.ui.components.MiniNotificationPill
 import com.coni.hyperisle.ui.components.NotificationPill
 import com.coni.hyperisle.ui.components.NotificationReplyPill
+import com.coni.hyperisle.util.HiLog
+
+
 
 /**
  * Feature for handling notification islands.
@@ -92,12 +100,23 @@ class NotificationFeature : IslandFeature {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             when {
                 uiState.isCollapsed -> {
+                    // LEGACY TELEMETRY: Log when legacy collapsed path is hit in engine-based rendering
+                    // Note: This path is from the new IslandCoordinator engine, not the legacy service code
+                    // We log observation here for visibility, guard is applied at IslandOverlayService level
+                    LaunchedEffect(Unit) {
+                        LegacyPathTelemetry.logObservation(
+                            feature = LegacyPathTelemetry.Feature.NOTIF,
+                            branch = "NotificationFeature_Render_collapsed",
+                            reason = "UI_STATE_COLLAPSED",
+                            anchorEnabled = false // Engine path - anchor check happens at coordinator level
+                        )
+                    }
                     MiniNotificationPill(
                         sender = notifState.sender,
                         avatarBitmap = notifState.avatarBitmap,
                         onDismiss = {
                             if (BuildConfig.DEBUG) {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                             }
                             actions.dismiss("BTN_RED_X")
                         },
@@ -115,12 +134,12 @@ class NotificationFeature : IslandFeature {
                             val trimmed = replyText.trim()
                             if (trimmed.isEmpty()) {
                                 if (BuildConfig.DEBUG) {
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
+                                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
                                 }
                                 return@NotificationReplyPill
                             }
                             if (BuildConfig.DEBUG) {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_TRY")
                             }
                             val result = actions.sendInlineReply(
                                 notifState.replyAction.pendingIntent,
@@ -129,7 +148,7 @@ class NotificationFeature : IslandFeature {
                             )
                             if (result) {
                                 if (BuildConfig.DEBUG) {
-                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
+                                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_OK")
                                 }
                                 replyText = ""
                                 actions.exitReplyMode()
@@ -147,9 +166,27 @@ class NotificationFeature : IslandFeature {
                         message = notifState.message,
                         avatarBitmap = notifState.avatarBitmap,
                         accentColor = notifState.accentColor,
+                        onLongPress = if (notifState.replyAction != null) {
+                            {
+                                if (BuildConfig.DEBUG) {
+                                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_OPEN_OK pkg=${notifState.packageName} trigger=LONG_PRESS")
+                                }
+                                actions.enterReplyMode()
+                            }
+                        } else null,
+                        onClick = {
+                            // Tap opens app via content intent
+                            if (BuildConfig.DEBUG) {
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=NOTIF_TAP pkg=${notifState.packageName}")
+                            }
+                            notifState.contentIntent?.let { intent ->
+                                actions.sendPendingIntent(intent, "NOTIF_TAP")
+                                actions.dismiss("NOTIF_TAP")
+                            }
+                        },
                         onDismiss = {
                             if (BuildConfig.DEBUG) {
-                                Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                             }
                             actions.dismiss("BTN_RED_X")
                         },

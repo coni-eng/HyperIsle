@@ -54,6 +54,8 @@ import com.coni.hyperisle.models.IslandLimitMode
 import com.coni.hyperisle.util.HiLog
 import kotlinx.coroutines.launch
 
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrioritySettingsScreen(
@@ -140,8 +142,7 @@ fun PrioritySettingsScreen(
                             title = stringResource(R.string.accessibility_context_title),
                             subtitle = stringResource(R.string.accessibility_context_settings_desc),
                             onClick = {
-                                HiLog.d(
-                                    HiLog.TAG_PREF,
+                                HiLog.d(HiLog.TAG_PREF,
                                     "PRIORITY_SETUP_NAV",
                                     mapOf("target" to "smart_features")
                                 )
@@ -154,8 +155,7 @@ fun PrioritySettingsScreen(
                             title = stringResource(R.string.type_priority_title),
                             subtitle = stringResource(R.string.type_priority_desc),
                             onClick = {
-                                HiLog.d(
-                                    HiLog.TAG_PREF,
+                                HiLog.d(HiLog.TAG_PREF,
                                     "PRIORITY_SETUP_NAV",
                                     mapOf("target" to "type_priority")
                                 )
@@ -168,8 +168,7 @@ fun PrioritySettingsScreen(
                             title = stringResource(R.string.priority_order),
                             subtitle = stringResource(R.string.priority_order_limit_note),
                             onClick = {
-                                HiLog.d(
-                                    HiLog.TAG_PREF,
+                                HiLog.d(HiLog.TAG_PREF,
                                     "PRIORITY_SETUP_NAV",
                                     mapOf("target" to "app_priority")
                                 )

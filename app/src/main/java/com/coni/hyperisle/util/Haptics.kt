@@ -8,6 +8,8 @@ import com.coni.hyperisle.data.AppPreferences
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
+
+
 /**
  * Utility class for haptic feedback on island events.
  * Provides iOS-like tactile feedback for island interactions.

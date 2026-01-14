@@ -16,6 +16,8 @@ import io.github.d4viddf.hyperisland_kit.models.PicInfo
 import io.github.d4viddf.hyperisland_kit.models.TextInfo
 import kotlin.math.max
 
+
+
 class ProgressTranslator(context: Context) : BaseTranslator(context) {
 
     private val finishKeywords by lazy {

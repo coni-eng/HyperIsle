@@ -1,5 +1,7 @@
 package com.coni.hyperisle.models
 
+
+
 data class ActiveIsland(
     val id: Int,
     val type: NotificationType,

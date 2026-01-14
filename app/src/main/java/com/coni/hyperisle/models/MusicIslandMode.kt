@@ -1,5 +1,7 @@
 package com.coni.hyperisle.models
 
+
+
 /**
  * Music Island behavior mode.
  * 

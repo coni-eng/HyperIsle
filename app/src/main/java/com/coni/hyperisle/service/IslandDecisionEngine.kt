@@ -3,11 +3,13 @@ package com.coni.hyperisle.service
 import android.app.Notification
 import android.content.Context
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.models.NotificationType
 import com.coni.hyperisle.models.ShadeCancelMode
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.NotificationChannels
+
+
 
 /**
  * Island Decision Engine - Decoupled decision-making for Island display and shade management.
@@ -44,6 +46,7 @@ object IslandDecisionEngine {
     ) {
         fun toLogString(pkg: String, keyHash: Int): String {
             val reason = when {
+                mode == ShadeCancelMode.STASH -> "STASH_MODE"
                 mode == ShadeCancelMode.ISLAND_ONLY -> "ISLAND_ONLY_MODE"
                 cancelShadeAllowed && !cancelShadeEligible -> "NOT_ELIGIBLE_${ineligibilityReason ?: "UNKNOWN"}"
                 cancelShadeAllowed && !cancelShadeSafe -> "ISLAND_CHANNEL_DISABLED"
@@ -91,11 +94,13 @@ object IslandDecisionEngine {
         }
 
         // Contract B: Determine action based on mode
+        // STASH: Never cancel or snooze - keep in shade + status bar (best for messaging)
         // ISLAND_ONLY: Never cancel or snooze
         // HIDE_POPUP_KEEP_SHADE: Snooze only (no cancel)
         // FULLY_HIDE / AGGRESSIVE: Cancel if eligible
-        val cancelShadeAllowed = shadeCancelEnabled && ShadeCancelMode.shouldCancel(effectiveMode)
-        val snoozeShadeAllowed = shadeCancelEnabled && ShadeCancelMode.shouldSnooze(effectiveMode)
+        val isStash = ShadeCancelMode.isStashMode(effectiveMode)
+        val cancelShadeAllowed = shadeCancelEnabled && !isStash && ShadeCancelMode.shouldCancel(effectiveMode)
+        val snoozeShadeAllowed = shadeCancelEnabled && !isStash && ShadeCancelMode.shouldSnooze(effectiveMode)
 
         // Compute eligibility based on notification properties
         val eligibilityResult = checkShadeCancelEligibility(sbn, type, effectiveMode, isOngoingCall)
@@ -119,7 +124,7 @@ object IslandDecisionEngine {
 
         // Log decision in debug builds
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, decision.toLogString(sbn.packageName, sbn.key.hashCode()))
+            HiLog.d(HiLog.TAG_ISLAND, decision.toLogString(sbn.packageName, sbn.key.hashCode()))
         }
 
         return decision
@@ -200,6 +205,10 @@ object IslandDecisionEngine {
         // Mode-dependent checks
         @Suppress("DEPRECATION")
         when (mode) {
+            ShadeCancelMode.STASH -> {
+                // STASH: Never cancel - keep in shade + status bar (best for messaging)
+                return Pair(false, "STASH_MODE")
+            }
             ShadeCancelMode.ISLAND_ONLY -> {
                 // ISLAND_ONLY: Never cancel - this shouldn't be reached but handle gracefully
                 return Pair(false, "ISLAND_ONLY_MODE")

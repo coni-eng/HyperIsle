@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.R
 
+
+
 /**
  * Banner shown when Accessibility Service is not enabled.
  * This is a recommended (not required) permission for smart overlay hiding

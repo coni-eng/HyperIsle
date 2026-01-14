@@ -1,5 +1,7 @@
 package com.coni.hyperisle.models
 
+
+
 /**
  * Island UI Style Contract.
  * 

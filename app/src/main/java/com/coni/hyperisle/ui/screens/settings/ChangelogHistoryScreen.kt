@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import com.coni.hyperisle.R
 import com.coni.hyperisle.util.parseBold // Import shared extension
 
+
+
 data class VersionLog(val version: String, val titleRes: Int, val textRes: Int, val isLatest: Boolean = false)
 
 @OptIn(ExperimentalMaterial3Api::class)

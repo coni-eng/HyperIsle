@@ -72,6 +72,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
+
 /**
  * Simple data class to hold app metadata for the priority list.
  * Does not hold the heavy Bitmap directly to avoid UI lag during recomposition.

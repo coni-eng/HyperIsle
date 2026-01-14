@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -26,8 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
@@ -39,6 +38,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.NotificationStatus
 import com.coni.hyperisle.ui.AppListViewModel
+import com.coni.hyperisle.util.HiLog
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,7 +81,7 @@ fun NotificationManagementAppsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.setNotificationStatus(app.packageName, NotificationStatus.DISABLED)
-                    Log.d("HyperIsleIsland", "EVT=SHADE_CANCEL_STATUS_SET status=DISABLED pkg=${app.packageName}")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=SHADE_CANCEL_STATUS_SET status=DISABLED pkg=${app.packageName}")
                     showConfirmationDialog = false
                     pendingConfirmationApp = null
                 }) {
@@ -90,7 +92,7 @@ fun NotificationManagementAppsScreen(
                 Row {
                     TextButton(onClick = {
                         viewModel.setNotificationStatus(app.packageName, NotificationStatus.ENABLED)
-                        Log.d("HyperIsleIsland", "EVT=SHADE_CANCEL_STATUS_SET status=ENABLED pkg=${app.packageName}")
+                        HiLog.d(HiLog.TAG_ISLAND, "EVT=SHADE_CANCEL_STATUS_SET status=ENABLED pkg=${app.packageName}")
                         showConfirmationDialog = false
                         pendingConfirmationApp = null
                     }) {
@@ -164,7 +166,7 @@ fun NotificationManagementAppsScreen(
                         onTap = {
                             // v1.0.0: Track app and open notification settings
                             pendingConfirmationApp = appInfo
-                            Log.d("HyperIsleIsland", "EVT=SHADE_CANCEL_SETTINGS_TAP pkg=${appInfo.packageName}")
+                            HiLog.d(HiLog.TAG_ISLAND, "EVT=SHADE_CANCEL_SETTINGS_TAP pkg=${appInfo.packageName}")
                             openAppNotificationSettings(context, appInfo.packageName)
                         }
                     )
@@ -336,7 +338,7 @@ private fun openAppNotificationSettings(context: Context, packageName: String) {
         }
         context.startActivity(intent)
     } catch (e: Exception) {
-        Log.w("HyperIsleIsland", "EVT=SHADE_CANCEL_SETTINGS_FALLBACK pkg=$packageName reason=${e.message}")
+        HiLog.w(HiLog.TAG_ISLAND, "EVT=SHADE_CANCEL_SETTINGS_FALLBACK pkg=$packageName reason=${e.message}")
         try {
             // Fallback: App details page
             val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -345,7 +347,7 @@ private fun openAppNotificationSettings(context: Context, packageName: String) {
             }
             context.startActivity(fallbackIntent)
         } catch (e2: Exception) {
-            Log.e("HyperIsleIsland", "EVT=SHADE_CANCEL_SETTINGS_FAIL pkg=$packageName reason=${e2.message}")
+            HiLog.e(HiLog.TAG_ISLAND, "EVT=SHADE_CANCEL_SETTINGS_FAIL pkg=$packageName reason=${e2.message}")
         }
     }
 }

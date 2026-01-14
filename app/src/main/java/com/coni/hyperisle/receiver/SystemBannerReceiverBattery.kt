@@ -4,16 +4,18 @@ import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.content.edit
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.util.ContextStateManager
 import com.coni.hyperisle.util.Haptics
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.SystemHyperIslandPoster
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+
+
 
 /**
  * Broadcast receiver for battery low events.
@@ -43,13 +45,13 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
             return
         }
         
-        Log.d(TAG, "Received battery low broadcast")
+        HiLog.d(HiLog.TAG_ISLAND, "Received battery low broadcast")
 
         // Check if banner is enabled (default OFF)
         val preferences = AppPreferences(context)
         val isEnabled = runBlocking { preferences.bannerBatteryLowEnabledFlow.first() }
         if (!isEnabled) {
-            Log.d(TAG, "Battery banner disabled, ignoring")
+            HiLog.d(HiLog.TAG_ISLAND, "Battery banner disabled, ignoring")
             return
         }
 
@@ -57,7 +59,7 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
         val contextAwareEnabled = runBlocking { preferences.contextAwareEnabledFlow.first() }
         val suppressWhileCharging = runBlocking { preferences.contextChargingSuppressBatteryBannersFlow.first() }
         if (contextAwareEnabled && suppressWhileCharging && ContextStateManager.getCharging()) {
-            Log.d(TAG, "Context-aware: Suppressing battery banner (device is charging)")
+            HiLog.d(HiLog.TAG_ISLAND, "Context-aware: Suppressing battery banner (device is charging)")
             return
         }
 
@@ -72,7 +74,7 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
         val now = System.currentTimeMillis()
 
         if ((now - lastTime) < DEBOUNCE_INTERVAL_MS) {
-            Log.d(TAG, "Battery low debounced")
+            HiLog.d(HiLog.TAG_ISLAND, "Battery low debounced")
             return
         }
 
@@ -84,7 +86,7 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
         // Post banner
         val poster = SystemHyperIslandPoster(context)
         if (!poster.hasNotificationPermission()) {
-            Log.d(TAG, "No notification permission")
+            HiLog.d(HiLog.TAG_ISLAND, "No notification permission")
             return
         }
 
@@ -94,6 +96,6 @@ class SystemBannerReceiverBattery : BroadcastReceiver() {
         poster.postSystemNotification(NOTIFICATION_ID, title, message)
         Haptics.hapticOnIslandShown(context)
         
-        Log.d(TAG, "Posted battery low banner")
+        HiLog.d(HiLog.TAG_ISLAND, "Posted battery low banner")
     }
 }

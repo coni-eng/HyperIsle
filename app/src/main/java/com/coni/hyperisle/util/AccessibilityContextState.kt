@@ -1,9 +1,11 @@
 package com.coni.hyperisle.util
 
-import android.util.Log
+import com.coni.hyperisle.util.HiLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+
+
 
 data class AccessibilityContextSignals(
     val isFullscreen: Boolean = false,
@@ -28,8 +30,7 @@ object AccessibilityContextState {
             return
         }
         _signals.value = newSignals
-        Log.d(
-            TAG,
+        HiLog.d(HiLog.TAG_ISLAND,
             "RID=ACC_CTX EVT=CTX_UPDATE reason=$reason fullscreen=${newSignals.isFullscreen} ime=${newSignals.isImeVisible} fg=${newSignals.foregroundPackage ?: "unknown"}"
         )
     }

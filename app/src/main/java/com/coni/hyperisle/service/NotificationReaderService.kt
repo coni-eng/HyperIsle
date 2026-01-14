@@ -6,30 +6,76 @@ import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.graphics.Bitmap
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.edit
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.core.net.toUri
+import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
+import com.coni.hyperisle.data.db.AppDatabase
+import com.coni.hyperisle.data.db.NotificationDigestItem
+import com.coni.hyperisle.debug.DebugLog
+import com.coni.hyperisle.debug.IslandRuntimeDump
+import com.coni.hyperisle.debug.IslandUiSnapshotLogger
+import com.coni.hyperisle.debug.IslandUiState
+import com.coni.hyperisle.debug.ProcCtx
 import com.coni.hyperisle.models.ActiveIsland
 import com.coni.hyperisle.models.HyperIslandData
+import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.models.IslandLimitMode
 import com.coni.hyperisle.models.MusicIslandMode
 import com.coni.hyperisle.models.NotificationType
+import com.coni.hyperisle.models.ShadeCancelMode
+import com.coni.hyperisle.overlay.CallOverlayState
+import com.coni.hyperisle.overlay.IosCallOverlayModel
+import com.coni.hyperisle.overlay.IosNotificationOverlayModel
+import com.coni.hyperisle.overlay.IosNotificationReplyAction
+import com.coni.hyperisle.overlay.MediaAction
+import com.coni.hyperisle.overlay.MediaOverlayModel
+import com.coni.hyperisle.overlay.NavIslandSize
+import com.coni.hyperisle.overlay.NavigationOverlayModel
+import com.coni.hyperisle.overlay.OverlayEventBus
+import com.coni.hyperisle.overlay.TimerOverlayModel
+import com.coni.hyperisle.service.IslandDecisionEngine
+import com.coni.hyperisle.service.IslandKeyManager
 import com.coni.hyperisle.service.translators.CallTranslator
 import com.coni.hyperisle.service.translators.NavTranslator
 import com.coni.hyperisle.service.translators.ProgressTranslator
 import com.coni.hyperisle.service.translators.StandardTranslator
 import com.coni.hyperisle.service.translators.TimerTranslator
+import com.coni.hyperisle.util.AccessibilityContextState
+import com.coni.hyperisle.util.ActionDiagnostics
+import com.coni.hyperisle.util.ContextStateManager
+import com.coni.hyperisle.util.DebugTimeline
+import com.coni.hyperisle.util.FocusActionHelper
+import com.coni.hyperisle.util.ForegroundAppDetector
+import com.coni.hyperisle.util.Haptics
+import com.coni.hyperisle.util.HiLog
+import com.coni.hyperisle.util.IslandActivityStateMachine
+import com.coni.hyperisle.util.IslandCooldownManager
+import com.coni.hyperisle.util.IslandStyleContract
+import com.coni.hyperisle.util.NotificationChannels
+import com.coni.hyperisle.util.NotificationListenerDiagnostics
+import com.coni.hyperisle.util.OverlayPermissionHelper
+import com.coni.hyperisle.util.PriorityEngine
+import com.coni.hyperisle.util.SystemHyperIslandPoster
+import com.coni.hyperisle.util.getStringCompat
+import com.coni.hyperisle.util.getStringCompatOrEmpty
+import com.coni.hyperisle.util.toBitmap
+import java.time.LocalTime
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,53 +84,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
-import java.time.LocalTime
-import com.coni.hyperisle.data.db.AppDatabase
-import com.coni.hyperisle.data.db.NotificationDigestItem
-import com.coni.hyperisle.models.IslandConfig
-import com.coni.hyperisle.util.ContextStateManager
-import com.coni.hyperisle.util.FocusActionHelper
-import com.coni.hyperisle.util.Haptics
-import com.coni.hyperisle.util.IslandActivityStateMachine
-import com.coni.hyperisle.util.IslandCooldownManager
-import com.coni.hyperisle.util.PriorityEngine
-import com.coni.hyperisle.util.ActionDiagnostics
-import com.coni.hyperisle.util.DebugTimeline
-import com.coni.hyperisle.util.HiLog
-import android.app.PendingIntent
-import android.content.Intent
-import com.coni.hyperisle.BuildConfig
-import com.coni.hyperisle.models.ShadeCancelMode
-import com.coni.hyperisle.util.NotificationChannels
-import com.coni.hyperisle.util.IslandStyleContract
-import com.coni.hyperisle.service.IslandDecisionEngine
-import com.coni.hyperisle.service.IslandKeyManager
-import android.graphics.drawable.Icon
-import com.coni.hyperisle.overlay.CallOverlayState
-import com.coni.hyperisle.overlay.IosCallOverlayModel
-import com.coni.hyperisle.overlay.IosNotificationOverlayModel
-import com.coni.hyperisle.overlay.IosNotificationReplyAction
-import com.coni.hyperisle.overlay.MediaAction
-import com.coni.hyperisle.overlay.MediaOverlayModel
-import com.coni.hyperisle.overlay.NavigationOverlayModel
-import com.coni.hyperisle.overlay.NavIslandSize
-import com.coni.hyperisle.overlay.OverlayEventBus
-import com.coni.hyperisle.overlay.TimerOverlayModel
-import com.coni.hyperisle.util.AccessibilityContextState
-import com.coni.hyperisle.util.ForegroundAppDetector
-import com.coni.hyperisle.util.OverlayPermissionHelper
-import com.coni.hyperisle.util.SystemHyperIslandPoster
-import com.coni.hyperisle.util.getStringCompat
-import com.coni.hyperisle.util.getStringCompatOrEmpty
-import com.coni.hyperisle.util.NotificationListenerDiagnostics
-import com.coni.hyperisle.debug.DebugLog
-import com.coni.hyperisle.debug.IslandRuntimeDump
-import com.coni.hyperisle.debug.IslandUiSnapshotLogger
-import com.coni.hyperisle.debug.IslandUiState
-import com.coni.hyperisle.debug.ProcCtx
-import com.coni.hyperisle.util.toBitmap
-import java.util.Locale
+
+
 
 class NotificationReaderService : NotificationListenerService() {
 
@@ -212,7 +213,7 @@ class NotificationReaderService : NotificationListenerService() {
         
         // Notify diagnostics of service creation
         NotificationListenerDiagnostics.onServiceCreated()
-        Log.i(TAG, "HyperIsle Service Created")
+        HiLog.i(HiLog.TAG_NOTIF, "HyperIsle Service Created")
 
         callTranslator = CallTranslator(this)
         navTranslator = NavTranslator(this)
@@ -226,8 +227,7 @@ class NotificationReaderService : NotificationListenerService() {
         serviceScope.launch {
             preferences.appPriorityListFlow.collectLatest { list ->
                 if (list.size > MAX_PRIORITY_APPS) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_NOTIF,
                         "RID=LIMIT EVT=APP_PRIORITY_TRIM size=${list.size} max=$MAX_PRIORITY_APPS"
                     )
                 }
@@ -237,8 +237,7 @@ class NotificationReaderService : NotificationListenerService() {
         serviceScope.launch {
             preferences.typePriorityOrderFlow.collectLatest { order ->
                 typePriorityOrder = order
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_NOTIF,
                     "RID=TYPE_ORDER EVT=TYPE_ORDER_UPDATE order=${order.joinToString("|")}"
                 )
             }
@@ -295,24 +294,24 @@ class NotificationReaderService : NotificationListenerService() {
         val activeCount = try {
             activeNotifications?.size ?: 0
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to get active notifications: ${e.message}")
+            HiLog.w(HiLog.TAG_NOTIF, "Failed to get active notifications: ${e.message}")
             0
         }
         
-        Log.i(TAG, "HyperIsle Connected - activeNotifications=$activeCount")
+        HiLog.i(HiLog.TAG_NOTIF, "HyperIsle Connected - activeNotifications=$activeCount")
         
         // Notify diagnostics
         NotificationListenerDiagnostics.onListenerConnected(activeCount)
         
         // INSTRUMENTATION: Service lifecycle
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=SVC_CONN STAGE=LIFECYCLE ACTION=CONNECTED activeNotifications=$activeCount")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=SVC_CONN STAGE=LIFECYCLE ACTION=CONNECTED activeNotifications=$activeCount")
             IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "NL_CONNECTED", reason = "onListenerConnected", flags = mapOf("activeNotifications" to activeCount))
             
             // Log enabled_notification_listeners status
             val isListed = NotificationListenerDiagnostics.isListedInEnabledListeners(applicationContext)
             val isBatteryOptimized = NotificationListenerDiagnostics.isBatteryOptimized(applicationContext)
-            Log.d("HyperIsleIsland", "RID=SVC_CONN EVT=LISTENER_STATUS isListed=$isListed batteryOptimized=$isBatteryOptimized")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=SVC_CONN EVT=LISTENER_STATUS isListed=$isListed batteryOptimized=$isBatteryOptimized")
         }
         
         // Start heartbeat monitoring (debug only)
@@ -322,7 +321,7 @@ class NotificationReaderService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         
-        Log.w(TAG, "HyperIsle DISCONNECTED - notifications will not be received!")
+        HiLog.w(HiLog.TAG_NOTIF, "HyperIsle DISCONNECTED - notifications will not be received!")
         
         // Notify diagnostics
         NotificationListenerDiagnostics.onListenerDisconnected()
@@ -332,7 +331,7 @@ class NotificationReaderService : NotificationListenerService() {
         
         // INSTRUMENTATION: Service lifecycle
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=SVC_DISC STAGE=LIFECYCLE ACTION=DISCONNECTED")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=SVC_DISC STAGE=LIFECYCLE ACTION=DISCONNECTED")
             IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "NL_DISCONNECTED", reason = "onListenerDisconnected")
         }
     }
@@ -340,7 +339,7 @@ class NotificationReaderService : NotificationListenerService() {
     override fun onDestroy() {
         super.onDestroy()
         
-        Log.w(TAG, "HyperIsle Service DESTROYED")
+        HiLog.w(HiLog.TAG_NOTIF, "HyperIsle Service DESTROYED")
         
         // Notify diagnostics
         NotificationListenerDiagnostics.onServiceDestroyed()
@@ -350,7 +349,7 @@ class NotificationReaderService : NotificationListenerService() {
         
         // INSTRUMENTATION: Service lifecycle
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=SVC_DEST STAGE=LIFECYCLE ACTION=DESTROYED")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=SVC_DEST STAGE=LIFECYCLE ACTION=DESTROYED")
             IslandRuntimeDump.recordEvent(null, "LIFECYCLE", "SERVICE_DESTROYED", reason = "onDestroy")
         }
         serviceScope.cancel()
@@ -379,8 +378,8 @@ class NotificationReaderService : NotificationListenerService() {
                 // Check if we're still listed in enabled_notification_listeners
                 val isListed = NotificationListenerDiagnostics.isListedInEnabledListeners(applicationContext)
                 if (!isListed) {
-                    Log.e(TAG, "CRITICAL: HyperIsle removed from enabled_notification_listeners!")
-                    Log.d("HyperIsleIsland", "RID=HEARTBEAT EVT=LISTENER_NOT_LISTED WARN=CRITICAL")
+                    HiLog.e(HiLog.TAG_NOTIF, "CRITICAL: HyperIsle removed from enabled_notification_listeners!", emptyMap())
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=HEARTBEAT EVT=LISTENER_NOT_LISTED WARN=CRITICAL")
                 }
             }
         }
@@ -398,7 +397,7 @@ class NotificationReaderService : NotificationListenerService() {
             val ctx = ProcCtx.from(it)
             
             // CRITICAL: Log ALL notifications to catch WhatsApp/Telegram
-            Log.d("HyperIsleIsland", "RID=${ctx.rid} EVT=NOTIF_RECEIVED pkg=${it.packageName} keyHash=${ctx.keyHash}")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=NOTIF_RECEIVED pkg=${it.packageName} keyHash=${ctx.keyHash}")
             
             // WhatsApp-specific telemetry for diagnosis
             if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
@@ -408,8 +407,7 @@ class NotificationReaderService : NotificationListenerService() {
                 val isGroupSummary = (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
                 val hasContentIntent = it.notification.contentIntent != null
                 val channelId = it.notification.channelId
-                Log.d(
-                    "HI_WHATSAPP",
+                HiLog.d(HiLog.TAG_NOTIF,
                     "EVT=WHATSAPP_RECEIVED rid=${ctx.rid} keyHash=${ctx.keyHash} category=$category " +
                     "isOngoing=$isOngoing isGroupSummary=$isGroupSummary hasContentIntent=$hasContentIntent " +
                     "channelId=$channelId isClearable=${it.isClearable} " +
@@ -459,7 +457,7 @@ class NotificationReaderService : NotificationListenerService() {
             if (isJunkNotification(it, ctx)) {
                 // WhatsApp telemetry: log when filtered as junk
                 if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
-                    Log.d("HI_WHATSAPP", "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=JUNK_NOTIFICATION")
+                    HiLog.d(HiLog.TAG_NOTIF, "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=JUNK_NOTIFICATION")
                 }
                 return
             }
@@ -473,9 +471,14 @@ class NotificationReaderService : NotificationListenerService() {
             
             if (!bypassWhitelist && !isAppAllowed(it.packageName)) {
                 DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "BLOCKED_NOT_SELECTED", kv = mapOf("pkg" to it.packageName, "allowedCount" to allowedPackageSet.size))
+                
+                if (BuildConfig.DEBUG) {
+                    HiLog.d("HyperIsleAnchor", "RID=${ctx.rid} EVT=NOTIF_OVERLAY_DECISION chosen=SKIP_OVERLAY reason=USER_DISABLED pkg=${it.packageName}")
+                }
+                
                 // WhatsApp telemetry: log when not in allowed list
                 if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
-                    Log.d("HI_WHATSAPP", "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=NOT_IN_ALLOWED_LIST allowedCount=${allowedPackageSet.size}")
+                    HiLog.d(HiLog.TAG_NOTIF, "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=NOT_IN_ALLOWED_LIST allowedCount=${allowedPackageSet.size}")
                 }
                 return
             }
@@ -488,26 +491,26 @@ class NotificationReaderService : NotificationListenerService() {
             
             // WhatsApp telemetry: log when passed filter
             if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
-                Log.d("HI_WHATSAPP", "EVT=WHATSAPP_ALLOWED rid=${ctx.rid} step=FILTER_PASSED")
+                HiLog.d(HiLog.TAG_NOTIF, "EVT=WHATSAPP_ALLOWED rid=${ctx.rid} step=FILTER_PASSED")
             }
             
             if (shouldSkipUpdate(it)) {
                 DebugLog.event("DEDUP_CHECK", ctx.rid, "DEDUP", reason = "DROP_RATE_LIMIT", kv = mapOf("pkg" to it.packageName))
                 // WhatsApp telemetry: log when rate-limited
                 if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
-                    Log.d("HI_WHATSAPP", "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=RATE_LIMITED")
+                    HiLog.d(HiLog.TAG_NOTIF, "EVT=WHATSAPP_FILTERED rid=${ctx.rid} reason=RATE_LIMITED")
                 }
                 return
             }
             
             // WhatsApp telemetry: log when queued for processing
             if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
-                Log.d("HI_WHATSAPP", "EVT=WHATSAPP_QUEUED rid=${ctx.rid} step=PROCESS_AND_POST")
+                HiLog.d(HiLog.TAG_NOTIF, "EVT=WHATSAPP_QUEUED rid=${ctx.rid} step=PROCESS_AND_POST")
             }
             
             // BUG#2 DEBUG: Log all notification processing for WhatsApp
             if (BuildConfig.DEBUG && (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b")) {
-                Log.d("HI_WHATSAPP", "EVT=WHATSAPP_PROCESSING_START rid=${ctx.rid}")
+                HiLog.d(HiLog.TAG_NOTIF, "EVT=WHATSAPP_PROCESSING_START rid=${ctx.rid}")
             }
             
             // BUG#4 FIX: IMMEDIATE SNOOZE to beat MIUI dynamic island
@@ -528,11 +531,11 @@ class NotificationReaderService : NotificationListenerService() {
                     snoozeNotification(it.key, POPUP_SUPPRESS_SNOOZE_MS)
                     markSelfCancel(it.key, ctx.keyHash)
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_NOTIF", "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_OK pkg=${it.packageName} reason=BEAT_MIUI_ISLAND")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_OK pkg=${it.packageName} reason=BEAT_MIUI_ISLAND")
                     }
                 } catch (e: Exception) {
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_NOTIF", "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_FAIL pkg=${it.packageName} error=${e.message}")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_FAIL pkg=${it.packageName} error=${e.message}")
                     }
                 }
             }
@@ -558,7 +561,7 @@ class NotificationReaderService : NotificationListenerService() {
             
             // Debug-only logging (PII-free)
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "event=onRemoved pkg=${it.packageName} keyHash=${key.hashCode()} reason=$reasonName")
+                HiLog.d(HiLog.TAG_NOTIF, "event=onRemoved pkg=${it.packageName} keyHash=${key.hashCode()} reason=$reasonName")
             }
             
             // Timeline: onNotificationRemoved event
@@ -599,8 +602,7 @@ class NotificationReaderService : NotificationListenerService() {
                 // of our own group summary cancellation, not a real notification removal.
                 // The individual notification we're showing is still valid.
                 if (reason == REASON_GROUP_SUMMARY_CANCELED) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=$keyHash EVT=ON_REMOVED_IGNORED reason=$reasonName activeIsland=true cause=OUR_GROUP_CANCEL"
                     )
                     return
@@ -614,8 +616,7 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 val action = if (delayMs > 0L) "DELAY_HIDE" else "HIDE_NOW"
 
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$keyHash EVT=ON_REMOVED reason=$reasonName selfCancel=$selfCancel action=$action"
                 )
 
@@ -646,7 +647,7 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             } else {
                 if (OverlayEventBus.emitDismiss(key)) {
-                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
                 }
             }
             sbnKeyToGroupKey.remove(key)
@@ -657,9 +658,9 @@ class NotificationReaderService : NotificationListenerService() {
             if (!isActiveIsland && activeIslands.isEmpty()) {
                 IslandCooldownManager.clearLastActiveIsland()
                 if (OverlayEventBus.emitDismissAll()) {
-                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
                 }
-                Log.d("HyperIsleIsland", "RID=$keyHash EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
             }
         }
     }
@@ -695,7 +696,7 @@ class NotificationReaderService : NotificationListenerService() {
     private fun markSelfCancel(key: String, keyHash: Int) {
         val now = System.currentTimeMillis()
         selfCancelKeys[key] = now
-        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SELF_CANCEL_MARK key=$keyHash rid=$keyHash ttlMs=$SELF_CANCEL_WINDOW_MS")
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SELF_CANCEL_MARK key=$keyHash rid=$keyHash ttlMs=$SELF_CANCEL_WINDOW_MS")
         serviceScope.launch {
             delay(SELF_CANCEL_WINDOW_MS)
             if (selfCancelKeys[key] == now) {
@@ -723,10 +724,10 @@ class NotificationReaderService : NotificationListenerService() {
         val now = System.currentTimeMillis()
         minVisibleUntil[groupKey] = now + MIN_VISIBLE_MS
         minVisibleJobs[groupKey]?.cancel()
-        Log.d("HyperIsleIsland", "RID=$keyHash EVT=MIN_VISIBLE_TIMER_START gk=$groupKey ms=$MIN_VISIBLE_MS")
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=MIN_VISIBLE_TIMER_START gk=$groupKey ms=$MIN_VISIBLE_MS")
         minVisibleJobs[groupKey] = serviceScope.launch {
             delay(MIN_VISIBLE_MS)
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=MIN_VISIBLE_TIMER_END gk=$groupKey")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=MIN_VISIBLE_TIMER_END gk=$groupKey")
             minVisibleJobs.remove(groupKey)
         }
     }
@@ -745,7 +746,7 @@ class NotificationReaderService : NotificationListenerService() {
         pendingDismissJobs[groupKey] = serviceScope.launch {
             delay(delayMs)
             pendingDismissJobs.remove(groupKey)
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=MIN_VISIBLE_ELAPSED")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=MIN_VISIBLE_ELAPSED")
             dismissIslandNow(
                 pkg = pkg,
                 key = key,
@@ -771,7 +772,7 @@ class NotificationReaderService : NotificationListenerService() {
         if (route == IslandRoute.MIUI_BRIDGE && hyperId == null) return
 
         if (OverlayEventBus.emitDismiss(key)) {
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_$reasonName")
         }
 
         // Debug-only: Log auto-dismiss for call islands
@@ -781,7 +782,7 @@ class NotificationReaderService : NotificationListenerService() {
                 REASON_CLICK -> "DIALER_OPENED"
                 else -> mapRemovalReason(reason)
             }
-            Log.d(TAG, "event=autoDismiss reason=$dismissReason pkg=$pkg keyHash=$keyHash")
+            HiLog.d(HiLog.TAG_NOTIF, "event=autoDismiss reason=$dismissReason pkg=$pkg keyHash=$keyHash")
         }
 
         if (BuildConfig.DEBUG) {
@@ -794,7 +795,7 @@ class NotificationReaderService : NotificationListenerService() {
                 groupKey = groupKey
             )
             if (route == IslandRoute.MIUI_BRIDGE) {
-                Log.d("HyperIsleIsland", "RID=$keyHash STAGE=REMOVE ACTION=ISLAND_DISMISS reason=$reasonName pkg=$pkg type=$islandType")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash STAGE=REMOVE ACTION=ISLAND_DISMISS reason=$reasonName pkg=$pkg type=$islandType")
                 IslandRuntimeDump.recordRemove(
                     ctx = ProcCtx.synthetic(pkg, "onRemoved"),
                     reason = reasonName,
@@ -832,9 +833,9 @@ class NotificationReaderService : NotificationListenerService() {
         if (activeIslands.isEmpty()) {
             IslandCooldownManager.clearLastActiveIsland()
             if (OverlayEventBus.emitDismissAll()) {
-                Log.d("HyperIsleIsland", "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
             }
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
         }
     }
 
@@ -890,8 +891,7 @@ class NotificationReaderService : NotificationListenerService() {
     ) {
         if (!shouldForceShadeCancel(type)) return
         if (!NotificationChannels.isSafeToCancel(applicationContext)) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=GROUP_SUMMARY_CANCEL_SKIP reason=ISLAND_CHANNEL_DISABLED pkg=${sbn.packageName}"
             )
             return
@@ -899,14 +899,12 @@ class NotificationReaderService : NotificationListenerService() {
         try {
             cancelNotification(sbn.key)
             markSelfCancel(sbn.key, keyHash)
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=GROUP_SUMMARY_CANCEL_OK type=${type.name} pkg=${sbn.packageName}"
             )
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to cancel group summary: ${e.message}")
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.w(HiLog.TAG_NOTIF, "Failed to cancel group summary: ${e.message}")
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=GROUP_SUMMARY_CANCEL_FAIL reason=${e.javaClass.simpleName} pkg=${sbn.packageName}"
             )
         }
@@ -971,7 +969,7 @@ class NotificationReaderService : NotificationListenerService() {
 
         // --- 2. GROUP SUMMARIES ---
         val isGroupSummary = (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
-        Log.d("HyperIsleIsland", "RID=$rid EVT=GROUP_CHECK pkg=$pkg isGroupSummary=$isGroupSummary flags=${notification.flags}")
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GROUP_CHECK pkg=$pkg isGroupSummary=$isGroupSummary flags=${notification.flags}")
         
         if (isGroupSummary) {
             if (isAppAllowed(pkg)) {
@@ -980,7 +978,7 @@ class NotificationReaderService : NotificationListenerService() {
                 cancelGroupSummaryIfNeeded(sbn, type, keyHash)
             }
             DebugLog.event("JUNK_CHECK", rid, "JUNK", reason = "GROUP_SUMMARY", kv = mapOf("pkg" to pkg))
-            Log.d("HyperIsleIsland", "RID=$rid EVT=BLOCKED_GROUP_SUMMARY pkg=$pkg")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=BLOCKED_GROUP_SUMMARY pkg=$pkg")
             return true
         }
 
@@ -1006,7 +1004,7 @@ class NotificationReaderService : NotificationListenerService() {
             // BUG#2 DEBUG: Track WhatsApp through entire flow
             val isWhatsApp = sbn.packageName == "com.whatsapp" || sbn.packageName == "com.whatsapp.w4b"
             if (BuildConfig.DEBUG && isWhatsApp) {
-                Log.d("HI_WHATSAPP", "EVT=PROCESS_START rid=$rid")
+                HiLog.d(HiLog.TAG_NOTIF, "EVT=PROCESS_START rid=$rid")
             }
 
             // Timeline: onNotificationPosted event (PII-safe)
@@ -1068,7 +1066,7 @@ class NotificationReaderService : NotificationListenerService() {
             
             // BUG#2 DEBUG: Log type classification
             if (BuildConfig.DEBUG && isWhatsApp) {
-                Log.d("HI_WHATSAPP", "EVT=TYPE_CLASSIFIED rid=$rid type=${type.name}")
+                HiLog.d(HiLog.TAG_NOTIF, "EVT=TYPE_CLASSIFIED rid=$rid type=${type.name}")
             }
 
             val config = preferences.getAppConfig(sbn.packageName).first()
@@ -1116,7 +1114,7 @@ class NotificationReaderService : NotificationListenerService() {
                         // Only cancel if NOT ongoing (preserve music player notifications)
                         if (musicBlockApps.contains(sbn.packageName) && !isOngoing) {
                             try { cancelNotification(sbn.key) } catch (e: Exception) {
-                                Log.w(TAG, "Failed to cancel media notification: ${e.message}")
+                                HiLog.w(HiLog.TAG_NOTIF, "Failed to cancel media notification: ${e.message}")
                             }
                         }
                         return
@@ -1210,7 +1208,7 @@ class NotificationReaderService : NotificationListenerService() {
                         val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
                         insertDigestItem(sbn.packageName, title, text, type.name, "CONTEXT_PRESET_${contextPreset.name}", keyHash)
                     }
-                    Log.d(TAG, "Context preset ${contextPreset.name}: Blocked ${type.name} for ${sbn.packageName}")
+                    HiLog.d(HiLog.TAG_NOTIF, "Context preset ${contextPreset.name}: Blocked ${type.name} for ${sbn.packageName}")
                     return
                 }
             }
@@ -1230,7 +1228,7 @@ class NotificationReaderService : NotificationListenerService() {
                             val keyHash = if (ActionDiagnostics.isEnabled()) sbn.key.hashCode() else null
                             insertDigestItem(sbn.packageName, title, text, type.name, "CONTEXT_SCREEN_OFF", keyHash)
                         }
-                        Log.d(TAG, "Context-aware: Blocked ${type.name} for ${sbn.packageName} (screen off)")
+                        HiLog.d(HiLog.TAG_NOTIF, "Context-aware: Blocked ${type.name} for ${sbn.packageName} (screen off)")
                         return
                     }
                 }
@@ -1248,8 +1246,7 @@ class NotificationReaderService : NotificationListenerService() {
             // Skip update if message content is empty (prevents narrow/collapsed island display)
             // This handles cases where Telegram/WhatsApp sends update notifications with only sender name
             if (isUpdate && type == NotificationType.STANDARD && text.isEmpty() && subText.isEmpty()) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$rid EVT=UPDATE_SKIP reason=EMPTY_MESSAGE_UPDATE pkg=${sbn.packageName} titleLen=${title.length} textLen=0"
                 )
                 DebugLog.event("UPDATE_SKIP", rid, "SKIP", reason = "EMPTY_MESSAGE_UPDATE", kv = mapOf(
@@ -1307,34 +1304,81 @@ class NotificationReaderService : NotificationListenerService() {
                 insertDigestItem(sbn.packageName, title, text, type.name)
             }
 
-            // --- EARLY INTERCEPTION: Snooze clearable STANDARD notifications to suppress popup ---
-            // This "steals" the notification: shows it in Dynamic Island, suppresses system popup
-            // but keeps notification in status bar for stacking (iOS-like behavior)
+            // --- EARLY INTERCEPTION: Handle STANDARD notifications based on ShadeCancelMode ---
+            // This controls whether/how we suppress system popup while showing Dynamic Island
+            // 
+            // Mode behavior:
+            // - STASH: Never snooze/cancel → notification stays in shade + status bar (messaging apps)
+            // - ISLAND_ONLY: Don't snooze/cancel → notification stays in shade (safe default)
+            // - HIDE_POPUP_KEEP_SHADE: Snooze briefly → suppress popup, keep in shade
+            // - FULLY_HIDE/AGGRESSIVE: Cancel → remove from shade entirely
+            //
             // Scope: Only STANDARD type (messages, alerts). Does NOT affect PROGRESS, NAVIGATION, MEDIA, TIMER.
+            val shadeCancelMode = preferences.getShadeCancelMode(sbn.packageName)
+            val isStashMode = ShadeCancelMode.isStashMode(shadeCancelMode)
+            val shouldSnooze = ShadeCancelMode.shouldSnooze(shadeCancelMode)
+            val shouldCancel = ShadeCancelMode.shouldCancel(shadeCancelMode)
+            
+            // Log shade cancel mode decision
+            HiLog.d(HiLog.TAG_NOTIF, "EVT=SHADE_MODE_CHECK pkg=${sbn.packageName} mode=${shadeCancelMode.name} " +
+                "shouldSnooze=$shouldSnooze shouldCancel=$shouldCancel isStash=$isStashMode")
+            
+            // Store content intent for all modes
+            val contentIntent = sbn.notification.contentIntent
+            if (contentIntent != null) {
+                val bridgeIdForIntent = groupKey.hashCode()
+                IslandCooldownManager.setContentIntent(bridgeIdForIntent, contentIntent)
+            }
+            
             if (type == NotificationType.STANDARD && sbn.isClearable && !isOngoing) {
-                val contentIntent = sbn.notification.contentIntent
-                if (contentIntent != null) {
-                    val bridgeIdForIntent = groupKey.hashCode()
-                    IslandCooldownManager.setContentIntent(bridgeIdForIntent, contentIntent)
-                }
-                
-                // Snooze notification briefly to prevent system heads-up popup
-                // After snooze expires, notification appears silently in status bar (stacking)
-                try {
-                    snoozeNotification(sbn.key, POPUP_SUPPRESS_SNOOZE_MS)
-                    markSelfCancel(sbn.key, sbn.key.hashCode())
-                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_SNOOZE_OK", kv = mapOf(
-                        "pkg" to sbn.packageName,
-                        "isClearable" to sbn.isClearable,
-                        "isOngoing" to isOngoing,
-                        "snoozeMs" to POPUP_SUPPRESS_SNOOZE_MS
-                    ))
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to snooze clearable notification: ${e.message}")
-                    DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CLEARABLE_STANDARD_SNOOZE_FAIL", kv = mapOf(
-                        "pkg" to sbn.packageName,
-                        "error" to (e.message ?: "unknown")
-                    ))
+                when {
+                    // STASH or ISLAND_ONLY: Never touch system notification
+                    isStashMode || shadeCancelMode == ShadeCancelMode.ISLAND_ONLY -> {
+                        HiLog.d(HiLog.TAG_NOTIF, "EVT=NOTIF_STASH_POLICY pkg=${sbn.packageName} mode=${shadeCancelMode.name} action=NONE")
+                        DebugLog.event("EARLY_INTERCEPT", rid, "SKIP", reason = "STASH_OR_ISLAND_ONLY", kv = mapOf(
+                            "pkg" to sbn.packageName,
+                            "mode" to shadeCancelMode.name
+                        ))
+                    }
+                    
+                    // HIDE_POPUP_KEEP_SHADE: Snooze to suppress popup, keep in shade
+                    shouldSnooze -> {
+                        try {
+                            snoozeNotification(sbn.key, POPUP_SUPPRESS_SNOOZE_MS)
+                            markSelfCancel(sbn.key, sbn.key.hashCode())
+                            HiLog.d(HiLog.TAG_NOTIF, "EVT=NOTIF_SNOOZE_OK pkg=${sbn.packageName} mode=${shadeCancelMode.name} snoozeMs=$POPUP_SUPPRESS_SNOOZE_MS")
+                            DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "SNOOZE_OK", kv = mapOf(
+                                "pkg" to sbn.packageName,
+                                "mode" to shadeCancelMode.name,
+                                "snoozeMs" to POPUP_SUPPRESS_SNOOZE_MS
+                            ))
+                        } catch (e: Exception) {
+                            HiLog.w(HiLog.TAG_NOTIF, "EVT=NOTIF_SNOOZE_FAIL pkg=${sbn.packageName} error=${e.message}")
+                            DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "SNOOZE_FAIL", kv = mapOf(
+                                "pkg" to sbn.packageName,
+                                "error" to (e.message ?: "unknown")
+                            ))
+                        }
+                    }
+                    
+                    // FULLY_HIDE or AGGRESSIVE: Cancel notification from shade
+                    shouldCancel -> {
+                        try {
+                            cancelNotification(sbn.key)
+                            markSelfCancel(sbn.key, sbn.key.hashCode())
+                            HiLog.d(HiLog.TAG_NOTIF, "EVT=NOTIF_CANCEL_OK pkg=${sbn.packageName} mode=${shadeCancelMode.name}")
+                            DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CANCEL_OK", kv = mapOf(
+                                "pkg" to sbn.packageName,
+                                "mode" to shadeCancelMode.name
+                            ))
+                        } catch (e: Exception) {
+                            HiLog.w(HiLog.TAG_NOTIF, "EVT=NOTIF_CANCEL_FAIL pkg=${sbn.packageName} error=${e.message}")
+                            DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CANCEL_FAIL", kv = mapOf(
+                                "pkg" to sbn.packageName,
+                                "error" to (e.message ?: "unknown")
+                            ))
+                        }
+                    }
                 }
                 // Continue processing to show in Dynamic Island (don't return)
             }
@@ -1368,7 +1412,7 @@ class NotificationReaderService : NotificationListenerService() {
                             "method" to "cancel"
                         ))
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to cancel ongoing call notification: ${e.message}")
+                        HiLog.w(HiLog.TAG_NOTIF, "Failed to cancel ongoing call notification: ${e.message}")
                         DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_ONGOING_CANCEL_FAIL", kv = mapOf(
                             "pkg" to sbn.packageName,
                             "callState" to callState,
@@ -1390,7 +1434,7 @@ class NotificationReaderService : NotificationListenerService() {
                     } catch (e: Exception) {
                         // Fallback: try cancelNotification if snooze fails
                         // NOTE: This may stop ringtone on some devices - test carefully!
-                        Log.w(TAG, "Snooze failed for incoming call, trying cancel: ${e.message}")
+                        HiLog.w(HiLog.TAG_NOTIF, "Snooze failed for incoming call, trying cancel: ${e.message}")
                         try {
                             cancelNotification(sbn.key)
                             markSelfCancel(sbn.key, sbn.key.hashCode())
@@ -1400,7 +1444,7 @@ class NotificationReaderService : NotificationListenerService() {
                                 "method" to "cancel"
                             ))
                         } catch (e2: Exception) {
-                            Log.w(TAG, "Failed to suppress incoming call notification: ${e2.message}")
+                            HiLog.w(HiLog.TAG_NOTIF, "Failed to suppress incoming call notification: ${e2.message}")
                             DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_INCOMING_SUPPRESS_FAIL", kv = mapOf(
                                 "pkg" to sbn.packageName,
                                 "callState" to callState,
@@ -1585,26 +1629,23 @@ class NotificationReaderService : NotificationListenerService() {
             
             // BUG#2 DEBUG: Log overlay routing decision
             if (BuildConfig.DEBUG && isWhatsApp) {
-                Log.d("HI_WHATSAPP", "EVT=OVERLAY_DECISION rid=$rid overlaySupported=$overlaySupported canUseOverlay=$canUseOverlay forceOverlayRoute=$forceOverlayRoute preferOverlay=$preferOverlay blockMiuiBridge=$blockMiuiBridgeForNotif")
+                HiLog.d(HiLog.TAG_NOTIF, "EVT=OVERLAY_DECISION rid=$rid overlaySupported=$overlaySupported canUseOverlay=$canUseOverlay forceOverlayRoute=$forceOverlayRoute preferOverlay=$preferOverlay blockMiuiBridge=$blockMiuiBridgeForNotif")
             }
             if (preferOverlay) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=$rid EVT=ROUTE_SELECTED route=APP_OVERLAY reason=FORCE_OVERLAY type=${type.name}"
                     )
                 }
                 if (useMiuiBridgeIsland) {
                     try {
                         NotificationManagerCompat.from(this).cancel(bridgeId)
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=$rid EVT=MIUI_BRIDGE_CANCEL_OK reason=FORCE_OVERLAY type=${type.name}"
                         )
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to cancel MIUI bridge notification: ${e.message}")
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.w(HiLog.TAG_NOTIF, "Failed to cancel MIUI bridge notification: ${e.message}")
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=$rid EVT=MIUI_BRIDGE_CANCEL_FAIL reason=FORCE_OVERLAY type=${type.name}"
                         )
                     }
@@ -1657,8 +1698,7 @@ class NotificationReaderService : NotificationListenerService() {
                 val suppressedRoute = if (blockMiuiBridgeForNotif && useMiuiBridgeIsland) "MIUI_ISLAND_BRIDGE" else "NONE"
                 val isMiuiBridgeNotif = sbn.packageName == "com.android.systemui" && 
                     sbn.notification.extras?.getString("android.title")?.contains("MIUI") == true
-                Log.d(
-                    "HI_NOTIF",
+                HiLog.d(HiLog.TAG_NOTIF,
                     "EVT=NOTIF_ROUTE_FINAL pkg=${sbn.packageName} type=${type.name} chosen=${route?.name ?: "NULL"} suppressed=$suppressedRoute reason=${if (isMiuiBridgeNotif) "MIUI_BRIDGE_NOTIF_NOOP" else if (blockMiuiBridgeForNotif) "NOTIF_MUST_USE_APP_OVERLAY" else "DEFAULT"}"
                 )
             }
@@ -1677,7 +1717,7 @@ class NotificationReaderService : NotificationListenerService() {
                                     clearIslandState(groupKey)
                                     IslandActivityStateMachine.remove(groupKey)
                                 } catch (e: Exception) {
-                                    Log.w(TAG, "Failed to dismiss completed island: ${e.message}")
+                                    HiLog.w(HiLog.TAG_NOTIF, "Failed to dismiss completed island: ${e.message}")
                                 }
                             }
                         }
@@ -1702,16 +1742,14 @@ class NotificationReaderService : NotificationListenerService() {
                     // FIX: Do NOT emit overlay event when MIUI bridge is active
                     // This was causing TWO islands (MIUI mini + HyperIsle overlay) for the same notification
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=$rid EVT=ROUTE_FINAL route=MIUI_BRIDGE reason=MIUI_BRIDGE_ACTIVE type=${type.name} pkg=${sbn.packageName}"
                         )
                     }
                 }
                 IslandRoute.APP_OVERLAY -> {
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=$rid EVT=ROUTE_FINAL route=APP_OVERLAY reason=OVERLAY_SELECTED type=${type.name} pkg=${sbn.packageName}"
                         )
                     }
@@ -1754,7 +1792,7 @@ class NotificationReaderService : NotificationListenerService() {
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error", e)
+            HiLog.e(HiLog.TAG_NOTIF, "Error", emptyMap(), e)
         }
     }
 
@@ -1768,7 +1806,7 @@ class NotificationReaderService : NotificationListenerService() {
         rid: String
     ) {
         val keyHash = sbn.key.hashCode()
-        Log.d("HyperIsleIsland", "RID=$keyHash EVT=BRIDGE_POST_TRY pkg=${sbn.packageName} bridgeId=$bridgeId type=$notificationType")
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=BRIDGE_POST_TRY pkg=${sbn.packageName} bridgeId=$bridgeId type=$notificationType")
 
         val notificationBuilder = NotificationCompat.Builder(this, ISLAND_CHANNEL_ID)
             .setSmallIcon(R.drawable.`ic_launcher_foreground`)
@@ -1802,7 +1840,7 @@ class NotificationReaderService : NotificationListenerService() {
             
             // Debug log: tapOpen setup
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "event=tapOpenSetup pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()} bridgeId=$bridgeId")
+                HiLog.d(HiLog.TAG_NOTIF, "event=tapOpenSetup pkg=${sbn.packageName} keyHash=${sbn.key.hashCode()} bridgeId=$bridgeId")
             }
         }
 
@@ -1812,14 +1850,13 @@ class NotificationReaderService : NotificationListenerService() {
         try {
             NotificationManagerCompat.from(this).notify(bridgeId, notification)
         } catch (e: Exception) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=BRIDGE_POST_FAIL pkg=${sbn.packageName} bridgeId=$bridgeId reason=${e.javaClass.simpleName}"
             )
             throw e
         }
         bridgePostConfirmations[sbn.key] = System.currentTimeMillis()
-        Log.d("HyperIsleIsland", "RID=$keyHash EVT=BRIDGE_POST_OK pkg=${sbn.packageName} bridgeId=$bridgeId")
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=BRIDGE_POST_OK pkg=${sbn.packageName} bridgeId=$bridgeId")
         activeTranslations[groupKey] = bridgeId
         startMinVisibleTimer(groupKey, keyHash)
 
@@ -1850,7 +1887,7 @@ class NotificationReaderService : NotificationListenerService() {
         
         // INSTRUMENTATION: Island add with state transition
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=${sbn.key.hashCode()} STAGE=ADD ACTION=ISLAND_SHOWN pkg=${sbn.packageName} type=$notificationType bridgeId=$bridgeId")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} STAGE=ADD ACTION=ISLAND_SHOWN pkg=${sbn.packageName} type=$notificationType bridgeId=$bridgeId")
             IslandRuntimeDump.recordAdd(
                 ctx = ProcCtx.synthetic(sbn.packageName, "postNotification"),
                 reason = "MIUI_POST_OK",
@@ -1886,7 +1923,7 @@ class NotificationReaderService : NotificationListenerService() {
         
         // Telemetry: ISLAND_SHOWN with window flags, style, dimensions
         // Note: Island is rendered by HyperOS system, so we log what we control
-        HiLog.d(HiLog.TAG_INPUT, "ISLAND_SHOWN", mapOf(
+        HiLog.d(HiLog.TAG_NOTIF, "ISLAND_SHOWN", mapOf(
             "pkg" to sbn.packageName,
             "notifKeyHash" to HiLog.hashKey(sbn.key),
             "islandStyle" to notificationType,
@@ -1997,7 +2034,7 @@ class NotificationReaderService : NotificationListenerService() {
         
         // INSTRUMENTATION: Shade cancel decision
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=DECISION cancelShade=${decision.cancelShade} allowed=${decision.cancelShadeAllowed} eligible=${decision.cancelShadeEligible} safe=${decision.cancelShadeSafe} reason=${decision.ineligibilityReason ?: "OK"} pkg=$pkg")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=DECISION cancelShade=${decision.cancelShade} allowed=${decision.cancelShadeAllowed} eligible=${decision.cancelShadeEligible} safe=${decision.cancelShadeSafe} reason=${decision.ineligibilityReason ?: "OK"} pkg=$pkg")
             IslandRuntimeDump.recordEvent(
                 ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
                 stage = "HIDE_SYS_NOTIF",
@@ -2012,8 +2049,7 @@ class NotificationReaderService : NotificationListenerService() {
             )
         }
 
-        Log.d(
-            "HyperIsleIsland",
+        HiLog.d(HiLog.TAG_ISLAND,
             "RID=$keyHash EVT=CANCEL_GUARD reason=$guardReason decision={clearable=$clearable,eligible=${decision.cancelShadeEligible},safe=${decision.cancelShadeSafe},routeConfirmed=$routeConfirmed} result=$guardResult pkg=$pkg"
         )
 
@@ -2021,22 +2057,31 @@ class NotificationReaderService : NotificationListenerService() {
         // This helps identify apps where users should disable notifications in system settings
         // to avoid duplicate islands (MIUI/HyperOS often forces system notifications to show)
         if (decision.cancelShadeAllowed && !decision.cancelShade && type != NotificationType.MEDIA) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=SHADE_CANCEL_GUARD reason=$guardReason type=${type.name} pkg=$pkg"
+            )
+        }
+        
+        // MIUI conflict detection: Log when overlay is shown but cancel is skipped
+        // This helps track potential MIUI mini-island appearances
+        val isMessagingApp = ShadeCancelMode.MESSAGING_PACKAGES.contains(pkg)
+        val isStashActive = ShadeCancelMode.isStashMode(shadeCancelMode)
+        if (BuildConfig.DEBUG && isMessagingApp) {
+            val bridgeSuppressed = route == IslandRoute.APP_OVERLAY && useMiuiBridgeIsland
+            HiLog.d(HiLog.TAG_NOTIF,
+                "EVT=MIUI_CONFLICT_CHECK pkg=$pkg bridgeSuppressed=$bridgeSuppressed overlayShown=${deliveryConfirmed} cancelPerformed=${decision.cancelShade} stashMode=$isStashActive"
             )
         }
 
         if (forceNavigationCancel) {
             if (!forceCancelReady) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$keyHash EVT=SYS_NOTIF_CANCEL_SKIP reason=FORCE_NAV_GUARD pkg=$pkg"
                 )
                 return
             }
             val groupKey = sbnKeyToGroupKey[sbn.key]
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_TRY mode=FORCE_NAV")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_TRY mode=FORCE_NAV")
             try {
                 delay(SYS_CANCEL_POST_DELAY_MS)
                 cancelNotification(sbn.key)
@@ -2044,12 +2089,11 @@ class NotificationReaderService : NotificationListenerService() {
                 if (groupKey != null) {
                     startMinVisibleTimer(groupKey, keyHash)
                 }
-                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK mode=FORCE_NAV")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK mode=FORCE_NAV")
             } catch (e: Exception) {
                 selfCancelKeys.remove(sbn.key)
-                Log.w(TAG, "Force navigation cancel failed: ${e.message}")
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.w(HiLog.TAG_NOTIF, "Force navigation cancel failed: ${e.message}")
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$keyHash EVT=SYS_NOTIF_CANCEL_FAIL mode=FORCE_NAV reason=${e.javaClass.simpleName}"
                 )
             }
@@ -2058,8 +2102,15 @@ class NotificationReaderService : NotificationListenerService() {
 
         if (decision.cancelShade && !routeConfirmed) {
             val skipReason = if (route == IslandRoute.MIUI_BRIDGE) "BRIDGE_NOT_CONFIRMED" else "OVERLAY_NOT_CONFIRMED"
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=CANCEL_SKIPPED_$skipReason")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=CANCEL_SKIPPED_$skipReason")
             return
+        }
+        
+        // STASH mode: Log when cancel is skipped due to stash policy
+        if (!decision.cancelShade && isStashActive && type == NotificationType.STANDARD) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d(HiLog.TAG_NOTIF, "EVT=NOTIF_CANCEL_SKIPPED pkg=$pkg reason=STASH_ENABLED mode=${shadeCancelMode.name}")
+            }
         }
         
         // Only cancel/snooze if all conditions are met
@@ -2090,10 +2141,10 @@ class NotificationReaderService : NotificationListenerService() {
                 if (useSnoozeForStacking) {
                     // Snooze briefly - notification will reappear silently in status bar
                     snoozeNotification(sbn.key, POPUP_SUPPRESS_SNOOZE_MS)
-                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_SNOOZE_OK snoozeMs=$POPUP_SUPPRESS_SNOOZE_MS")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_SNOOZE_OK snoozeMs=$POPUP_SUPPRESS_SNOOZE_MS")
                 } else {
                     cancelNotification(sbn.key)
-                    Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK")
                 }
                 markSelfCancel(sbn.key, keyHash)
                 if (groupKey != null) {
@@ -2101,8 +2152,8 @@ class NotificationReaderService : NotificationListenerService() {
                 }
                 if (BuildConfig.DEBUG) {
                     val action = if (useSnoozeForStacking) "SNOOZE_OK" else "CANCEL_OK"
-                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=$action pkg=$pkg")
-                    Log.d("HI_NOTIF", "event=shadeHandled pkg=$pkg keyHash=$keyHash method=${if (useSnoozeForStacking) "snooze" else "cancel"}")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=$action pkg=$pkg")
+                    HiLog.d(HiLog.TAG_NOTIF, "event=shadeHandled pkg=$pkg keyHash=$keyHash method=${if (useSnoozeForStacking) "snooze" else "cancel"}")
                     IslandRuntimeDump.recordEvent(
                         ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
                         stage = "HIDE_SYS_NOTIF",
@@ -2125,10 +2176,10 @@ class NotificationReaderService : NotificationListenerService() {
             } catch (e: Exception) {
                 selfCancelKeys.remove(sbn.key)
                 val method = if (useSnoozeForStacking) "snooze" else "cancel"
-                Log.w(TAG, "Failed to $method notification from shade: ${e.message}")
-                Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_${method.uppercase()}_FAIL reason=${e.javaClass.simpleName}")
+                HiLog.w(HiLog.TAG_NOTIF, "Failed to $method notification from shade: ${e.message}")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_${method.uppercase()}_FAIL reason=${e.javaClass.simpleName}")
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=${method.uppercase()}_FAIL reason=${e.message} pkg=$pkg")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash STAGE=HIDE_SYS_NOTIF ACTION=${method.uppercase()}_FAIL reason=${e.message} pkg=$pkg")
                     IslandRuntimeDump.recordEvent(
                         ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
                         stage = "HIDE_SYS_NOTIF",
@@ -2229,7 +2280,7 @@ class NotificationReaderService : NotificationListenerService() {
                 ActionDiagnostics.record(diagLine)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to insert digest item: ${e.message}")
+            HiLog.w(HiLog.TAG_NOTIF, "Failed to insert digest item: ${e.message}")
         }
     }
 
@@ -2264,8 +2315,7 @@ class NotificationReaderService : NotificationListenerService() {
                         newAppRank != lowestAppRank -> newAppRank < lowestAppRank
                         else -> false
                     }
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=LIMIT EVT=PRIORITY_EVAL newType=${newType.name} newTypeRank=$newTypeRank newAppRank=$newAppRank lowestType=${lowestActiveEntry.value.type.name} lowestTypeRank=$lowestTypeRank lowestAppRank=$lowestAppRank decision=${if (shouldReplace) "REPLACE" else "KEEP"}"
                     )
                     if (shouldReplace) {
@@ -2301,8 +2351,7 @@ class NotificationReaderService : NotificationListenerService() {
 
         val poster = SystemHyperIslandPoster(this)
         if (!canPostNotifications() || !poster.hasNotificationPermission()) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=SHADE_CANCEL_HINT_SKIP reason=NO_POST_PERMISSION pkg=$pkg"
             )
             return
@@ -2315,14 +2364,13 @@ class NotificationReaderService : NotificationListenerService() {
                 getString(R.string.shade_cancel_not_clearable_banner)
             )
         } catch (e: SecurityException) {
-            Log.w(TAG, "Shade cancel hint post blocked: ${e.message}")
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.w(HiLog.TAG_NOTIF, "Shade cancel hint post blocked: ${e.message}")
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=SHADE_CANCEL_HINT_SKIP reason=SECURITY_EXCEPTION pkg=$pkg"
             )
             return
         }
-        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SHADE_CANCEL_HINT_SHOWN reason=NOT_CLEARABLE pkg=$pkg")
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SHADE_CANCEL_HINT_SHOWN reason=NOT_CLEARABLE pkg=$pkg")
     }
 
     private suspend fun attemptAggressiveShadeCancel(
@@ -2332,7 +2380,7 @@ class NotificationReaderService : NotificationListenerService() {
     ) {
         val pkg = sbn.packageName
         val groupKey = sbnKeyToGroupKey[sbn.key]
-        Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_TRY mode=AGGRESSIVE_TRY")
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_TRY mode=AGGRESSIVE_TRY")
 
         try {
             delay(SYS_CANCEL_POST_DELAY_MS)
@@ -2341,11 +2389,11 @@ class NotificationReaderService : NotificationListenerService() {
             if (groupKey != null) {
                 startMinVisibleTimer(groupKey, keyHash)
             }
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK mode=AGGRESSIVE_TRY")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK mode=AGGRESSIVE_TRY")
         } catch (e: Exception) {
             selfCancelKeys.remove(sbn.key)
-            Log.w(TAG, "Aggressive cancel failed: ${e.message}")
-            Log.d("HyperIsleIsland", "RID=$keyHash EVT=SYS_NOTIF_CANCEL_FAIL mode=AGGRESSIVE_TRY reason=${e.javaClass.simpleName}")
+            HiLog.w(HiLog.TAG_NOTIF, "Aggressive cancel failed: ${e.message}")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_FAIL mode=AGGRESSIVE_TRY reason=${e.javaClass.simpleName}")
             if (BuildConfig.DEBUG) {
                 IslandRuntimeDump.recordEvent(
                     ctx = ProcCtx.synthetic(pkg, "shadeCancel"),
@@ -2453,7 +2501,7 @@ class NotificationReaderService : NotificationListenerService() {
                     try {
                         NotificationManagerCompat.from(this@NotificationReaderService).notify(bridgeId, notification)
                     } catch (se: SecurityException) {
-                        Log.w(TAG, "SecurityException during notify: ${se.message}")
+                        HiLog.w(HiLog.TAG_NOTIF, "SecurityException during notify: ${se.message}")
                         if (BuildConfig.DEBUG) {
                             DebugTimeline.log(
                                 "notifyFailed",
@@ -2465,7 +2513,7 @@ class NotificationReaderService : NotificationListenerService() {
                         continue
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to update call timer: ${e.message}")
+                    HiLog.w(HiLog.TAG_NOTIF, "Failed to update call timer: ${e.message}")
                     continue
                 }
             }
@@ -2537,23 +2585,33 @@ class NotificationReaderService : NotificationListenerService() {
     ): Boolean {
         val rid = sbn.key.hashCode()
         if (!isOverlaySupported(type, isOngoingCall)) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d("HyperIsleAnchor", "RID=$rid EVT=NOTIF_OVERLAY_DECISION chosen=SKIP_OVERLAY reason=OVERLAY_NOT_SUPPORTED type=$type pkg=${sbn.packageName}")
+            }
             return false
         }
 
         if (!shouldRenderOverlay(type, rid)) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d("HyperIsleAnchor", "RID=$rid EVT=NOTIF_OVERLAY_DECISION chosen=SKIP_OVERLAY reason=SHOULD_NOT_RENDER type=$type pkg=${sbn.packageName}")
+            }
             return false
         }
 
         // Skip if overlay permission not granted
         if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "Overlay permission not granted, skipping pill overlay")
+                HiLog.d("HyperIsleAnchor", "RID=$rid EVT=NOTIF_OVERLAY_DECISION chosen=SKIP_OVERLAY reason=NO_OVERLAY_PERMISSION pkg=${sbn.packageName}")
+                HiLog.d(HiLog.TAG_NOTIF, "Overlay permission not granted, skipping pill overlay")
             }
             return false
         }
 
         if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) {
-            Log.w(TAG, "Overlay service unavailable, skipping pill overlay")
+            if (BuildConfig.DEBUG) {
+                HiLog.d("HyperIsleAnchor", "RID=$rid EVT=NOTIF_OVERLAY_DECISION chosen=SKIP_OVERLAY reason=SERVICE_UNAVAILABLE pkg=${sbn.packageName}")
+            }
+            HiLog.w(HiLog.TAG_NOTIF, "Overlay service unavailable, skipping pill overlay")
             return false
         }
 
@@ -2566,6 +2624,11 @@ class NotificationReaderService : NotificationListenerService() {
                     val replyAction = extractReplyAction(sbn)
                     val collapseAfterMs = resolveOverlayCollapseMs(config)
                     val notifModel = buildNotificationOverlayModel(sbn, title, text, collapseAfterMs, replyAction)
+                    
+                    if (BuildConfig.DEBUG) {
+                        HiLog.d("HyperIsleAnchor", "RID=$rid EVT=NOTIF_OVERLAY_DECISION chosen=SHOW_OVERLAY reason=STANDARD_NOTIF pkg=${sbn.packageName}")
+                    }
+                    
                     OverlayEventBus.emitNotification(notifModel)
                 }
                 NotificationType.NAVIGATION -> {
@@ -2574,7 +2637,7 @@ class NotificationReaderService : NotificationListenerService() {
                 else -> false
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to emit overlay event: ${e.message}")
+            HiLog.w(HiLog.TAG_NOTIF, "Failed to emit overlay event: ${e.message}")
             false
         }
     }
@@ -2594,8 +2657,7 @@ class NotificationReaderService : NotificationListenerService() {
         val model = buildMediaOverlayModel(sbn, title, text, subText) ?: return false
         val emitted = OverlayEventBus.emitMedia(model)
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=${sbn.key.hashCode()} EVT=OVERLAY_ACTIVITY_EMIT type=MEDIA pkg=${sbn.packageName} titleLen=${model.title.length} subtitleLen=${model.subtitle.length} actions=${model.actions.size} hasArt=${model.albumArt != null} result=${if (emitted) "OK" else "DROP"}"
             )
         }
@@ -2615,8 +2677,7 @@ class NotificationReaderService : NotificationListenerService() {
         val model = buildTimerOverlayModel(sbn, title) ?: return false
         val emitted = OverlayEventBus.emitTimer(model)
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=${sbn.key.hashCode()} EVT=OVERLAY_ACTIVITY_EMIT type=TIMER pkg=${sbn.packageName} labelLen=${model.label.length} countdown=${model.isCountdown} result=${if (emitted) "OK" else "DROP"}"
             )
         }
@@ -2645,8 +2706,7 @@ class NotificationReaderService : NotificationListenerService() {
         callOverlayVisibility[groupKey] = true
         val emitted = OverlayEventBus.emitCall(callModel)
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=${sbn.key.hashCode()} EVT=CALL_OVERLAY_EMIT state=${callModel.state.name} pkg=${sbn.packageName} result=${if (emitted) "OK" else "DROP"}"
             )
         }
@@ -2673,15 +2733,13 @@ class NotificationReaderService : NotificationListenerService() {
                 val isForeground = accForeground == sbn.packageName
                 val isDialerForeground = accForeground in CALL_FOREGROUND_PACKAGES
                 if (BuildConfig.DEBUG) {
-                    Log.d(
-                        "HyperIsleIsland",
+                    HiLog.d(HiLog.TAG_ISLAND,
                         "RID=${sbn.key.hashCode()} EVT=OVERLAY_FG_FALLBACK source=ACCESSIBILITY fg=$accForeground pkg=${sbn.packageName}"
                     )
                 }
                 if (isForeground || isDialerForeground) {
                     if (BuildConfig.DEBUG) {
-                        Log.d(
-                            "HyperIsleIsland",
+                        HiLog.d(HiLog.TAG_ISLAND,
                             "RID=${sbn.key.hashCode()} EVT=OVERLAY_SKIP reason=CALL_UI_FOREGROUND pkg=${sbn.packageName} fg=$accForeground"
                         )
                     }
@@ -2689,8 +2747,7 @@ class NotificationReaderService : NotificationListenerService() {
                     return false
                 }
             } else if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${sbn.key.hashCode()} EVT=OVERLAY_FG_UNKNOWN reason=USAGE_STATS_DENIED pkg=${sbn.packageName}"
                 )
             }
@@ -2709,8 +2766,7 @@ class NotificationReaderService : NotificationListenerService() {
         
         if (isForeground || isDialerForeground) {
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${sbn.key.hashCode()} EVT=OVERLAY_SKIP reason=CALL_UI_FOREGROUND pkg=${sbn.packageName} fg=$foregroundPkg"
                 )
             }
@@ -2740,14 +2796,14 @@ class NotificationReaderService : NotificationListenerService() {
     private fun shouldRenderOverlay(type: NotificationType, rid: Int): Boolean {
         val screenOn = ContextStateManager.getEffectiveScreenOn(applicationContext)
         if (!screenOn) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=SCREEN_OFF")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=OVERLAY_SKIP reason=SCREEN_OFF")
             return false
         }
 
         val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager
         val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true
         if (isKeyguardLocked && type != NotificationType.CALL) {
-            Log.d("HyperIsleIsland", "RID=$rid EVT=OVERLAY_SKIP reason=KEYGUARD_LOCKED")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=OVERLAY_SKIP reason=KEYGUARD_LOCKED")
             return false
         }
 
@@ -2782,12 +2838,32 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     private fun extractReplyAction(sbn: StatusBarNotification): IosNotificationReplyAction? {
-        val actions = sbn.notification.actions ?: return null
+        val rid = sbn.key.hashCode()
+        val actions = sbn.notification.actions
+        
+        // Log action count for debugging
+        if (BuildConfig.DEBUG) {
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=REPLY_ACTION_SCAN pkg=${sbn.packageName} actionCount=${actions?.size ?: 0}")
+        }
+        
+        if (actions == null || actions.isEmpty()) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=REPLY_ACTION_DETECTED pkg=${sbn.packageName} available=false reason=NO_ACTIONS")
+            }
+            return null
+        }
+        
         val candidates = actions.filter { action ->
             val inputs = action.remoteInputs
             inputs != null && inputs.isNotEmpty() && action.actionIntent != null
         }
-        if (candidates.isEmpty()) return null
+        
+        if (candidates.isEmpty()) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=REPLY_ACTION_DETECTED pkg=${sbn.packageName} available=false reason=NO_REMOTE_INPUTS")
+            }
+            return null
+        }
 
         val replyAction = candidates.firstOrNull { action ->
             action.semanticAction == Notification.Action.SEMANTIC_ACTION_REPLY
@@ -2797,6 +2873,13 @@ class NotificationReaderService : NotificationListenerService() {
         val pendingIntent = replyAction.actionIntent ?: return null
         val label = replyAction.title?.toString()?.trim()?.ifBlank { null }
             ?: getString(R.string.overlay_reply)
+        
+        // Log successful extraction
+        if (BuildConfig.DEBUG) {
+            val isSemantic = replyAction.semanticAction == Notification.Action.SEMANTIC_ACTION_REPLY
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=REPLY_ACTION_DETECTED pkg=${sbn.packageName} available=true inputs=${remoteInputs.size} semantic=$isSemantic label=$label")
+        }
+        
         return IosNotificationReplyAction(
             title = label,
             pendingIntent = pendingIntent,
@@ -2873,11 +2956,11 @@ class NotificationReaderService : NotificationListenerService() {
                 speakerIntent = actionCandidates[0]
                 muteIntent = actionCandidates[1]
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_HEURISTIC applied=true reason=ICON_ONLY_EXACT2 totalActions=${allActionIntents.size}")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_HEURISTIC applied=true reason=ICON_ONLY_EXACT2 totalActions=${allActionIntents.size}")
                 }
             } else {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_HEURISTIC applied=false reason=CANDIDATE_COUNT_MISMATCH count=${actionCandidates.size} expected=2")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_HEURISTIC applied=false reason=CANDIDATE_COUNT_MISMATCH count=${actionCandidates.size} expected=2")
                 }
             }
         }
@@ -2892,7 +2975,7 @@ class NotificationReaderService : NotificationListenerService() {
                 muteIntent = muteIntent
             )
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_CACHE cached=${hangUpIntent != null}|${speakerIntent != null}|${muteIntent != null}")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_CACHE cached=${hangUpIntent != null}|${speakerIntent != null}|${muteIntent != null}")
             }
         } else {
             // No actions in this update - try to restore from cache
@@ -2902,7 +2985,7 @@ class NotificationReaderService : NotificationListenerService() {
                 speakerIntent = cached.speakerIntent
                 muteIntent = cached.muteIntent
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_RESTORE restored=${hangUpIntent != null}|${speakerIntent != null}|${muteIntent != null}")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=CALL_ACTION_RESTORE restored=${hangUpIntent != null}|${speakerIntent != null}|${muteIntent != null}")
                 }
             }
         }
@@ -2934,7 +3017,7 @@ class NotificationReaderService : NotificationListenerService() {
         // HARDENING#1: If callKey is empty, session is locked (call just ended) - don't build model
         if (callKey.isEmpty()) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_MODEL_BLOCKED reason=SESSION_LOCKED")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=CALL_MODEL_BLOCKED reason=SESSION_LOCKED")
             }
             return null
         }
@@ -2944,7 +3027,7 @@ class NotificationReaderService : NotificationListenerService() {
         val isMuted = com.coni.hyperisle.util.CallManager.isMuted(this)
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "RID=${sbn.key.hashCode()} EVT=CALL_MODEL_BUILD canHangup=$canHangup canSpeaker=$canSpeaker canMute=$canMute callKey=$callKey isSpeakerOn=$isSpeakerOn isMuted=$isMuted source=CALL_SESSION")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=CALL_MODEL_BUILD canHangup=$canHangup canSpeaker=$canSpeaker canMute=$canMute callKey=$callKey isSpeakerOn=$isSpeakerOn isMuted=$isMuted source=CALL_SESSION")
         }
         
         return IosCallOverlayModel(
@@ -2992,7 +3075,7 @@ class NotificationReaderService : NotificationListenerService() {
         val isVideo = MediaOverlayModel.isVideoPackage(sbn.packageName)
         
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "RID=${sbn.key.hashCode()} EVT=MEDIA_TYPE_DETECT pkg=${sbn.packageName} type=${mediaType.name} isVideo=$isVideo")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=MEDIA_TYPE_DETECT pkg=${sbn.packageName} type=${mediaType.name} isVideo=$isVideo")
         }
         
         val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
@@ -3102,8 +3185,7 @@ class NotificationReaderService : NotificationListenerService() {
         val navModel = buildNavigationOverlayModel(sbn) ?: return false
         val emitted = OverlayEventBus.emitNavigation(navModel)
         if (BuildConfig.DEBUG) {
-            Log.d(
-                "HyperIsleIsland",
+            HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$rid EVT=NAV_OVERLAY_EMIT pkg=${sbn.packageName} result=${if (emitted) "OK" else "DROP"}"
             )
         }
@@ -3134,7 +3216,7 @@ class NotificationReaderService : NotificationListenerService() {
             if (picture != null) {
                 iconSource = "EXTRA_PICTURE"
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
                 }
                 return picture
             }
@@ -3144,7 +3226,7 @@ class NotificationReaderService : NotificationListenerService() {
             if (largeIconBitmap != null) {
                 iconSource = "EXTRA_LARGE_ICON_BITMAP"
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
                 }
                 return largeIconBitmap
             }
@@ -3156,7 +3238,7 @@ class NotificationReaderService : NotificationListenerService() {
                 if (bitmap != null) {
                     iconSource = "LARGE_ICON"
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
                     }
                     return bitmap
                 }
@@ -3169,7 +3251,7 @@ class NotificationReaderService : NotificationListenerService() {
                 if (bitmap != null) {
                     iconSource = "SMALL_ICON"
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
                     }
                     return bitmap
                 }
@@ -3180,19 +3262,19 @@ class NotificationReaderService : NotificationListenerService() {
             if (appIcon != null) {
                 iconSource = "APP_ICON_FALLBACK"
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_ICON", "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_RESOLVED source=$iconSource pkg=${sbn.packageName}")
                 }
                 return appIcon
             }
             
             // 6. No icon available
             if (BuildConfig.DEBUG) {
-                Log.d("HI_ICON", "RID=$rid EVT=ICON_NONE pkg=${sbn.packageName}")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_NONE pkg=${sbn.packageName}")
             }
             return null
             
         } catch (e: Exception) {
-            Log.e("HI_ICON", "RID=$rid EVT=ICON_FAIL exception=${e.javaClass.simpleName} msg=${e.message} pkg=${sbn.packageName}")
+            HiLog.e(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_FAIL exception=${e.javaClass.simpleName} msg=${e.message} pkg=${sbn.packageName}")
             // Ultimate fallback - try app icon even after exception
             return try {
                 getAppIconBitmap(sbn.packageName)
@@ -3213,31 +3295,31 @@ class NotificationReaderService : NotificationListenerService() {
             when (value) {
                 is Bitmap -> {
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_OK key=$key type=BITMAP pkg=$pkg")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_EXTRACT_OK key=$key type=BITMAP pkg=$pkg")
                     }
                     value
                 }
                 is Icon -> {
                     // EXTRA_LARGE_ICON contains Icon instead of Bitmap - convert it
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_CONVERT key=$key type=ICON pkg=$pkg")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_EXTRACT_CONVERT key=$key type=ICON pkg=$pkg")
                     }
                     loadIconBitmapSafe(value, pkg, rid, "EXTRA_$key")
                 }
                 else -> {
                     if (BuildConfig.DEBUG) {
-                        Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_SKIP key=$key type=${value.javaClass.simpleName} pkg=$pkg")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_EXTRACT_SKIP key=$key type=${value.javaClass.simpleName} pkg=$pkg")
                     }
                     null
                 }
             }
         } catch (e: ClassCastException) {
             // This should not happen now, but guard against it
-            Log.e("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_CAST_FAIL key=$key exception=${e.message} pkg=$pkg (handled=true)")
+            HiLog.e(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_EXTRACT_CAST_FAIL key=$key exception=${e.message} pkg=$pkg (handled=true)")
             null
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_ICON", "RID=$rid EVT=ICON_EXTRACT_FAIL key=$key exception=${e.javaClass.simpleName} pkg=$pkg")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_EXTRACT_FAIL key=$key exception=${e.javaClass.simpleName} pkg=$pkg")
             }
             null
         }
@@ -3279,24 +3361,24 @@ class NotificationReaderService : NotificationListenerService() {
             
             if (drawable == null) {
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_ICON", "RID=$rid EVT=ICON_LOAD_NULL source=$source type=$iconTypeName pkg=$packageName")
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_LOAD_NULL source=$source type=$iconTypeName pkg=$packageName")
                 }
                 return null
             }
             
             val bitmap = drawable.toBitmap()
             if (BuildConfig.DEBUG) {
-                Log.d("HI_ICON", "RID=$rid EVT=ICON_LOAD_OK source=$source type=$iconTypeName w=${bitmap.width} h=${bitmap.height} pkg=$packageName")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_LOAD_OK source=$source type=$iconTypeName w=${bitmap.width} h=${bitmap.height} pkg=$packageName")
             }
             bitmap
             
         } catch (e: ClassCastException) {
             // This should never happen with proper Icon handling, but guard against it
-            Log.e("HI_ICON", "RID=$rid EVT=ICON_CAST_FAIL source=$source exception=${e.message} pkg=$packageName")
+            HiLog.e(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_CAST_FAIL source=$source exception=${e.message} pkg=$packageName")
             null
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_ICON", "RID=$rid EVT=ICON_LOAD_FAIL source=$source exception=${e.javaClass.simpleName} pkg=$packageName")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=ICON_LOAD_FAIL source=$source exception=${e.javaClass.simpleName} pkg=$packageName")
             }
             null
         }
@@ -3360,7 +3442,7 @@ class NotificationReaderService : NotificationListenerService() {
         }
         
         if (BuildConfig.DEBUG && mediaType != com.coni.hyperisle.overlay.NotificationMediaType.NONE) {
-            Log.d("HI_NOTIF", "RID=${sbn.key.hashCode()} EVT=MEDIA_TYPE_DETECTED type=${mediaType.name} hasPreview=${mediaBitmap != null}")
+            HiLog.d(HiLog.TAG_NOTIF, "RID=${sbn.key.hashCode()} EVT=MEDIA_TYPE_DETECTED type=${mediaType.name} hasPreview=${mediaBitmap != null}")
         }
         
         return IosNotificationOverlayModel(
@@ -3445,7 +3527,7 @@ class NotificationReaderService : NotificationListenerService() {
         val picture = safeGetBitmapFromExtras(extras, Notification.EXTRA_PICTURE, rid, sbn.packageName)
         if (picture != null) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_NOTIF", "RID=$rid EVT=MEDIA_BITMAP_FOUND source=EXTRA_PICTURE")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=MEDIA_BITMAP_FOUND source=EXTRA_PICTURE")
             }
             return picture
         }
@@ -3454,7 +3536,7 @@ class NotificationReaderService : NotificationListenerService() {
         val largeIcon = safeGetBitmapFromExtras(extras, Notification.EXTRA_LARGE_ICON, rid, sbn.packageName)
         if (largeIcon != null) {
             if (BuildConfig.DEBUG) {
-                Log.d("HI_NOTIF", "RID=$rid EVT=MEDIA_BITMAP_FOUND source=EXTRA_LARGE_ICON")
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=MEDIA_BITMAP_FOUND source=EXTRA_LARGE_ICON")
             }
             return largeIcon
         }

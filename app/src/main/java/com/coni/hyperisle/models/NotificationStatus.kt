@@ -1,5 +1,7 @@
 package com.coni.hyperisle.models
 
+
+
 /**
  * Self-reported notification status for apps in the shade cancel list.
  * 

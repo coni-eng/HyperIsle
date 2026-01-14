@@ -4,6 +4,8 @@ import android.util.Log
 import com.coni.hyperisle.BuildConfig
 import java.security.MessageDigest
 
+
+
 /**
  * HyperIsle logging wrapper with consistent tags and privacy protection.
  * 

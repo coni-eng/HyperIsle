@@ -1,8 +1,10 @@
 package com.coni.hyperisle.debug
 
-import android.util.Log
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.util.HiLog
 import java.util.concurrent.atomic.AtomicLong
+
+
 
 /**
  * DEBUG-ONLY UI Snapshot Logger for HyperIsle Island events.
@@ -142,7 +144,7 @@ object IslandUiSnapshotLogger {
             sb.append("}")
         }
 
-        Log.d(TAG, sb.toString())
+        HiLog.d(HiLog.TAG_ISLAND, sb.toString())
     }
 
     /**

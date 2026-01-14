@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.coni.hyperisle.overlay.MediaAction as OverlayMediaAction
 import com.coni.hyperisle.overlay.engine.ActiveIsland
 import com.coni.hyperisle.overlay.engine.IslandActions
 import com.coni.hyperisle.overlay.engine.IslandEvent
@@ -15,7 +16,8 @@ import com.coni.hyperisle.overlay.engine.IslandPolicy
 import com.coni.hyperisle.overlay.engine.IslandRoute
 import com.coni.hyperisle.ui.components.MediaExpandedPill
 import com.coni.hyperisle.ui.components.MediaPill
-import com.coni.hyperisle.overlay.MediaAction as OverlayMediaAction
+
+
 
 /**
  * Feature for handling media islands.

@@ -1,5 +1,7 @@
 package com.coni.hyperisle.overlay.engine
 
+
+
 /**
  * Represents the currently active island state.
  * This is the output of the coordinator's decision-making.

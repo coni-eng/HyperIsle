@@ -3,8 +3,10 @@ package com.coni.hyperisle.util
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
-import android.util.Log
 import androidx.core.net.toUri
+import com.coni.hyperisle.util.HiLog
+
+
 
 /**
  * Helper utility for managing overlay (SYSTEM_ALERT_WINDOW) permission.
@@ -33,10 +35,10 @@ object OverlayPermissionHelper {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            Log.d(TAG, "Launched overlay permission settings")
+            HiLog.d(HiLog.TAG_ISLAND, "Launched overlay permission settings")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to open overlay permission settings: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to open overlay permission settings: ${e.message}", emptyMap(), e)
             // Fallback to general app settings
             openAppSettings(context)
         }
@@ -52,10 +54,10 @@ object OverlayPermissionHelper {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            Log.d(TAG, "Launched app settings as fallback")
+            HiLog.d(HiLog.TAG_ISLAND, "Launched app settings as fallback")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to open app settings: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to open app settings: ${e.message}", emptyMap(), e)
             false
         }
     }
@@ -66,7 +68,7 @@ object OverlayPermissionHelper {
      */
     fun startOverlayServiceIfPermitted(context: Context): Boolean {
         if (!hasOverlayPermission(context)) {
-            Log.w(TAG, "Cannot start overlay service: permission not granted")
+            HiLog.w(HiLog.TAG_ISLAND, "Cannot start overlay service: permission not granted")
             return false
         }
 
@@ -75,10 +77,10 @@ object OverlayPermissionHelper {
                 action = com.coni.hyperisle.overlay.IslandOverlayService.ACTION_START
             }
             context.startForegroundService(intent)
-            Log.d(TAG, "Overlay service started")
+            HiLog.d(HiLog.TAG_ISLAND, "Overlay service started")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start overlay service: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to start overlay service: ${e.message}", emptyMap(), e)
             false
         }
     }
@@ -92,9 +94,9 @@ object OverlayPermissionHelper {
                 action = com.coni.hyperisle.overlay.IslandOverlayService.ACTION_STOP
             }
             context.startService(intent)
-            Log.d(TAG, "Overlay service stop requested")
+            HiLog.d(HiLog.TAG_ISLAND, "Overlay service stop requested")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to stop overlay service: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to stop overlay service: ${e.message}", emptyMap(), e)
         }
     }
 }

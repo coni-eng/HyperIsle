@@ -3,6 +3,8 @@ package com.coni.hyperisle.models
 import androidx.annotation.StringRes
 import com.coni.hyperisle.R
 
+
+
 enum class IslandLimitMode(@StringRes val titleRes: Int, @StringRes val descRes: Int) {
     FIRST_COME(R.string.mode_fcfs_title, R.string.mode_fcfs_desc),
     MOST_RECENT(R.string.mode_recent_title, R.string.mode_recent_desc),

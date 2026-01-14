@@ -8,6 +8,8 @@ import com.coni.hyperisle.overlay.NavigationOverlayModel
 import com.coni.hyperisle.overlay.OverlayEvent
 import com.coni.hyperisle.overlay.TimerOverlayModel
 
+
+
 /**
  * Adapter to convert between legacy OverlayEvent and new IslandEvent.
  * This allows gradual migration from the old architecture to the new one.

@@ -2,7 +2,10 @@ package com.coni.hyperisle.debug
 
 import android.util.Log
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.util.HiLog
 import java.util.concurrent.atomic.AtomicLong
+
+
 
 /**
  * Debug-only logging system for HyperIsle notification flow tracing.
@@ -69,7 +72,7 @@ object DebugLog {
         val kvPart = if (kv.isNotEmpty()) " {${formatKv(kv)}}" else ""
         
         val msg = "[$ts][EVT][RID=$rid][TYPE=$type][STEP=$step]$reasonPart$kvPart"
-        Log.d(TAG, msg)
+        HiLog.d(HiLog.TAG_ISLAND, msg)
     }
 
     /**
@@ -97,7 +100,7 @@ object DebugLog {
         val kvPart = if (kv.isNotEmpty()) " {${formatKv(kv)}}" else ""
         
         val msg = "[$ts][EXC][RID=$rid][TYPE=$type][STEP=$step] $exInfo$kvPart"
-        Log.e(TAG, msg, throwable)
+        HiLog.e(HiLog.TAG_ISLAND, msg, emptyMap(), throwable)
     }
 
     // --- Standard log levels (for simpler logging needs) ---
@@ -113,21 +116,21 @@ object DebugLog {
     fun d(message: String, kv: Map<String, Any?> = emptyMap()) {
         if (!BuildConfig.DEBUG) return
         val kvPart = if (kv.isNotEmpty()) " {${formatKv(kv)}}" else ""
-        Log.d(TAG, "$message$kvPart")
+        HiLog.d(HiLog.TAG_ISLAND, "$message$kvPart")
     }
 
     @JvmStatic
     fun i(message: String, kv: Map<String, Any?> = emptyMap()) {
         if (!BuildConfig.DEBUG) return
         val kvPart = if (kv.isNotEmpty()) " {${formatKv(kv)}}" else ""
-        Log.i(TAG, "$message$kvPart")
+        HiLog.i(HiLog.TAG_ISLAND, "$message$kvPart")
     }
 
     @JvmStatic
     fun w(message: String, kv: Map<String, Any?> = emptyMap()) {
         if (!BuildConfig.DEBUG) return
         val kvPart = if (kv.isNotEmpty()) " {${formatKv(kv)}}" else ""
-        Log.w(TAG, "$message$kvPart")
+        HiLog.w(HiLog.TAG_ISLAND, "$message$kvPart")
     }
 
     @JvmStatic
@@ -135,9 +138,9 @@ object DebugLog {
         if (!BuildConfig.DEBUG) return
         val kvPart = if (kv.isNotEmpty()) " {${formatKv(kv)}}" else ""
         if (throwable != null) {
-            Log.e(TAG, "$message$kvPart", throwable)
+            HiLog.e(HiLog.TAG_ISLAND, "$message$kvPart", emptyMap(), throwable)
         } else {
-            Log.e(TAG, "$message$kvPart")
+            HiLog.e(HiLog.TAG_ISLAND, "$message$kvPart")
         }
     }
 

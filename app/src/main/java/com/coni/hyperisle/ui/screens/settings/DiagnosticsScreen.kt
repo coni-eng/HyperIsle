@@ -1,5 +1,8 @@
 package com.coni.hyperisle.ui.screens.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -49,6 +52,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,22 +65,27 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.debug.IslandRuntimeDump
+import com.coni.hyperisle.debug.LegacyPathTelemetry
+import com.coni.hyperisle.models.AnchorVisibilityMode
+import com.coni.hyperisle.overlay.anchor.CutoutHelper
 import com.coni.hyperisle.util.DiagnosticsManager
 import com.coni.hyperisle.util.NotificationListenerDiagnostics
-import kotlinx.coroutines.delay
-import org.json.JSONObject
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiagnosticsScreen(
     onBack: () -> Unit,
-    onIslandStylePreviewClick: (() -> Unit)? = null
+    onIslandStylePreviewClick: (() -> Unit)? = null,
+    onNotificationLabClick: (() -> Unit)? = null
 ) {
     if (!BuildConfig.DEBUG) {
         LaunchedEffect(Unit) { onBack() }
@@ -91,6 +100,11 @@ fun DiagnosticsScreen(
     var logFileSize by remember { mutableLongStateOf(DiagnosticsManager.getLogFileSize()) }
     var logLineCount by remember { mutableIntStateOf(DiagnosticsManager.getLogLineCount()) }
     var recentLogs by remember { mutableStateOf<List<String>>(emptyList()) }
+    
+    val appPreferences = remember { AppPreferences(context) }
+    val anchorModeEnabled by appPreferences.anchorModeEnabledFlow.collectAsState(initial = false)
+    val anchorVisibilityMode by appPreferences.anchorVisibilityModeFlow.collectAsState(initial = AnchorVisibilityMode.TRIGGERED_ONLY)
+    val coroutineScope = rememberCoroutineScope()
 
     // Refresh stats periodically when session is active
     LaunchedEffect(isSessionActive) {
@@ -314,6 +328,20 @@ fun DiagnosticsScreen(
                     Text("Island Style Preview")
                 }
             }
+            
+            // Notification Lab Button
+            if (onNotificationLabClick != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onNotificationLabClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiary
+                    )
+                ) {
+                    Text("🧪 Notification Lab")
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
@@ -393,6 +421,43 @@ fun DiagnosticsScreen(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Anchor Mode Section (Debug)
+            AnchorModeCard(
+                isEnabled = anchorModeEnabled,
+                visibilityMode = anchorVisibilityMode,
+                onToggle = { enabled ->
+                    coroutineScope.launch {
+                        appPreferences.setAnchorModeEnabled(enabled)
+                        Toast.makeText(
+                            context,
+                            if (enabled) "Anchor mode enabled - restart app to apply" else "Anchor mode disabled - restart app to apply",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                onVisibilityModeChange = { mode ->
+                    coroutineScope.launch {
+                        appPreferences.setAnchorVisibilityMode(mode)
+                        Toast.makeText(
+                            context,
+                            "Visibility: ${AnchorVisibilityMode.getDisplayName(mode)}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Legacy Path Telemetry Section (Debug)
+            LegacyHitsCard(anchorModeEnabled = anchorModeEnabled)
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Recent Logs
             Text(
                 text = "Recent Logs",
@@ -428,6 +493,124 @@ fun DiagnosticsScreen(
                     items(recentLogs.reversed()) { logLine ->
                         LogEntryItem(logLine)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnchorModeCard(
+    isEnabled: Boolean,
+    visibilityMode: AnchorVisibilityMode,
+    onToggle: (Boolean) -> Unit,
+    onVisibilityModeChange: (AnchorVisibilityMode) -> Unit
+) {
+    val context = LocalContext.current
+    val cutoutInfo = remember { CutoutHelper.getCutoutInfoOrDefault(context) }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEnabled)
+                MaterialTheme.colorScheme.primaryContainer
+            else
+                MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Anchor Mode (Experimental)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Camera cutout island always visible",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = isEnabled,
+                    onCheckedChange = onToggle
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Cutout info
+            Text(
+                text = "Cutout: ${cutoutInfo.width}x${cutoutInfo.height} @ centerX=${cutoutInfo.centerX}",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            if (isEnabled) {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Visibility Mode Selection
+                Text(
+                    text = "Ada Görünürlük Modu",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Radio button options for visibility mode
+                AnchorVisibilityMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = visibilityMode == mode,
+                            onClick = { onVisibilityModeChange(mode) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = AnchorVisibilityMode.getDisplayName(mode),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (visibilityMode == mode) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                            Text(
+                                text = AnchorVisibilityMode.getDescription(mode),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Anchor mode enabled",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }
@@ -746,5 +929,152 @@ private fun formatFileSize(bytes: Long): String {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> "${bytes / 1024} KB"
         else -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
+    }
+}
+
+@Composable
+private fun LegacyHitsCard(anchorModeEnabled: Boolean) {
+    var totalHits by remember { mutableIntStateOf(0) }
+    var totalBypassed by remember { mutableIntStateOf(0) }
+    var notifHits by remember { mutableIntStateOf(0) }
+    var notifBypassed by remember { mutableIntStateOf(0) }
+    var callHits by remember { mutableIntStateOf(0) }
+    var navHits by remember { mutableIntStateOf(0) }
+    var recentHits by remember { mutableStateOf<List<LegacyPathTelemetry.LegacyHit>>(emptyList()) }
+    
+    // Refresh stats periodically
+    LaunchedEffect(Unit) {
+        while (true) {
+            totalHits = LegacyPathTelemetry.getTotalHitCount()
+            totalBypassed = LegacyPathTelemetry.getTotalBypassCount()
+            notifHits = LegacyPathTelemetry.getHitCount(LegacyPathTelemetry.Feature.NOTIF)
+            notifBypassed = LegacyPathTelemetry.getBypassCount(LegacyPathTelemetry.Feature.NOTIF)
+            callHits = LegacyPathTelemetry.getHitCount(LegacyPathTelemetry.Feature.CALL)
+            navHits = LegacyPathTelemetry.getHitCount(LegacyPathTelemetry.Feature.NAV)
+            recentHits = LegacyPathTelemetry.getRecentHits().take(10)
+            delay(2000)
+        }
+    }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (totalHits > 0 && anchorModeEnabled)
+                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+            else
+                MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Legacy Mini Path Telemetry",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Tracks collapsed/mini path hits during Anchor migration",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                OutlinedButton(
+                    onClick = { LegacyPathTelemetry.clear() }
+                ) {
+                    Text("Clear", fontSize = 11.sp)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Stats row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = totalHits.toString(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (totalHits > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        text = "Total Hits",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = totalBypassed.toString(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (totalBypassed > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        text = "Bypassed",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$notifHits/$notifBypassed",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = "NOTIF",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = callHits.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = "CALL",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            // Recent hits (last 5)
+            if (recentHits.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Recent Hits:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                recentHits.take(5).forEach { hit ->
+                    Text(
+                        text = "${hit.feature} | ${hit.branch} | ${if (hit.bypassed) "BYPASSED→${hit.redirectedTo}" else "OBSERVED"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = if (hit.bypassed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
     }
 }

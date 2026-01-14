@@ -2,16 +2,15 @@ package com.coni.hyperisle.overlay
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
-import android.util.Log
 import android.view.DisplayCutout
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +25,12 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.overlay.anchor.CutoutHelper
+import com.coni.hyperisle.overlay.anchor.CutoutInfo
+import com.coni.hyperisle.util.HiLog
+
+
+
 
 /**
  * Controller for managing overlay windows using WindowManager.
@@ -63,7 +68,7 @@ class OverlayWindowController(private val context: Context) {
      */
     fun showOverlay(event: OverlayEvent, interactive: Boolean = true, content: @Composable () -> Unit) {
         if (!hasOverlayPermission()) {
-            Log.w(TAG, "Overlay permission not granted, ignoring event")
+            HiLog.w(HiLog.TAG_ISLAND, "Overlay permission not granted, ignoring event")
             return
         }
 
@@ -120,14 +125,12 @@ class OverlayWindowController(private val context: Context) {
             val touchable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) == 0
             val focusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
             if (BuildConfig.DEBUG) {
-                Log.d(
-                    "HI_WINDOW",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=${overlayRid(event)} EVT=WINDOW_ATTACHED interactive=$interactive touchable=$touchable focusable=$focusable flags=${params.flags}"
                 )
             }
             if (!hasLoggedWindowFlags) {
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=OVL_FLAGS EVT=WINDOW_FLAGS flags=${params.flags} type=${params.type} touchable=$touchable focusable=$focusable"
                 )
                 hasLoggedWindowFlags = true
@@ -140,8 +143,7 @@ class OverlayWindowController(private val context: Context) {
                         overlayView?.let { view ->
                             val w = view.width
                             val h = view.height
-                            Log.d(
-                                "HyperIsleIsland",
+                            HiLog.d(HiLog.TAG_ISLAND,
                                 "RID=${overlayRid(event)} EVT=OVERLAY_MEASURED w=$w h=$h interactive=$interactive"
                             )
                             // Remove listener after first measurement to avoid spam
@@ -156,18 +158,18 @@ class OverlayWindowController(private val context: Context) {
             // This is a MIUI system bug, not our fault - we catch and log it safely
             try {
                 windowManager.addView(overlayView, params)
-                Log.d(TAG, "Overlay shown successfully (interactive=$interactive)")
-                Log.d("HyperIsleIsland", "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK")
+                HiLog.d(HiLog.TAG_ISLAND, "Overlay shown successfully (interactive=$interactive)")
+                HiLog.d(HiLog.TAG_ISLAND, "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK")
                 if (BuildConfig.DEBUG) {
-                    Log.d("HI_ISLAND", "RID=${overlayRid(event)} EVT=ISLAND_RENDER interactive=$interactive flags=${params.flags}")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=${overlayRid(event)} EVT=ISLAND_RENDER interactive=$interactive flags=${params.flags}")
                 }
             } catch (miuiException: NullPointerException) {
                 // MIUI MiuiCameraCoveredManager bug - safe to ignore
                 // The view is still added successfully despite the exception
                 if (miuiException.message?.contains("MiuiSettings") == true || 
                     miuiException.message?.contains("CloudData") == true) {
-                    Log.w(TAG, "MIUI MiuiCameraCoveredManager NullPointerException (safe to ignore): ${miuiException.message}")
-                    Log.d("HyperIsleIsland", "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK reason=MIUI_EXCEPTION_IGNORED")
+                    HiLog.w(HiLog.TAG_ISLAND, "MIUI MiuiCameraCoveredManager NullPointerException (safe to ignore): ${miuiException.message}")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=${overlayRid(event)} EVT=OVERLAY_SHOW_OK reason=MIUI_EXCEPTION_IGNORED")
                 } else {
                     // Re-throw if it's a different NullPointerException
                     throw miuiException
@@ -175,7 +177,7 @@ class OverlayWindowController(private val context: Context) {
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to show overlay: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to show overlay: ${e.message}", emptyMap(), e)
             currentEvent = null
         }
     }
@@ -193,14 +195,14 @@ class OverlayWindowController(private val context: Context) {
                 if (view.isAttachedToWindow) {
                     windowManager.removeViewImmediate(view)
                 }
-                Log.d(TAG, "Overlay removed successfully")
+                HiLog.d(HiLog.TAG_ISLAND, "Overlay removed successfully")
                 if (BuildConfig.DEBUG) {
                     val rid = currentEvent?.let { overlayRid(it) } ?: 0
-                    Log.d("HI_WINDOW", "RID=$rid EVT=WINDOW_DETACHED")
+                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=WINDOW_DETACHED")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to remove overlay: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to remove overlay: ${e.message}", emptyMap(), e)
         } finally {
             overlayView = null
             lifecycleOwner = null
@@ -215,7 +217,7 @@ class OverlayWindowController(private val context: Context) {
     fun forceDismissOverlay(reason: String) {
         val rid = currentEvent?.let { overlayRid(it) } ?: 0
         if (BuildConfig.DEBUG) {
-            Log.d("HI_ISLAND", "RID=$rid EVT=ISLAND_FORCE_DISMISS reason=$reason")
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=ISLAND_FORCE_DISMISS reason=$reason")
         }
         try {
             overlayView?.let { view ->
@@ -224,7 +226,7 @@ class OverlayWindowController(private val context: Context) {
                     lifecycleOwner?.performStop()
                     lifecycleOwner?.performDestroy()
                 } catch (e: Exception) {
-                    Log.w(TAG, "Lifecycle cleanup failed during force dismiss: ${e.message}")
+                    HiLog.w(HiLog.TAG_ISLAND, "Lifecycle cleanup failed during force dismiss: ${e.message}")
                 }
 
                 try {
@@ -232,9 +234,9 @@ class OverlayWindowController(private val context: Context) {
                         windowManager.removeViewImmediate(view)
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "View removal failed during force dismiss: ${e.message}")
+                    HiLog.w(HiLog.TAG_ISLAND, "View removal failed during force dismiss: ${e.message}")
                 }
-                Log.d(TAG, "Overlay force dismissed: $reason")
+                HiLog.d(HiLog.TAG_ISLAND, "Overlay force dismissed: $reason")
             }
         } finally {
             overlayView = null
@@ -266,13 +268,12 @@ class OverlayWindowController(private val context: Context) {
             if (BuildConfig.DEBUG) {
                 val focusable = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
                 val logRid = rid ?: currentEvent?.let { overlayRid(it) } ?: 0
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$logRid EVT=OVL_FLAGS_UPDATE focusable=$focusable reason=${reason ?: "unknown"} flags=${params.flags}"
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to update overlay focusable: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to update overlay focusable: ${e.message}", emptyMap(), e)
         }
     }
 
@@ -295,13 +296,59 @@ class OverlayWindowController(private val context: Context) {
             
             if (BuildConfig.DEBUG) {
                 val logRid = rid ?: currentEvent?.let { overlayRid(it) } ?: 0
-                Log.d(
-                    "HyperIsleIsland",
+                HiLog.d(HiLog.TAG_ISLAND,
                     "RID=$logRid EVT=WIN_LAYOUT_UPDATE mode=$mode w=${params.width} h=${params.height} flags=${params.flags}"
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to update overlay layout: ${e.message}", e)
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to update overlay layout: ${e.message}", emptyMap(), e)
+        }
+    }
+
+    /**
+     * Recalculate and update overlay position based on current cutout/metrics.
+     * Should be called when:
+     * - Screen orientation changes
+     * - Display metrics change
+     * - Cutout info needs refresh
+     */
+    fun updatePosition(reason: String) {
+        val view = overlayView ?: return
+        val params = overlayParams ?: return
+        
+        try {
+            val currentScreenWidth = getScreenWidth()
+            val currentOrientation = context.resources.configuration.orientation
+            
+            // Recalculate position
+            val positionResult = getClampedPosition()
+            params.x = positionResult.x
+            params.y = positionResult.y
+            
+            windowManager.updateViewLayout(view, params)
+            
+            // Update tracking
+            lastScreenWidth = currentScreenWidth
+            lastOrientation = currentOrientation
+            
+            HiLog.d(HiLog.TAG_ISLAND,
+                "EVT=POSITION_UPDATE reason=$reason x=${params.x} y=${params.y} " +
+                "screenW=$currentScreenWidth orientation=$currentOrientation"
+            )
+        } catch (e: Exception) {
+            HiLog.e(HiLog.TAG_ISLAND, "Failed to update overlay position: ${e.message}", emptyMap(), e)
+        }
+    }
+
+    /**
+     * Check if position update is needed due to orientation/metrics change.
+     */
+    fun checkAndUpdatePositionIfNeeded() {
+        val currentScreenWidth = getScreenWidth()
+        val currentOrientation = context.resources.configuration.orientation
+        
+        if (currentScreenWidth != lastScreenWidth || currentOrientation != lastOrientation) {
+            updatePosition("METRICS_CHANGED")
         }
     }
 
@@ -344,28 +391,47 @@ class OverlayWindowController(private val context: Context) {
     /**
      * Get clamped position for island overlay, ensuring it stays within screen bounds.
      * Centers on camera cutout if available, with proper X/Y clamping.
+     * 
+     * With Gravity.TOP | CENTER_HORIZONTAL:
+     * - x=0 means horizontally centered on screen
+     * - x>0 shifts right, x<0 shifts left
+     * - We calculate offset from screen center to cutout center
      */
     private fun getClampedPosition(): PositionResult {
         val screenWidth = getScreenWidth()
-        val y = getStatusBarHeight()
+        val cutoutInfo = CutoutHelper.getCutoutInfo(context)
         
-        // For X position: we use CENTER_HORIZONTAL gravity, so x=0 means centered.
-        // We only need to adjust x if there's an asymmetric cutout.
-        // For now, keep x=0 (centered) but add bounds logging.
-        val x = 0
+        // Calculate X offset: shift from screen center to cutout center
+        // With CENTER_HORIZONTAL gravity, x=0 is screen center
+        // desiredX = cutoutCenterX - screenWidth/2
+        val screenCenterX = screenWidth / 2
+        val desiredX = if (cutoutInfo != null) {
+            cutoutInfo.centerX - screenCenterX
+        } else {
+            0 // No cutout, stay centered
+        }
         
-        // Estimate island width (will be measured properly after layout)
-        // Use a reasonable max width for clamping validation
+        // Clamp X to prevent going off-screen
         val estimatedIslandWidth = (screenWidth * 0.9).toInt()
         val maxX = (screenWidth - estimatedIslandWidth) / 2
-        val clampedX = x.coerceIn(-maxX, maxX)
+        val clampedX = desiredX.coerceIn(-maxX, maxX)
         
-        if (BuildConfig.DEBUG) {
-            Log.d(
-                "HyperIsleIsland",
-                "EVT=POSITION_CALC screenW=$screenWidth estimatedIslandW=$estimatedIslandWidth desiredX=$x clampedX=$clampedX y=$y orientation=${context.resources.configuration.orientation}"
-            )
+        // Calculate Y position based on cutout
+        val y = if (cutoutInfo != null) {
+            // Position at top with small offset (0-8dp) when cutout is detected
+            val offsetDp = 4
+            val density = context.resources.displayMetrics.density
+            (offsetDp * density).toInt()
+        } else {
+            // Fallback to status bar height when no cutout
+            getStatusBarHeight()
         }
+        
+        HiLog.d(HiLog.TAG_ISLAND,
+            "EVT=POSITION_CALC screenW=$screenWidth screenCenterX=$screenCenterX " +
+            "cutoutCenterX=${cutoutInfo?.centerX} cutoutTop=${cutoutInfo?.top} " +
+            "desiredX=$desiredX clampedX=$clampedX y=$y"
+        )
         
         return PositionResult(clampedX, y)
     }
@@ -383,7 +449,7 @@ class OverlayWindowController(private val context: Context) {
         // Try to get camera cutout position for proper island centering
         val cutoutTop = getCameraCutoutTop()
         if (cutoutTop > 0) {
-            Log.d(TAG, "Using camera cutout position: $cutoutTop")
+            HiLog.d(HiLog.TAG_ISLAND, "Using camera cutout position: $cutoutTop")
             return cutoutTop
         }
         
@@ -428,12 +494,12 @@ class OverlayWindowController(private val context: Context) {
             val position = topCutout.bottom + 4
             
             if (BuildConfig.DEBUG) {
-                Log.d("HyperIsleIsland", "EVT=CUTOUT_DETECTED top=${topCutout.top} bottom=${topCutout.bottom} left=${topCutout.left} right=${topCutout.right} position=$position")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=CUTOUT_DETECTED top=${topCutout.top} bottom=${topCutout.bottom} left=${topCutout.left} right=${topCutout.right} position=$position")
             }
             
             position
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to get camera cutout: ${e.message}")
+            HiLog.w(HiLog.TAG_ISLAND, "Failed to get camera cutout: ${e.message}")
             0
         }
     }

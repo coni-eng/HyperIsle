@@ -1,14 +1,18 @@
+
 package com.coni.hyperisle.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Rect
 import android.os.SystemClock
-import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
 import com.coni.hyperisle.util.AccessibilityContextSignals
 import com.coni.hyperisle.util.AccessibilityContextState
+import com.coni.hyperisle.util.HiLog
+
+
+
 
 class ContextSignalsAccessibilityService : AccessibilityService() {
 
@@ -21,7 +25,7 @@ class ContextSignalsAccessibilityService : AccessibilityService() {
             AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
             AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         serviceInfo = info
-        Log.d("HyperIsleIsland", "RID=ACC_CTX EVT=SERVICE_CONNECTED")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=ACC_CTX EVT=SERVICE_CONNECTED")
         updateSignals("CONNECT", null)
     }
 
@@ -30,12 +34,12 @@ class ContextSignalsAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.d("HyperIsleIsland", "RID=ACC_CTX EVT=SERVICE_INTERRUPTED")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=ACC_CTX EVT=SERVICE_INTERRUPTED")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d("HyperIsleIsland", "RID=ACC_CTX EVT=SERVICE_DESTROYED")
+        HiLog.d(HiLog.TAG_ISLAND, "RID=ACC_CTX EVT=SERVICE_DESTROYED")
         AccessibilityContextState.update(AccessibilityContextSignals(), "DESTROY")
     }
 

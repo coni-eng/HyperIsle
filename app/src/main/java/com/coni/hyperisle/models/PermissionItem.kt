@@ -18,6 +18,8 @@ import com.coni.hyperisle.util.openBatterySettings
 import com.coni.hyperisle.util.openNotificationListenerSettings
 import com.coni.hyperisle.util.openOverlaySettings
 
+
+
 /**
  * Represents a permission item with its metadata and status.
  * Single source of truth for permission definitions.

@@ -8,14 +8,14 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.coni.hyperisle.data.db.AppDatabase
 import com.coni.hyperisle.data.db.AppSetting
 import com.coni.hyperisle.data.db.SettingsKeys
+import com.coni.hyperisle.models.DEFAULT_CONFIG_IDS
+import com.coni.hyperisle.models.DEFAULT_QUICK_ACTION_IDS
 import com.coni.hyperisle.models.IslandConfig
 import com.coni.hyperisle.models.IslandLimitMode
 import com.coni.hyperisle.models.MusicIslandMode
 import com.coni.hyperisle.models.NavContent
 import com.coni.hyperisle.models.NotificationStatus
 import com.coni.hyperisle.models.NotificationType
-import com.coni.hyperisle.models.DEFAULT_CONFIG_IDS
-import com.coni.hyperisle.models.DEFAULT_QUICK_ACTION_IDS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+
 
 // We keep this ONLY for the one-time migration logic
 private val Context.legacyDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -193,6 +195,15 @@ class AppPreferences(context: Context) {
         val currentSet = currentStr?.deserializeSet() ?: NotificationType.entries.map { it.name }.toSet()
         val newSet = if (isEnabled) currentSet + type.name else currentSet - type.name
         save(key, newSet.serialize())
+    }
+
+    // --- ANCHOR CONFIG ---
+    val anchorModeFlow: Flow<com.coni.hyperisle.models.AnchorVisibilityMode> = dao.getSettingFlow("anchor_visibility_mode").map {
+        com.coni.hyperisle.models.AnchorVisibilityMode.fromString(it)
+    }
+
+    suspend fun setAnchorMode(mode: com.coni.hyperisle.models.AnchorVisibilityMode) {
+        save("anchor_visibility_mode", mode.name)
     }
 
     // --- ISLAND CONFIG ---
@@ -837,6 +848,33 @@ class AppPreferences(context: Context) {
         save(SettingsKeys.PREF_USE_MIUI_BRIDGE_ISLAND, enabled.toString())
     }
 
+    // --- ANCHOR MODE (camera cutout island) ---
+    val anchorModeEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.ANCHOR_MODE_ENABLED).map { it.toBoolean(false) }
+
+    suspend fun isAnchorModeEnabled(): Boolean {
+        if (com.coni.hyperisle.BuildConfig.DEBUG) return true
+        return dao.getSetting(SettingsKeys.ANCHOR_MODE_ENABLED).toBoolean(false)
+    }
+
+    suspend fun setAnchorModeEnabled(enabled: Boolean) {
+        save(SettingsKeys.ANCHOR_MODE_ENABLED, enabled.toString())
+    }
+
+    // --- ANCHOR VISIBILITY MODE ---
+    val anchorVisibilityModeFlow: Flow<com.coni.hyperisle.models.AnchorVisibilityMode> = 
+        dao.getSettingFlow(SettingsKeys.ANCHOR_VISIBILITY_MODE).map { value ->
+            com.coni.hyperisle.models.AnchorVisibilityMode.fromString(value)
+        }
+
+    suspend fun getAnchorVisibilityMode(): com.coni.hyperisle.models.AnchorVisibilityMode {
+        val value = dao.getSetting(SettingsKeys.ANCHOR_VISIBILITY_MODE)
+        return com.coni.hyperisle.models.AnchorVisibilityMode.fromString(value)
+    }
+
+    suspend fun setAnchorVisibilityMode(mode: com.coni.hyperisle.models.AnchorVisibilityMode) {
+        save(SettingsKeys.ANCHOR_VISIBILITY_MODE, mode.name)
+    }
+
     /**
      * Counts how many apps have shade cancel enabled.
      * Used for diagnostics header.
@@ -852,7 +890,8 @@ class AppPreferences(context: Context) {
 
     /**
      * Gets the shade cancel mode for a specific app.
-     * Returns ISLAND_ONLY by default (safest - show island without touching system notification).
+     * Returns STASH for messaging apps (WhatsApp/Telegram) to keep notifications in shade.
+     * Returns ISLAND_ONLY by default for other apps.
      * Automatically migrates legacy SAFE values to ISLAND_ONLY.
      */
     suspend fun getShadeCancelMode(packageName: String): com.coni.hyperisle.models.ShadeCancelMode {
@@ -861,12 +900,8 @@ class AppPreferences(context: Context) {
         return if (value != null) {
             com.coni.hyperisle.models.ShadeCancelMode.fromLegacyValue(value)
         } else {
-            // SMS app should hide from shade by default for better UX
-            if (packageName == "com.google.android.apps.messaging") {
-                com.coni.hyperisle.models.ShadeCancelMode.FULLY_HIDE
-            } else {
-                com.coni.hyperisle.models.ShadeCancelMode.ISLAND_ONLY
-            }
+            // Use package-aware defaults: messaging apps use STASH, others use ISLAND_ONLY
+            com.coni.hyperisle.models.ShadeCancelMode.getDefaultForPackage(packageName)
         }
     }
 

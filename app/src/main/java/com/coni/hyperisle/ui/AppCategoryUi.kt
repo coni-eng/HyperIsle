@@ -19,6 +19,8 @@ import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.coni.hyperisle.R
 
+
+
 @StringRes
 fun appCategoryLabelRes(category: AppCategory): Int {
     return when (category) {

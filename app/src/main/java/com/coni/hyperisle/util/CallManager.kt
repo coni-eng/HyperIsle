@@ -8,10 +8,12 @@ import android.media.AudioManager
 import android.os.Build
 import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.coni.hyperisle.BuildConfig
+import com.coni.hyperisle.util.HiLog
 import kotlinx.coroutines.delay
+
+
 
 /**
  * Utility class for managing phone calls.
@@ -70,14 +72,14 @@ object CallManager {
         if (currentState == CallState.IDLE) {
             if (now < sessionLockedUntil) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=CALLKEY_BLOCKED reason=SESSION_LOCKED lockRemaining=${sessionLockedUntil - now}ms")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=CALLKEY_BLOCKED reason=SESSION_LOCKED lockRemaining=${sessionLockedUntil - now}ms")
                 }
                 return ""
             }
             // Clear session on IDLE
             if (activeSession != null) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=CALL_SESSION_CLEARED oldKey=${activeSession?.callKey}")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=CALL_SESSION_CLEARED oldKey=${activeSession?.callKey}")
                 }
                 activeSession = null
             }
@@ -88,7 +90,7 @@ object CallManager {
         val session = activeSession
         if (session != null) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "EVT=CALLKEY_REUSED value=${session.callKey}")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=CALLKEY_REUSED value=${session.callKey}")
             }
             return session.callKey
         }
@@ -105,7 +107,7 @@ object CallManager {
         activeSession = newSession
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=CALLKEY_CREATED value=$newKey source=CALL_SESSION handle=$handle direction=$direction")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=CALLKEY_CREATED value=$newKey source=CALL_SESSION handle=$handle direction=$direction")
         }
         
         return newKey
@@ -121,7 +123,7 @@ object CallManager {
         activeSession = null
         
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, "EVT=SESSION_LOCKED until=${sessionLockedUntil} lockMs=$SESSION_LOCK_MS")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=SESSION_LOCKED until=${sessionLockedUntil} lockMs=$SESSION_LOCK_MS")
         }
     }
     
@@ -169,12 +171,12 @@ object CallManager {
      */
     @Suppress("DEPRECATION")
     fun acceptCall(context: Context, fallbackIntent: PendingIntent? = null): CallActionResult {
-        Log.d("HyperIsleIsland", "EVT=ACCEPT_CALL_START")
+        HiLog.d(HiLog.TAG_CALL, "EVT=ACCEPT_CALL_START")
         
         // Check for ANSWER_PHONE_CALLS permission
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) 
             != PackageManager.PERMISSION_GRANTED) {
-            Log.d("HyperIsleIsland", "EVT=ACCEPT_CALL_FAIL reason=PERMISSION_DENIED")
+            HiLog.d(HiLog.TAG_CALL, "EVT=ACCEPT_CALL_FAIL reason=PERMISSION_DENIED")
             // Try fallback if no permission
             return tryFallbackIntent(fallbackIntent, "PERMISSION_DENIED")
         }
@@ -185,22 +187,22 @@ object CallManager {
             if (telecomManager != null) {
                 // acceptRingingCall() is available on API 26+
                 telecomManager.acceptRingingCall()
-                Log.d("HyperIsleIsland", "EVT=ACCEPT_CALL_OK method=TELECOM")
-                Log.d(TAG, "acceptRingingCall() called successfully")
+                HiLog.d(HiLog.TAG_CALL, "EVT=ACCEPT_CALL_OK method=TELECOM")
+                HiLog.d(HiLog.TAG_CALL, "acceptRingingCall() called successfully")
                 return CallActionResult(
                     success = true,
                     method = "TELECOM",
                     verifiedState = null // Will be verified by caller if needed
                 )
             } else {
-                Log.d("HyperIsleIsland", "EVT=ACCEPT_CALL_FAIL reason=NO_TELECOM_SERVICE")
+                HiLog.d(HiLog.TAG_CALL, "EVT=ACCEPT_CALL_FAIL reason=NO_TELECOM_SERVICE")
             }
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException when accepting call", e)
-            Log.d("HyperIsleIsland", "EVT=ACCEPT_CALL_FAIL reason=SECURITY_EXCEPTION msg=${e.message}")
+            HiLog.e(HiLog.TAG_CALL, "SecurityException when accepting call", emptyMap(), e)
+            HiLog.d(HiLog.TAG_CALL, "EVT=ACCEPT_CALL_FAIL reason=SECURITY_EXCEPTION msg=${e.message}")
         } catch (e: Exception) {
-            Log.e(TAG, "Exception when accepting call via TelecomManager", e)
-            Log.d("HyperIsleIsland", "EVT=ACCEPT_CALL_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
+            HiLog.e(HiLog.TAG_CALL, "Exception when accepting call via TelecomManager", emptyMap(), e)
+            HiLog.d(HiLog.TAG_CALL, "EVT=ACCEPT_CALL_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
         }
 
         // TelecomManager failed, try fallback
@@ -216,18 +218,18 @@ object CallManager {
      */
     @Suppress("DEPRECATION")
     fun endCall(context: Context, fallbackIntent: PendingIntent? = null): CallActionResult {
-        Log.d("HyperIsleIsland", "EVT=END_CALL_START")
+        HiLog.d(HiLog.TAG_ISLAND, "EVT=END_CALL_START")
         
         // TelecomManager.endCall() requires API 28+
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            Log.d("HyperIsleIsland", "EVT=END_CALL_FAIL reason=API_LEVEL_TOO_LOW api=${Build.VERSION.SDK_INT}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=END_CALL_FAIL reason=API_LEVEL_TOO_LOW api=${Build.VERSION.SDK_INT}")
             return tryFallbackIntent(fallbackIntent, "API_TOO_LOW")
         }
 
         // Check for ANSWER_PHONE_CALLS permission
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) 
             != PackageManager.PERMISSION_GRANTED) {
-            Log.d("HyperIsleIsland", "EVT=END_CALL_FAIL reason=PERMISSION_DENIED")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=END_CALL_FAIL reason=PERMISSION_DENIED")
             return tryFallbackIntent(fallbackIntent, "PERMISSION_DENIED")
         }
 
@@ -235,8 +237,8 @@ object CallManager {
             val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
             if (telecomManager != null) {
                 val result = telecomManager.endCall()
-                Log.d("HyperIsleIsland", "EVT=END_CALL_RESULT result=$result method=TELECOM")
-                Log.d(TAG, "endCall() returned: $result")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=END_CALL_RESULT result=$result method=TELECOM")
+                HiLog.d(HiLog.TAG_ISLAND, "endCall() returned: $result")
                 if (result) {
                     return CallActionResult(
                         success = true,
@@ -245,14 +247,14 @@ object CallManager {
                     )
                 }
             } else {
-                Log.d("HyperIsleIsland", "EVT=END_CALL_FAIL reason=NO_TELECOM_SERVICE")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=END_CALL_FAIL reason=NO_TELECOM_SERVICE")
             }
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException when ending call", e)
-            Log.d("HyperIsleIsland", "EVT=END_CALL_FAIL reason=SECURITY_EXCEPTION msg=${e.message}")
+            HiLog.e(HiLog.TAG_ISLAND, "SecurityException when ending call", emptyMap(), e)
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=END_CALL_FAIL reason=SECURITY_EXCEPTION msg=${e.message}")
         } catch (e: Exception) {
-            Log.e(TAG, "Exception when ending call", e)
-            Log.d("HyperIsleIsland", "EVT=END_CALL_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
+            HiLog.e(HiLog.TAG_ISLAND, "Exception when ending call", emptyMap(), e)
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=END_CALL_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
         }
 
         // TelecomManager failed, try fallback
@@ -272,7 +274,7 @@ object CallManager {
      */
     private fun tryFallbackIntent(intent: PendingIntent?, telecomFailReason: String): CallActionResult {
         if (intent == null) {
-            Log.d("HyperIsleIsland", "EVT=FALLBACK_SKIP reason=NO_INTENT telecomFail=$telecomFailReason")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=FALLBACK_SKIP reason=NO_INTENT telecomFail=$telecomFailReason")
             return CallActionResult(
                 success = false,
                 method = "NONE",
@@ -283,14 +285,14 @@ object CallManager {
 
         return try {
             intent.send()
-            Log.d("HyperIsleIsland", "EVT=FALLBACK_OK method=PENDING_INTENT telecomFail=$telecomFailReason")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=FALLBACK_OK method=PENDING_INTENT telecomFail=$telecomFailReason")
             CallActionResult(
                 success = true,
                 method = "PENDING_INTENT",
                 verifiedState = null
             )
         } catch (e: PendingIntent.CanceledException) {
-            Log.d("HyperIsleIsland", "EVT=FALLBACK_FAIL reason=CANCELED")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=FALLBACK_FAIL reason=CANCELED")
             CallActionResult(
                 success = false,
                 method = "PENDING_INTENT",
@@ -298,7 +300,7 @@ object CallManager {
                 error = "PendingIntent canceled"
             )
         } catch (e: Exception) {
-            Log.d("HyperIsleIsland", "EVT=FALLBACK_FAIL reason=${e.javaClass.simpleName}")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=FALLBACK_FAIL reason=${e.javaClass.simpleName}")
             CallActionResult(
                 success = false,
                 method = "PENDING_INTENT",
@@ -328,7 +330,7 @@ object CallManager {
             // HARDENING: Detect IDLE transition and lock session
             if (lastCallState != CallState.IDLE && newState == CallState.IDLE) {
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "EVT=CALL_STATE_IDLE_TRANSITION old=${lastCallState.name} callKey=${activeSession?.callKey}")
+                    HiLog.d(HiLog.TAG_ISLAND, "EVT=CALL_STATE_IDLE_TRANSITION old=${lastCallState.name} callKey=${activeSession?.callKey}")
                 }
                 lockSessionOnIdle()
             }
@@ -336,7 +338,7 @@ object CallManager {
             lastCallState = newState
             newState
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to get call state: ${e.message}")
+            HiLog.w(HiLog.TAG_ISLAND, "Failed to get call state: ${e.message}")
             CallState.UNKNOWN
         }
     }
@@ -352,7 +354,7 @@ object CallManager {
         val startState = getCallState(context)
         if (startState != CallState.RINGING) {
             // Already not ringing - might be accepted or ended
-            Log.d("HyperIsleIsland", "EVT=VERIFY_ACCEPT state=$startState")
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=VERIFY_ACCEPT state=$startState")
             return startState == CallState.OFFHOOK
         }
 
@@ -365,16 +367,16 @@ object CallManager {
             
             val currentState = getCallState(context)
             if (currentState == CallState.OFFHOOK) {
-                Log.d("HyperIsleIsland", "EVT=VERIFY_ACCEPT_OK elapsed=$elapsed")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=VERIFY_ACCEPT_OK elapsed=$elapsed")
                 return true
             }
             if (currentState == CallState.IDLE) {
-                Log.d("HyperIsleIsland", "EVT=VERIFY_ACCEPT_FAIL state=IDLE elapsed=$elapsed")
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=VERIFY_ACCEPT_FAIL state=IDLE elapsed=$elapsed")
                 return false
             }
         }
 
-        Log.d("HyperIsleIsland", "EVT=VERIFY_ACCEPT_TIMEOUT elapsed=$elapsed")
+        HiLog.d(HiLog.TAG_ISLAND, "EVT=VERIFY_ACCEPT_TIMEOUT elapsed=$elapsed")
         return false
     }
 
@@ -413,7 +415,7 @@ object CallManager {
     @Suppress("DEPRECATION")
     fun toggleSpeaker(context: Context, fallbackIntent: PendingIntent? = null): CallActionResult {
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_START hasIntent=${fallbackIntent != null}")
+            HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_SPEAKER_START hasIntent=${fallbackIntent != null}")
         }
         
         // Try PendingIntent first if available
@@ -433,7 +435,7 @@ object CallManager {
                 val newState = audioManager.isSpeakerphoneOn
                 val toggled = currentState != newState
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_RESULT method=AUDIO_MANAGER old=$currentState new=$newState toggled=$toggled")
+                    HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_SPEAKER_RESULT method=AUDIO_MANAGER old=$currentState new=$newState toggled=$toggled")
                 }
                 CallActionResult(
                     success = toggled,
@@ -442,7 +444,7 @@ object CallManager {
                 )
             } else {
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_FAIL reason=NO_AUDIO_MANAGER")
+                    HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_SPEAKER_FAIL reason=NO_AUDIO_MANAGER")
                 }
                 CallActionResult(
                     success = false,
@@ -453,7 +455,7 @@ object CallManager {
             }
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
-                Log.d("HyperIsleIsland", "EVT=TOGGLE_SPEAKER_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
+                HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_SPEAKER_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
             }
             CallActionResult(
                 success = false,
@@ -475,7 +477,7 @@ object CallManager {
     @Suppress("DEPRECATION")
     fun toggleMute(context: Context, fallbackIntent: PendingIntent? = null): CallActionResult {
         if (BuildConfig.DEBUG) {
-            Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_START hasIntent=${fallbackIntent != null}")
+            HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_MUTE_START hasIntent=${fallbackIntent != null}")
         }
         
         // Try PendingIntent first if available
@@ -495,7 +497,7 @@ object CallManager {
                 val newState = audioManager.isMicrophoneMute
                 val toggled = currentState != newState
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_RESULT method=AUDIO_MANAGER old=$currentState new=$newState toggled=$toggled")
+                    HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_MUTE_RESULT method=AUDIO_MANAGER old=$currentState new=$newState toggled=$toggled")
                 }
                 CallActionResult(
                     success = toggled,
@@ -504,7 +506,7 @@ object CallManager {
                 )
             } else {
                 if (BuildConfig.DEBUG) {
-                    Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_FAIL reason=NO_AUDIO_MANAGER")
+                    HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_MUTE_FAIL reason=NO_AUDIO_MANAGER")
                 }
                 CallActionResult(
                     success = false,
@@ -515,7 +517,7 @@ object CallManager {
             }
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
-                Log.d("HyperIsleIsland", "EVT=TOGGLE_MUTE_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
+                HiLog.d(HiLog.TAG_CALL, "EVT=TOGGLE_MUTE_FAIL reason=${e.javaClass.simpleName} msg=${e.message}")
             }
             CallActionResult(
                 success = false,
