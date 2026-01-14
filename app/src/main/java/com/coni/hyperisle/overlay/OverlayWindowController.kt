@@ -72,11 +72,51 @@ class OverlayWindowController(private val context: Context) {
             return
         }
 
-        // Remove existing overlay first
-        removeOverlay()
-
         try {
             currentEvent = event
+
+            // Reuse existing overlay if available to prevent blinking
+            if (overlayView != null && overlayView?.isAttachedToWindow == true) {
+                // Update content
+                overlayView?.setContent(content)
+                
+                // Update params
+                val params = overlayParams ?: return
+                val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        
+                val flags = if (!interactive) {
+                    baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                } else {
+                    baseFlags
+                }
+                
+                var paramsChanged = false
+                if (params.flags != flags) {
+                    params.flags = flags
+                    paramsChanged = true
+                }
+                
+                // Update position just in case
+                val positionResult = getClampedPosition()
+                if (params.x != positionResult.x || params.y != positionResult.y) {
+                    params.x = positionResult.x
+                    params.y = positionResult.y
+                    paramsChanged = true
+                }
+
+                // Force layout update if flags/pos changed or if content might have changed size
+                // Always updating ensures smooth transition
+                windowManager.updateViewLayout(overlayView, params)
+                
+                HiLog.d(HiLog.TAG_ISLAND, "Overlay updated (reused) interactive=$interactive")
+                return
+            }
+
+            // Remove existing overlay first (if detached or null but not cleaned up)
+            removeOverlay()
 
             // Create lifecycle owner for ComposeView
             lifecycleOwner = OverlayLifecycleOwner().apply {
@@ -94,11 +134,12 @@ class OverlayWindowController(private val context: Context) {
 
             // Create layout params for overlay
             // Use WRAP_CONTENT for width to allow touch pass-through outside the island
-            // REMOVED FLAG_LAYOUT_NO_LIMITS to prevent off-screen positioning
-            // For passive mode (call during RINGING/OFFHOOK on MIUI): add FLAG_NOT_TOUCHABLE
+            // ADDED FLAG_LAYOUT_NO_LIMITS to allow drawing over cutout/status bar
             val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+
             val flags = if (!interactive) {
                 baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             } else {
@@ -418,10 +459,8 @@ class OverlayWindowController(private val context: Context) {
         
         // Calculate Y position based on cutout
         val y = if (cutoutInfo != null) {
-            // Position at top with small offset (0-8dp) when cutout is detected
-            val offsetDp = 4
-            val density = context.resources.displayMetrics.density
-            (offsetDp * density).toInt()
+            // Position at top with 0 offset to overlap camera cutout
+            0
         } else {
             // Fallback to status bar height when no cutout
             getStatusBarHeight()

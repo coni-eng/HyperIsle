@@ -3,10 +3,8 @@ package com.coni.hyperisle.util
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import androidx.core.net.toUri
-import com.coni.hyperisle.util.HiLog
-
-
 
 /**
  * Helper utility for managing overlay (SYSTEM_ALERT_WINDOW) permission.

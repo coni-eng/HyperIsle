@@ -3,6 +3,8 @@ package com.coni.hyperisle.overlay.features
 import android.app.PendingIntent
 import android.app.RemoteInput
 import android.graphics.Bitmap
+import android.util.Log
+import com.coni.hyperisle.util.HiLog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -25,9 +27,6 @@ import com.coni.hyperisle.overlay.engine.IslandRoute
 import com.coni.hyperisle.ui.components.MiniNotificationPill
 import com.coni.hyperisle.ui.components.NotificationPill
 import com.coni.hyperisle.ui.components.NotificationReplyPill
-import com.coni.hyperisle.util.HiLog
-
-
 
 /**
  * Feature for handling notification islands.
@@ -116,7 +115,7 @@ class NotificationFeature : IslandFeature {
                         avatarBitmap = notifState.avatarBitmap,
                         onDismiss = {
                             if (BuildConfig.DEBUG) {
-                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=BTN_RED_X_CLICK reason=OVERLAY")
                             }
                             actions.dismiss("BTN_RED_X")
                         },
@@ -134,12 +133,12 @@ class NotificationFeature : IslandFeature {
                             val trimmed = replyText.trim()
                             if (trimmed.isEmpty()) {
                                 if (BuildConfig.DEBUG) {
-                                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_FAIL reason=EMPTY_INPUT")
                                 }
                                 return@NotificationReplyPill
                             }
                             if (BuildConfig.DEBUG) {
-                                HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_TRY")
+                                Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_TRY")
                             }
                             val result = actions.sendInlineReply(
                                 notifState.replyAction.pendingIntent,
@@ -148,7 +147,7 @@ class NotificationFeature : IslandFeature {
                             )
                             if (result) {
                                 if (BuildConfig.DEBUG) {
-                                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_SEND_OK")
+                                    Log.d("HyperIsleIsland", "RID=$rid EVT=REPLY_SEND_OK")
                                 }
                                 replyText = ""
                                 actions.exitReplyMode()
@@ -169,7 +168,7 @@ class NotificationFeature : IslandFeature {
                         onLongPress = if (notifState.replyAction != null) {
                             {
                                 if (BuildConfig.DEBUG) {
-                                    HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=REPLY_OPEN_OK pkg=${notifState.packageName} trigger=LONG_PRESS")
+                                    HiLog.d("HI_REPLY", "RID=$rid EVT=REPLY_OPEN_OK pkg=${notifState.packageName} trigger=LONG_PRESS")
                                 }
                                 actions.enterReplyMode()
                             }

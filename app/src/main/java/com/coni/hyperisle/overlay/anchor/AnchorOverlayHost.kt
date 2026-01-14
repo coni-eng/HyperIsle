@@ -78,7 +78,7 @@ fun AnchorOverlayHost(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 0.dp), // Zero vertical padding to overlap camera
         contentAlignment = Alignment.TopCenter
     ) {
         // Anchor Pill (visible when NOT expanded)

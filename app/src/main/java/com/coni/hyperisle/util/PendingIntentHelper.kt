@@ -1,9 +1,7 @@
 package com.coni.hyperisle.util
 
 import android.app.PendingIntent
-import com.coni.hyperisle.util.HiLog
-
-
+import android.util.Log
 
 /**
  * Helper for safely inferring PendingIntent types for HyperAction.

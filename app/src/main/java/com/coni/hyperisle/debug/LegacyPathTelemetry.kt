@@ -1,10 +1,9 @@
 package com.coni.hyperisle.debug
 
-import com.coni.hyperisle.BuildConfig
+import android.util.Log
 import com.coni.hyperisle.util.HiLog
+import com.coni.hyperisle.BuildConfig
 import java.util.concurrent.ConcurrentLinkedDeque
-
-
 
 /**
  * Telemetry for tracking legacy MINI/collapsed path hits during Anchor mode migration.
@@ -106,10 +105,10 @@ object LegacyPathTelemetry {
         
         // Log to logcat
         if (bypassed) {
-            HiLog.d(HiLog.TAG_ISLAND, "EVT=LEGACY_MINI_PATH_HIT feature=$feature branch=$branch reason=$reason anchorEnabled=$anchorEnabled")
-            HiLog.d(HiLog.TAG_ISLAND, "EVT=LEGACY_MINI_BYPASSED feature=$feature branch=$branch redirected=$redirectedTo")
+            HiLog.d(TAG, "EVT=LEGACY_MINI_PATH_HIT feature=$feature branch=$branch reason=$reason anchorEnabled=$anchorEnabled")
+            HiLog.d(TAG, "EVT=LEGACY_MINI_BYPASSED feature=$feature branch=$branch redirected=$redirectedTo")
         } else {
-            HiLog.d(HiLog.TAG_ISLAND, "EVT=LEGACY_MINI_PATH_HIT feature=$feature branch=$branch reason=$reason anchorEnabled=$anchorEnabled stack=$caller")
+            HiLog.d(TAG, "EVT=LEGACY_MINI_PATH_HIT feature=$feature branch=$branch reason=$reason anchorEnabled=$anchorEnabled stack=$caller")
         }
     }
     

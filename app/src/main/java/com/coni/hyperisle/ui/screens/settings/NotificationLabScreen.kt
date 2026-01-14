@@ -334,6 +334,7 @@ fun NotificationLabScreen(
                                     "msgId=${event.messageId.take(8)}")
                                 
                                 val result = NotificationCore.ingest(context, event)
+                                sendSystemNotification(context, event)
                                 lastResult = "UPDATE: ${result.chosen}"
                             },
                             modifier = Modifier.weight(1f),
@@ -369,6 +370,7 @@ fun NotificationLabScreen(
                                         messageId = UUID.randomUUID().toString()
                                     )
                                     NotificationCore.ingest(context, event)
+                                    sendSystemNotification(context, event)
                                 }
                                 lastResult = "STACK: Sent 3 messages"
                             },
@@ -496,4 +498,33 @@ private fun getRouteHintDescription(hint: RouteHint): String {
         RouteHint.FORCE_SUPPRESS_MIUI_BRIDGE -> "Suppress MIUI bridge, use APP_OVERLAY"
         RouteHint.FORCE_NONE -> "Don't show, only log"
     }
+}
+
+private fun sendSystemNotification(context: android.content.Context, event: HiNotifEvent) {
+    val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+    val channelId = "debug_lab_channel"
+    
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val channel = android.app.NotificationChannel(
+            channelId,
+            "Notification Lab",
+            android.app.NotificationManager.IMPORTANCE_HIGH
+        )
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    val builder = androidx.core.app.NotificationCompat.Builder(context, channelId)
+        .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setContentTitle(event.title)
+        .setContentText(event.text)
+        .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+        .setAutoCancel(true)
+
+    if (event.bigText != null) {
+        builder.setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(event.bigText))
+    }
+    
+    // Hashcode of messageId for unique notification ID
+    val notifId = event.messageId.hashCode()
+    notificationManager.notify(notifId, builder.build())
 }

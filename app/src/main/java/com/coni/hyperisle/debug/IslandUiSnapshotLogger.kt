@@ -1,10 +1,9 @@
 package com.coni.hyperisle.debug
 
-import com.coni.hyperisle.BuildConfig
+import android.util.Log
 import com.coni.hyperisle.util.HiLog
+import com.coni.hyperisle.BuildConfig
 import java.util.concurrent.atomic.AtomicLong
-
-
 
 /**
  * DEBUG-ONLY UI Snapshot Logger for HyperIsle Island events.

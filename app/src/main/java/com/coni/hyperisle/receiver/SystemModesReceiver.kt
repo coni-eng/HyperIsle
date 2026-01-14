@@ -5,17 +5,16 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.media.AudioManager
+import com.coni.hyperisle.util.HiLog
 import androidx.annotation.RequiresPermission
 import androidx.core.content.edit
 import com.coni.hyperisle.R
 import com.coni.hyperisle.data.AppPreferences
-import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.SystemHyperIslandPoster
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-
-
 
 /**
  * Broadcast receiver for system mode changes (ringer mode, DND).
@@ -106,13 +105,13 @@ class SystemModesReceiver : BroadcastReceiver() {
             return
         }
         
-        HiLog.d(HiLog.TAG_ISLAND, "Received system mode broadcast")
+        Log.d(TAG, "Received system mode broadcast")
 
         // System state islands are disabled by default - HyperOS handles these natively
         val appPreferences = AppPreferences(context)
         val isEnabled = runBlocking { appPreferences.systemStateIslandsEnabledFlow.first() }
         if (!isEnabled) {
-            HiLog.d(HiLog.TAG_ISLAND, "System state islands disabled, ignoring broadcast")
+            Log.d(TAG, "System state islands disabled, ignoring broadcast")
             return
         }
 
@@ -120,7 +119,7 @@ class SystemModesReceiver : BroadcastReceiver() {
         
         // Check notification permission first
         if (!poster.hasNotificationPermission()) {
-            HiLog.d(HiLog.TAG_ISLAND, "No notification permission, ignoring broadcast")
+            Log.d(TAG, "No notification permission, ignoring broadcast")
             return
         }
 
@@ -148,7 +147,7 @@ class SystemModesReceiver : BroadcastReceiver() {
 
         // Debounce: ignore if same mode within interval
         if (currentMode == lastMode && (now - lastTime) < DEBOUNCE_INTERVAL_MS) {
-            HiLog.d(HiLog.TAG_ISLAND, "Ringer mode debounced: $currentMode")
+            Log.d(TAG, "Ringer mode debounced: $currentMode")
             return
         }
 

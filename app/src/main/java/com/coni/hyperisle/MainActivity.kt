@@ -148,6 +148,23 @@ fun MainRootNavigation(
     val summaryEnabled by preferences.summaryEnabledFlow.collectAsState(initial = false)
     val summaryHour by preferences.summaryHourFlow.collectAsState(initial = 21)
 
+    // Ensure service is running if Anchor is enabled (Fix for "Always" mode not showing on app start)
+    LaunchedEffect(Unit) {
+        if (preferences.isAnchorModeEnabled()) {
+            try {
+                val intent = android.content.Intent(context, com.coni.hyperisle.overlay.IslandOverlayService::class.java)
+                intent.action = com.coni.hyperisle.overlay.IslandOverlayService.ACTION_START
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     // --- 3. ROUTING LOGIC ---
     LaunchedEffect(isSetupComplete) {
         if (isSetupComplete != null) {

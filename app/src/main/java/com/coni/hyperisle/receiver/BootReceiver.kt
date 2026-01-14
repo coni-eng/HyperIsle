@@ -5,17 +5,15 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.util.Log
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.data.AppPreferences
 import com.coni.hyperisle.service.NotificationReaderService
-import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.worker.NotificationSummaryWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-
-
-
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
@@ -28,7 +26,7 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
         
-        HiLog.d(HiLog.TAG_ISLAND, "Boot completed detected.")
+        Log.d("HyperIsle", "Boot completed detected.")
 
         // Trick: We toggle the component state to force the Notification Manager
         // to re-evaluate and re-bind to our service.

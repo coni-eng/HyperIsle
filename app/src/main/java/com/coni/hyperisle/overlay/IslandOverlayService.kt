@@ -59,6 +59,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -280,6 +281,14 @@ class IslandOverlayService : Service() {
         startEventCollection()
         startCallStateGuard()
         initAnchorSystem()
+
+        // Initial anchor visibility check
+        serviceScope.launch {
+            val mode = appPreferences.getAnchorVisibilityMode()
+            currentAnchorMode = mode
+            isAnchorModeEnabled = mode != AnchorVisibilityMode.TRIGGERED_ONLY
+            updateAnchorVisibility()
+        }
     }
 
     private fun initAnchorSystem() {
@@ -618,8 +627,6 @@ class IslandOverlayService : Service() {
     private fun scheduleStopIfIdle(reason: String) {
         stopForegroundJob?.cancel()
         stopForegroundJob = serviceScope.launch {
-            delay(3000L)
-            
             val shouldStayAlive = when (currentAnchorMode) {
                 AnchorVisibilityMode.ALWAYS -> true
                 AnchorVisibilityMode.UNLOCKED_ONLY -> !isDeviceLocked
@@ -627,17 +634,31 @@ class IslandOverlayService : Service() {
                 AnchorVisibilityMode.TRIGGERED_ONLY -> false
             }
 
-            if (!overlayController.isShowing() &&
-                currentCallModel == null &&
-                currentNotificationModel == null &&
-                currentMediaModel == null &&
-                currentTimerModel == null &&
-                !shouldStayAlive
-            ) {
-                HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_STOP EVT=OVERLAY_SVC_STOP reason=$reason")
-                stopForeground(true)
-                isForegroundActive = false
-                stopSelf()
+            // FIX: Restore anchor immediately if needed, otherwise use debounce
+            if (shouldStayAlive) {
+                delay(50L)
+            } else {
+                delay(3000L)
+            }
+
+            if (!overlayController.isShowing()) {
+                val isIdle = currentCallModel == null &&
+                    currentNotificationModel == null &&
+                    currentMediaModel == null &&
+                    currentTimerModel == null
+
+                if (isIdle) {
+                    if (!shouldStayAlive) {
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_STOP EVT=OVERLAY_SVC_STOP reason=$reason")
+                        stopForeground(true)
+                        isForegroundActive = false
+                        stopSelf()
+                    } else {
+                        // FIX: Restore anchor if idle and should stay alive
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_STOP EVT=ANCHOR_RESTORE reason=IDLE_CHECK")
+                        showAnchorIdleOverlay()
+                    }
+                }
             }
         }
     }
@@ -1732,7 +1753,7 @@ class IslandOverlayService : Service() {
                 null
             },
             modifier = Modifier
-                .fillMaxWidth()
+                .widthIn(max = LocalConfiguration.current.screenWidthDp.dp - 32.dp)
                 .padding(horizontal = 20.dp, vertical = 8.dp)  // Increased from 16dp to accommodate shadow
         ) {
             LaunchedEffect(isNotificationCollapsed) {
@@ -1763,6 +1784,11 @@ class IslandOverlayService : Service() {
             // ANIMATION: Popup/dismiss animation from camera cutout area
             // Scale and alpha animation for smooth entry/exit
             var isVisible by remember { mutableStateOf(false) }
+            
+            // If anchor is enabled, start fully opaque to mimic expansion from anchor
+            // Otherwise start transparent for fade-in
+            val initialAlpha = if (isAnchorModeEnabled) 1f else 0f
+            
             val animatedScale by animateFloatAsState(
                 targetValue = if (isVisible) 1f else 0.3f,
                 animationSpec = spring(
@@ -1772,7 +1798,7 @@ class IslandOverlayService : Service() {
                 label = "island_scale"
             )
             val animatedAlpha by animateFloatAsState(
-                targetValue = if (isVisible) 1f else 0f,
+                targetValue = if (isVisible) 1f else initialAlpha,
                 animationSpec = tween(durationMillis = 200),
                 label = "island_alpha"
             )

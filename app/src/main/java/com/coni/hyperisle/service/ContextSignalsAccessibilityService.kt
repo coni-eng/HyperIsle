@@ -1,18 +1,15 @@
-
 package com.coni.hyperisle.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Rect
 import android.os.SystemClock
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.AccessibilityContextSignals
 import com.coni.hyperisle.util.AccessibilityContextState
-import com.coni.hyperisle.util.HiLog
-
-
-
 
 class ContextSignalsAccessibilityService : AccessibilityService() {
 

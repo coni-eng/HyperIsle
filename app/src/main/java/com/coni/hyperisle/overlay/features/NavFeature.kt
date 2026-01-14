@@ -3,9 +3,9 @@ package com.coni.hyperisle.overlay.features
 import android.app.PendingIntent
 import android.graphics.Bitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,9 +31,6 @@ import com.coni.hyperisle.overlay.engine.IslandActions
 import com.coni.hyperisle.overlay.engine.IslandEvent
 import com.coni.hyperisle.overlay.engine.IslandPolicy
 import com.coni.hyperisle.overlay.engine.IslandRoute
-import com.coni.hyperisle.util.HiLog
-
-
 
 /**
  * Feature for handling navigation islands.
@@ -92,7 +89,7 @@ class NavFeature : IslandFeature {
     }
 
     @OptIn(ExperimentalFoundationApi::class)
-@Composable
+    @Composable
     override fun Render(
         state: Any?,
         uiState: FeatureUiState,
@@ -113,7 +110,8 @@ class NavFeature : IslandFeature {
                 .combinedClickable(
                     onClick = {
                         if (com.coni.hyperisle.BuildConfig.DEBUG) {
-                            com.coni.hyperisle.util.HiLog.d(com.coni.hyperisle.util.HiLog.TAG_INPUT,
+                            com.coni.hyperisle.util.HiLog.d(
+                                com.coni.hyperisle.util.HiLog.TAG_INPUT,
                                 "RID=$rid EVT=NAV_TAP pkg=${navState.packageName}"
                             )
                         }
@@ -129,8 +127,7 @@ class NavFeature : IslandFeature {
         )
     }
 
-    @OptIn(ExperimentalFoundationApi::class)
-@Composable
+    @Composable
     private fun NavigationPill(
         instruction: String,
         distance: String,

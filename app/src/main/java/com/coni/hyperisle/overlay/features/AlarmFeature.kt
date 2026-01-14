@@ -1,6 +1,8 @@
 package com.coni.hyperisle.overlay.features
 
 import android.app.PendingIntent
+import android.util.Log
+import com.coni.hyperisle.util.HiLog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,9 +34,6 @@ import com.coni.hyperisle.overlay.engine.IslandActions
 import com.coni.hyperisle.overlay.engine.IslandEvent
 import com.coni.hyperisle.overlay.engine.IslandPolicy
 import com.coni.hyperisle.overlay.engine.IslandRoute
-import com.coni.hyperisle.util.HiLog
-
-
 
 /**
  * Feature for handling alarm ringing islands.
@@ -82,7 +81,7 @@ class AlarmFeature : IslandFeature {
             timeLabel = alarmState.timeLabel,
             onDismiss = {
                 if (BuildConfig.DEBUG) {
-                    HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=ALARM_DISMISS_CLICK")
+                    Log.d("HI_INPUT", "RID=$rid EVT=ALARM_DISMISS_CLICK")
                 }
                 alarmState.dismissIntent?.let { intent ->
                     actions.sendPendingIntent(intent, "alarm_dismiss")

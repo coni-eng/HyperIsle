@@ -229,6 +229,7 @@
     <string name="custom_design">Özel Tasarım</string>
     <string name="nav_layout_title">Navigasyon Ayarları</string>
     <string name="nav_layout_desc">Ada boyutu ve bilgi düzenini ayarlayın</string>
+    <string name="anchor_mode_title">Ada Görünürlük Modu</string>
     <string name="left_content">Sol Taraf</string>
     <string name="right_content">Sağ Taraf</string>
     <string name="nav_island_size_title">Ada Boyutu</string>
