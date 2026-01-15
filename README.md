@@ -24,8 +24,11 @@
 
 ---
 
-## Recent Updates (v1.0.0)
+## Recent Updates (v1.0.3)
 
+- **Native System Integration:** Seamlessly integrates with Xiaomi/HyperOS native islands for Music, Timer, and Recorder.
+- **Redesigned Call Anchor:** New layout (Icon+Wave Left, Duration Right) for active calls with enhanced visual hierarchy.
+- **Google Maps Blocker:** Improved logic to correctly handle Picture-in-Picture windows.
 - **Island Colors:** Full per-app customization support. Choose between **Standard (Black)**, **Dynamic (App Icon)**, or **Custom (Hex)** colors.
 - **Visual Polish:** Standard iOS-style solid black is now the default for a cleaner, native look.
 - **Onboarding Redesign:** Streamlined setup flow with unified permissions and anchor style selection.
