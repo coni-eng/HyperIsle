@@ -122,7 +122,7 @@ fun OnboardingScreen(
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${pagerState.currentPage} of 6", // Keep consistent with dots
+                            text = "${pagerState.currentPage} / 6",
                             style = MaterialTheme.typography.labelSmall,        
                             color = MaterialTheme.colorScheme.onSurfaceVariant  
                         )

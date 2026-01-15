@@ -156,6 +156,24 @@ class AppPreferences(context: Context) {
         save(SettingsKeys.ALLOWED_PACKAGES, newSet.serialize())
     }
 
+    suspend fun removeAllowedPackages(packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        val currentString = dao.getSetting(SettingsKeys.ALLOWED_PACKAGES)
+        val currentSet = currentString.deserializeSet()
+        val newSet = currentSet - packageNames.toSet()
+        save(SettingsKeys.ALLOWED_PACKAGES, newSet.serialize())
+    }
+
+    // --- AUTOSTART ---
+    val autostartAcknowledgedFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.AUTOSTART_ACKNOWLEDGED).map { it.toBoolean(false) }
+
+    suspend fun setAutostartAcknowledged(acknowledged: Boolean) = save(SettingsKeys.AUTOSTART_ACKNOWLEDGED, acknowledged.toString())
+
+    // --- GOOGLE MAPS FLOATING ISLAND BLOCKER ---
+    val blockGoogleMapsFloatingIslandFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.BLOCK_GOOGLE_MAPS_FLOATING_ISLAND).map { it.toBoolean(true) }
+
+    suspend fun setBlockGoogleMapsFloatingIsland(block: Boolean) = save(SettingsKeys.BLOCK_GOOGLE_MAPS_FLOATING_ISLAND, block.toString())
+
     // --- LIMITS ---
     val limitModeFlow: Flow<IslandLimitMode> = dao.getSettingFlow("limit_mode").map {
         try { IslandLimitMode.valueOf(it ?: IslandLimitMode.MOST_RECENT.name) } catch(e: Exception) { IslandLimitMode.MOST_RECENT }

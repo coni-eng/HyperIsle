@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Anchor
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
@@ -127,6 +128,49 @@ fun GlobalSettingsScreen(
                     subtitle = stringResource(R.string.nav_layout_desc),
                     onClick = onNavSettingsClick
                 )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Google Maps Floating Island Blocker
+            val blockGoogleMapsFloatingIsland by preferences.blockGoogleMapsFloatingIslandFlow.collectAsState(initial = true)
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Map,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column {
+                            Text(
+                                "Google Maps Ada Engelle",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                "Google Maps'in kendi yüzen adasını engelle, sadece HyperIsle'i kullan",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = blockGoogleMapsFloatingIsland,
+                        onCheckedChange = { checked ->
+                            scope.launch { preferences.setBlockGoogleMapsFloatingIsland(checked) }
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

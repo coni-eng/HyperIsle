@@ -37,13 +37,21 @@ fun openAutostartSettings(context: Context) {
 /**
  * Checks if Autostart is likely enabled (Best effort check for Xiaomi)
  * Note: There is no public API to check this reliably on MIUI.
- * We return false by default to encourage user to check.
+ * We check if user has acknowledged/clicked the enable button.
  */
 fun isAutostartEnabled(context: Context): Boolean {
     // Cannot reliably check on MIUI without root/system privs.
-    // We assume false so the user is prompted to check it.
-    // Alternatively, we could save a preference when user clicks "Enable"
-    return false 
+    // We use a preference to track if user clicked "Enable" (acknowledged).
+    val prefs = context.getSharedPreferences("autostart_prefs", Context.MODE_PRIVATE)
+    return prefs.getBoolean("autostart_acknowledged", false)
+}
+
+/**
+ * Mark autostart as acknowledged when user clicks enable.
+ */
+fun setAutostartAcknowledged(context: Context, acknowledged: Boolean) {
+    val prefs = context.getSharedPreferences("autostart_prefs", Context.MODE_PRIVATE)
+    prefs.edit().putBoolean("autostart_acknowledged", acknowledged).apply()
 }
 
 /**

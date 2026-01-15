@@ -135,6 +135,13 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun disableApps(packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        viewModelScope.launch {
+            preferences.removeAllowedPackages(packageNames)
+        }
+    }
+
     fun getAppConfig(packageName: String) = preferences.getAppConfig(packageName)
 
     fun updateAppConfig(pkg: String, type: NotificationType, enabled: Boolean) {

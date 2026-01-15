@@ -1238,6 +1238,20 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             }
 
+            // --- GOOGLE MAPS FLOATING ISLAND BLOCKER ---
+            // Prevent Google Maps from showing its own floating island alongside ours
+            val blockGoogleMapsFloatingIsland = preferences.blockGoogleMapsFloatingIslandFlow.first()
+            if (blockGoogleMapsFloatingIsland && sbn.packageName == "com.google.android.apps.maps" && type == NotificationType.NAVIGATION) {
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_NAV_BLOCKED pkg=${sbn.packageName} - Preventing system floating island")
+                // Cancel the original notification to prevent system floating island
+                try {
+                    NotificationManagerCompat.from(this).cancel(sbn.id)
+                } catch (e: Exception) {
+                    HiLog.w(HiLog.TAG_NOTIF, "Failed to cancel Google Maps notification: ${e.message}")
+                }
+                // Continue processing with our island only
+            }
+
             // --- CONTEXT-AWARE FILTERING (v0.7.0) ---
             // Applied ONLY when contextAwareEnabled is true
             // Focus Mode is stronger - if focus is active, focus rules already applied above

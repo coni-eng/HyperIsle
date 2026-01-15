@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
@@ -42,8 +43,10 @@ fun LibraryPage(
             onSortChange = { viewModel.librarySort.value = it }
         )
 
+        val selectedApps = remember(apps) { apps.filter { it.isBridged } }
         val unselectedApps = remember(apps) { apps.filterNot { it.isBridged } }
-        val canSelectAll = unselectedApps.isNotEmpty()
+        val allSelected = unselectedApps.isEmpty() && selectedApps.isNotEmpty()
+        val hasApps = apps.isNotEmpty()
 
         Row(
             modifier = Modifier
@@ -53,12 +56,24 @@ fun LibraryPage(
             verticalAlignment = Alignment.CenterVertically
         ) {
             FilledTonalButton(
-                onClick = { viewModel.enableApps(unselectedApps.map { it.packageName }) },
-                enabled = canSelectAll
+                onClick = {
+                    if (allSelected) {
+                        viewModel.disableApps(selectedApps.map { it.packageName })
+                    } else {
+                        viewModel.enableApps(unselectedApps.map { it.packageName })
+                    }
+                },
+                enabled = hasApps
             ) {
-                Icon(Icons.Default.DoneAll, contentDescription = null)
+                Icon(
+                    if (allSelected) Icons.Default.ClearAll else Icons.Default.DoneAll,
+                    contentDescription = null
+                )
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.select_all_apps))
+                Text(
+                    if (allSelected) stringResource(R.string.deselect_all_apps)
+                    else stringResource(R.string.select_all_apps)
+                )
             }
         }
 

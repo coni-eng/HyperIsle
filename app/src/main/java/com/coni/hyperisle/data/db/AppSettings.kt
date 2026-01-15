@@ -131,4 +131,10 @@ object SettingsKeys {
     // Anchor mode (camera cutout island)
     const val ANCHOR_MODE_ENABLED = "anchor_mode_enabled"
     const val ANCHOR_VISIBILITY_MODE = "anchor_visibility_mode"
+    
+    // Autostart permission acknowledged (user clicked enable)
+    const val AUTOSTART_ACKNOWLEDGED = "autostart_acknowledged"
+    
+    // Google Maps floating island blocker
+    const val BLOCK_GOOGLE_MAPS_FLOATING_ISLAND = "block_google_maps_floating_island"
 }

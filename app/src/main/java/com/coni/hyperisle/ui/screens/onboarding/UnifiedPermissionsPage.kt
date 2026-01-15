@@ -33,6 +33,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.coni.hyperisle.R
 import com.coni.hyperisle.models.PermissionItem
 import com.coni.hyperisle.models.PermissionRegistry
+import com.coni.hyperisle.util.setAutostartAcknowledged
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -102,6 +103,10 @@ fun UnifiedPermissionsPage(
                             PermissionRegistry.PHONE_CALLS.id -> {
                                 phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
                             }
+                            PermissionRegistry.AUTOSTART.id -> {
+                                setAutostartAcknowledged(context, true)
+                                permission.openSettings(context)
+                            }
                             else -> {
                                 permission.openSettings(context)
                             }
@@ -147,102 +152,100 @@ private fun PermissionCard(
             else 
                 MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(12.dp)
+                .fillMaxWidth()
         ) {
-            // Animated Icon
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(
-                        color = if (isGranted) Color(0xFF34C759).copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                AnimatedContent(targetState = isGranted, label = "icon_anim") { granted ->
-                    if (granted) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color(0xFF34C759),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = permission.icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // Text Content
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                // Animated Icon
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = if (isGranted) Color(0xFF34C759).copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = stringResource(permission.titleRes),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    
-                    if (permission.isRequired && !isGranted) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = "REQUIRED",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    AnimatedContent(targetState = isGranted, label = "icon_anim") { granted ->
+                        if (granted) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF34C759),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = permission.icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                Text(
-                    text = stringResource(permission.descriptionRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 16.sp
-                )
-            }
 
-            // Action Button
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Title with REQUIRED badge
+                Text(
+                    text = stringResource(permission.titleRes),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                if (permission.isRequired && !isGranted) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "REQUIRED",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            
+            // Description
+            Text(
+                text = stringResource(permission.descriptionRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 14.sp,
+                modifier = Modifier.padding(start = 52.dp, top = 2.dp)
+            )
+
+            // Action Button - at bottom
             AnimatedVisibility(
                 visible = !isGranted,
                 enter = fadeIn() + scaleIn(),
                 exit = fadeOut() + scaleOut()
             ) {
-                Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = onGrant,
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                    modifier = Modifier.height(36.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .height(36.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
-                    shape = RoundedCornerShape(18.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         text = stringResource(R.string.onboarding_enable),
