@@ -2654,6 +2654,17 @@ class IslandOverlayService : Service() {
         // Try contentIntent first
         if (contentIntent != null) {
             try {
+                // BUG FIX: Use ActivityOptions to allow background activity start
+                // This is critical for Android 10+ where background starts are restricted
+                // especially for services (which we are)
+                val options = android.app.ActivityOptions.makeBasic()
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    // Android 14+ requires explicit opt-in for background starts from services
+                    options.setPendingIntentBackgroundActivityStartMode(
+                        android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                }
+
                 // Send with context to ensure Activity can be launched
                 contentIntent.send(
                     this,
@@ -2662,9 +2673,9 @@ class IslandOverlayService : Service() {
                     null,
                     null,
                     null,
-                    null
+                    options.toBundle()
                 )
-                HiLog.d(HiLog.TAG_ISLAND, "Notification tap intent sent successfully")
+                HiLog.d(HiLog.TAG_ISLAND, "Notification tap intent sent successfully with options")
                 HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=TAP_OPEN_OK method=CONTENT_INTENT pkg=$pkg")
                 return
             } catch (e: PendingIntent.CanceledException) {

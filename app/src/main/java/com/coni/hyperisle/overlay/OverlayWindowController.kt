@@ -85,7 +85,8 @@ class OverlayWindowController(private val context: Context) {
                 val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                         WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                         
                 val flags = if (!interactive) {
                     baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -135,10 +136,12 @@ class OverlayWindowController(private val context: Context) {
             // Create layout params for overlay
             // Use WRAP_CONTENT for width to allow touch pass-through outside the island
             // ADDED FLAG_LAYOUT_NO_LIMITS to allow drawing over cutout/status bar
+            // ADDED FLAG_SHOW_WHEN_LOCKED to allow overlay on lock screen
             val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
 
             val flags = if (!interactive) {
                 baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE

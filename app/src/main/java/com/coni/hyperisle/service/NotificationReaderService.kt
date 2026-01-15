@@ -530,12 +530,16 @@ class NotificationReaderService : NotificationListenerService() {
             // Check if we recently snoozed this notification to prevent loop (stash logic)
             val isReturningFromSnooze = isSelfCancel(it.key, System.currentTimeMillis(), it.packageName, it.id)
             
-            if (isClearableStandard && isMiuiDevice && !isReturningFromSnooze) {
+            // For debug/test notifications, bypass strict MIUI/Clearable checks to test Stash logic
+            val isTestNotification = BuildConfig.DEBUG && it.packageName == this.packageName
+            val shouldStash = (isClearableStandard && isMiuiDevice) || isTestNotification
+            
+            if (shouldStash && !isReturningFromSnooze) {
                 try {
                     snoozeNotification(it.key, POPUP_SUPPRESS_SNOOZE_MS)
                     markSelfCancel(it.key, ctx.keyHash, it.packageName, it.id)
                     if (BuildConfig.DEBUG) {
-                        HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_OK pkg=${it.packageName} reason=BEAT_MIUI_ISLAND")
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_OK pkg=${it.packageName} reason=${if (isTestNotification) "TEST_STASH" else "BEAT_MIUI_ISLAND"}")
                     }
                 } catch (e: Exception) {
                     if (BuildConfig.DEBUG) {
@@ -1257,11 +1261,34 @@ class NotificationReaderService : NotificationListenerService() {
 
             // --- REPLACE POLICY: Use groupKey instead of sbn.key ---
             val groupKey = "${sbn.packageName}:${type.name}"
+            
+            // v0.9.8: Detect Group vs DM (to prevent group summary override)
+            val isGroup = extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION) || 
+                          !extras.getStringCompat(Notification.EXTRA_CONVERSATION_TITLE).isNullOrBlank()
+
             val bridgeId = groupKey.hashCode()
             sbnKeyToGroupKey[sbn.key] = groupKey
             pendingDismissJobs.remove(groupKey)?.cancel()
 
             val isUpdate = activeIslands.containsKey(groupKey)
+            
+            // BUG FIX: Prevent Group Summary from overriding recent DM notification
+            // If we are showing a DM (!isGroup) that arrived recently (< 3s), ignore incoming Group updates.
+            if (isUpdate) {
+                val previousIsland = activeIslands[groupKey]
+                if (previousIsland != null && !previousIsland.isGroup && isGroup) {
+                    val timeDiff = System.currentTimeMillis() - previousIsland.postTime
+                    // If DM was shown less than 3 seconds ago, ignore this group update
+                    if (timeDiff < 3000) {
+                        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=UPDATE_SKIP reason=GROUP_OVERRIDE_DM_BLOCK pkg=${sbn.packageName}")
+                        DebugLog.event("UPDATE_SKIP", rid, "SKIP", reason = "GROUP_OVERRIDE_DM_BLOCK", kv = mapOf(
+                            "pkg" to sbn.packageName,
+                            "prevTitle" to previousIsland.title
+                        ))
+                        return
+                    }
+                }
+            }
             
             // --- EMPTY MESSAGE UPDATE GUARD ---
             // Skip update if message content is empty (prevents narrow/collapsed island display)
@@ -1699,7 +1726,8 @@ class NotificationReaderService : NotificationListenerService() {
                         title = title,
                         text = text,
                         subText = subText,
-                        lastContentHash = newContentHash
+                        lastContentHash = newContentHash,
+                        isGroup = isGroup
                     )
                     activeRoutes[groupKey] = IslandRoute.APP_OVERLAY
                 }
@@ -1756,7 +1784,8 @@ class NotificationReaderService : NotificationListenerService() {
                         title = title,
                         text = text,
                         subText = subText,
-                        lastContentHash = newContentHash
+                        lastContentHash = newContentHash,
+                        isGroup = isGroup
                     )
                     activeRoutes[groupKey] = IslandRoute.MIUI_BRIDGE
 
@@ -1802,7 +1831,8 @@ class NotificationReaderService : NotificationListenerService() {
                             title = title,
                             text = text,
                             subText = subText,
-                            lastContentHash = newContentHash
+                            lastContentHash = newContentHash,
+                            isGroup = isGroup
                         )
                         activeRoutes[groupKey] = IslandRoute.APP_OVERLAY
                     }
