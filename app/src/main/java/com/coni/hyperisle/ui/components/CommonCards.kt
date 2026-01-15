@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.coni.hyperisle.util.openAutoStartSettings // Correct Import
+import com.coni.hyperisle.util.openAutostartSettings // Correct Import
 import com.coni.hyperisle.util.openBatterySettings   // Correct Import
 
 
@@ -82,7 +82,7 @@ fun ExpandableOptimizationCard(context: Context) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
-                    onClick = { openAutoStartSettings(context) },
+                    onClick = { openAutostartSettings(context) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = contentColor)
                 ) {

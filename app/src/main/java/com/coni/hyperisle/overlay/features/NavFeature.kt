@@ -128,7 +128,7 @@ class NavFeature : IslandFeature {
     }
 
     @Composable
-    private fun NavigationPill(
+    fun NavigationPill(
         instruction: String,
         distance: String,
         eta: String,

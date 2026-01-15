@@ -1061,11 +1061,17 @@ fun NotificationPill(
     // ACCENT COLOR: Use app's accent color for pill background, fallback to dark
     val pillBackgroundColor = accentColor?.let { 
         try { 
-            // Parse accent color and make it darker/semi-transparent for readability
+            // Parse accent color
             val parsed = android.graphics.Color.parseColor(it)
-            Color(parsed).copy(alpha = 0.85f)
+            // If it is standard black (#FF000000 or #000000), use full opacity for iOS look
+            if (parsed == android.graphics.Color.BLACK) {
+                Color.Black
+            } else {
+                // Otherwise make it darker/semi-transparent for readability
+                Color(parsed).copy(alpha = 0.85f)
+            }
         } catch (e: Exception) { null }
-    } ?: Color(0xFF030302)
+    } ?: Color.Black
     
     Surface(
         modifier = tapModifier

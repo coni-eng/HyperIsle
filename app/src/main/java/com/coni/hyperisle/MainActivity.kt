@@ -45,6 +45,8 @@ import com.coni.hyperisle.ui.screens.settings.ChangelogHistoryScreen
 import com.coni.hyperisle.ui.screens.settings.DiagnosticsScreen
 import com.coni.hyperisle.ui.screens.settings.GlobalBlocklistScreen
 import com.coni.hyperisle.ui.screens.settings.GlobalSettingsScreen
+import com.coni.hyperisle.ui.screens.settings.HapticLabScreen
+import com.coni.hyperisle.ui.screens.settings.IslandColorAppsScreen
 import com.coni.hyperisle.ui.screens.settings.ImportPreviewScreen
 import com.coni.hyperisle.ui.screens.settings.InfoScreen
 import com.coni.hyperisle.ui.screens.settings.IslandQuickActionsScreen
@@ -103,7 +105,9 @@ enum class Screen(val depth: Int) {
     SETTINGS_CUSTOMIZE(3), // Settings layout customization
     DIAGNOSTICS(3), // Debug-only diagnostics screen
     ISLAND_STYLE_PREVIEW(4), // Debug-only island style preview
-    NOTIFICATION_LAB(4) // Debug-only notification testing lab
+    NOTIFICATION_LAB(4), // Debug-only notification testing lab
+    HAPTIC_LAB(4), // Debug-only haptic testing lab
+    ISLAND_COLOR_APPS(4) // Per-app island color customization
 }
 
 @Composable
@@ -221,6 +225,7 @@ fun MainRootNavigation(
             Screen.INFO -> Screen.HOME
             Screen.ISLAND_STYLE_PREVIEW -> Screen.DIAGNOSTICS
             Screen.NOTIFICATION_LAB -> Screen.DIAGNOSTICS
+            Screen.HAPTIC_LAB -> Screen.DIAGNOSTICS
             else -> Screen.HOME
         }
     }
@@ -243,14 +248,21 @@ fun MainRootNavigation(
             label = "ScreenTransition"
         ) { target ->
             when (target) {
-                Screen.ONBOARDING -> OnboardingScreen {
-                    scope.launch {
-                        preferences.setSetupComplete(true)
-                        preferences.setLastSeenVersion(currentVersionCode)
-                        preferences.setPriorityEduShown(true)
-                        currentScreen = Screen.HOME
+                Screen.ONBOARDING -> OnboardingScreen(
+                    onFinish = {
+                        scope.launch {
+                            preferences.setSetupComplete(true)
+                            preferences.setLastSeenVersion(currentVersionCode)
+                            preferences.setPriorityEduShown(true)
+                            currentScreen = Screen.HOME
+                        }
+                    },
+                    onAnchorModeSelected = { mode ->
+                        scope.launch {
+                            preferences.setAnchorMode(mode)
+                        }
                     }
-                }
+                )
                 Screen.HOME -> HomeScreen(
                     onSettingsClick = { currentScreen = Screen.INFO },
                     onNavConfigClick = { pkg -> navConfigPackage = pkg; currentScreen = Screen.NAV_CUSTOMIZATION },
@@ -269,7 +281,8 @@ fun MainRootNavigation(
                     onSmartFeaturesClick = { currentScreen = Screen.SMART_FEATURES },
                     onNotificationManagementClick = { currentScreen = Screen.NOTIFICATION_MANAGEMENT },
                     onDiagnosticsClick = { currentScreen = Screen.DIAGNOSTICS },
-                    onCustomizeClick = { currentScreen = Screen.SETTINGS_CUSTOMIZE }
+                    onCustomizeClick = { currentScreen = Screen.SETTINGS_CUSTOMIZE },
+                    onIslandColorsClick = { currentScreen = Screen.ISLAND_COLOR_APPS }
                 )
                 Screen.GLOBAL_SETTINGS -> GlobalSettingsScreen(onBack = { currentScreen = Screen.INFO }, onNavSettingsClick = { navConfigPackage = null; currentScreen = Screen.NAV_CUSTOMIZATION })
                 Screen.NAV_CUSTOMIZATION -> NavCustomizationScreen(onBack = { currentScreen = if (navConfigPackage != null) Screen.HOME else Screen.GLOBAL_SETTINGS }, packageName = navConfigPackage)
@@ -361,7 +374,8 @@ fun MainRootNavigation(
                 Screen.DIAGNOSTICS -> DiagnosticsScreen(
                     onBack = { currentScreen = Screen.INFO },
                     onIslandStylePreviewClick = { currentScreen = Screen.ISLAND_STYLE_PREVIEW },
-                    onNotificationLabClick = { currentScreen = Screen.NOTIFICATION_LAB }
+                    onNotificationLabClick = { currentScreen = Screen.NOTIFICATION_LAB },
+                    onHapticsLabClick = { currentScreen = Screen.HAPTIC_LAB }
                 )
 
                 // --- ISLAND STYLE PREVIEW (Debug only) ---
@@ -372,6 +386,16 @@ fun MainRootNavigation(
                 // --- NOTIFICATION LAB (Debug only) ---
                 Screen.NOTIFICATION_LAB -> NotificationLabScreen(
                     onBack = { currentScreen = Screen.DIAGNOSTICS }
+                )
+
+                // --- HAPTIC LAB (Debug only) ---
+                Screen.HAPTIC_LAB -> HapticLabScreen(
+                    onBack = { currentScreen = Screen.DIAGNOSTICS }
+                )
+
+                // --- ISLAND COLOR APPS ---
+                Screen.ISLAND_COLOR_APPS -> IslandColorAppsScreen(
+                    onBack = { currentScreen = Screen.INFO }
                 )
             }
         }

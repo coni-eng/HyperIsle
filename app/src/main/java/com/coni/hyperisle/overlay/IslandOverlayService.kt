@@ -18,6 +18,9 @@ import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.content.Context
 import com.coni.hyperisle.models.AnchorVisibilityMode
+import com.coni.hyperisle.models.NavContent
+import com.coni.hyperisle.overlay.features.NavFeature
+import kotlinx.coroutines.flow.first
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
@@ -77,7 +80,6 @@ import com.coni.hyperisle.overlay.anchor.CallAnchorState
 import com.coni.hyperisle.overlay.anchor.CutoutHelper
 import com.coni.hyperisle.overlay.anchor.IslandMode
 import com.coni.hyperisle.overlay.anchor.NavAnchorState
-import com.coni.hyperisle.overlay.anchor.NavInfoType
 import com.coni.hyperisle.ui.components.ActiveCallCompactPill
 import com.coni.hyperisle.ui.components.ActiveCallExpandedPill
 import com.coni.hyperisle.ui.components.IncomingCallPill
@@ -175,14 +177,13 @@ class IslandOverlayService : Service() {
             stopForegroundJob?.cancel()
             
             // Ensure overlay is showing if it's hidden
-            if (!overlayController.isShowing()) {
-                ensureForeground()
-                // Re-init logic if needed
-                if (anchorCoordinator == null) {
-                    initAnchorSystem() 
-                } else {
-                    showAnchorIdleOverlay()
-                }
+            // Force update to ensure flags/visibility are correct even if already showing
+            ensureForeground()
+            // Re-init logic if needed
+            if (anchorCoordinator == null) {
+                initAnchorSystem() 
+            } else {
+                showAnchorIdleOverlay()
             }
         } else {
             // If it should be hidden, check if we have other content (calls, etc.)
@@ -370,6 +371,26 @@ class IslandOverlayService : Service() {
                     restoreCallAfterDismiss = false
                 )
             }
+        } else if (anchorState.mode == IslandMode.NAV_EXPANDED) {
+            val navState = anchorState.navState
+            if (navState != null) {
+                // Use the NavFeature renderer
+                NavFeature().NavigationPill(
+                    instruction = navState.instruction,
+                    distance = navState.distance,
+                    eta = navState.eta,
+                    remainingTime = navState.remainingTime,
+                    appIcon = navState.appIcon,
+                    isCompact = false, // Expanded mode
+                    modifier = Modifier
+                        .widthIn(min = 300.dp, max = 360.dp)
+                        .padding(bottom = 8.dp)
+                        .combinedClickable(
+                            onClick = { handleAnchorTap() },
+                            onLongClick = { /* Collapse? or nothing */ }
+                        )
+                )
+            }
         }
     }
 
@@ -410,6 +431,11 @@ class IslandOverlayService : Service() {
         
         if (BuildConfig.DEBUG) {
             HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_LONGPRESS mode=$mode")
+        }
+
+        if (mode == IslandMode.NAV_ACTIVE) {
+            coordinator.expandNavigation()
+            Haptics.hapticOnIslandSuccess(applicationContext)
         }
     }
 
@@ -500,24 +526,51 @@ class IslandOverlayService : Service() {
             return
         }
         
-        val navState = NavAnchorState(
-            notificationKey = model.notificationKey,
-            packageName = model.packageName,
-            instruction = model.instruction,
-            distance = model.distance,
-            eta = model.eta,
-            remainingTime = model.remainingTime,
-            appIcon = model.appIcon,
-            leftInfoType = NavInfoType.INSTRUCTION,
-            rightInfoType = NavInfoType.ETA
-        )
-        
-        coordinator.updateNavState(navState)
-        
-        if (BuildConfig.DEBUG) {
-            HiLog.d("HyperIsleAnchor",
-                "EVT=NAV_ANCHOR_UPDATE left=${model.instruction.take(20)} right=${model.eta}"
+        serviceScope.launch {
+            val pair = try {
+                appPreferences.getEffectiveNavLayout(model.packageName).first()
+            } catch (e: Exception) {
+                NavContent.INSTRUCTION to NavContent.ETA
+            }
+            
+            val left = pair.first
+            val right = pair.second
+            
+            val leftType = when(left) {
+                NavContent.INSTRUCTION -> com.coni.hyperisle.overlay.anchor.NavInfoType.INSTRUCTION
+                NavContent.DISTANCE -> com.coni.hyperisle.overlay.anchor.NavInfoType.DISTANCE
+                NavContent.ETA -> com.coni.hyperisle.overlay.anchor.NavInfoType.ETA
+                NavContent.DISTANCE_ETA -> com.coni.hyperisle.overlay.anchor.NavInfoType.DISTANCE
+                else -> com.coni.hyperisle.overlay.anchor.NavInfoType.INSTRUCTION
+            }
+            val rightType = when(right) {
+                NavContent.INSTRUCTION -> com.coni.hyperisle.overlay.anchor.NavInfoType.INSTRUCTION
+                NavContent.DISTANCE -> com.coni.hyperisle.overlay.anchor.NavInfoType.DISTANCE
+                NavContent.ETA -> com.coni.hyperisle.overlay.anchor.NavInfoType.ETA
+                NavContent.DISTANCE_ETA -> com.coni.hyperisle.overlay.anchor.NavInfoType.ETA
+                else -> com.coni.hyperisle.overlay.anchor.NavInfoType.ETA
+            }
+
+            val navState = NavAnchorState(
+                notificationKey = model.notificationKey,
+                packageName = model.packageName,
+                instruction = model.instruction,
+                distance = model.distance,
+                eta = model.eta,
+                remainingTime = model.remainingTime,
+                appIcon = model.appIcon,
+                contentIntent = model.contentIntent,
+                leftInfoType = leftType,
+                rightInfoType = rightType
             )
+            
+            coordinator.updateNavState(navState)
+            
+            if (BuildConfig.DEBUG) {
+                HiLog.d("HyperIsleAnchor",
+                    "EVT=NAV_ANCHOR_UPDATE left=${model.instruction.take(20)} right=${model.eta}"
+                )
+            }
         }
     }
 
@@ -1758,8 +1811,8 @@ class IslandOverlayService : Service() {
             },
             modifier = Modifier
                 .widthIn(max = LocalConfiguration.current.screenWidthDp.dp - 32.dp)
-                // Increased top padding to lower the expanded notification as requested
-                .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 8.dp)
+                // Increased top padding to lower the expanded notification below anchor (42dp)
+                .padding(start = 20.dp, end = 20.dp, top = 42.dp, bottom = 8.dp)
         ) {
             LaunchedEffect(isNotificationCollapsed) {
                 if (isNotificationCollapsed) {
@@ -2896,7 +2949,7 @@ class IslandOverlayService : Service() {
         currentMediaModel = null
         currentTimerModel = null
         currentNavigationModel = null
-        updateAnchorNavState(null)
+        serviceScope.launch { updateAnchorNavState(null) }
         isNotificationCollapsed = false
         deferCallOverlay = false
         isCallOverlayActive = false

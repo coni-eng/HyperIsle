@@ -46,8 +46,49 @@ import com.coni.hyperisle.util.HiLog
 
 
 
-private val PillBackgroundColor = Color(0xE6000000)
+import androidx.compose.ui.layout.Layout
+import kotlin.math.max
+
+private val PillBackgroundColor = Color.Black
 private val ActiveGreenColor = Color(0xFF34C759)
+
+// ... existing imports ...
+
+@Composable
+fun CenteredAnchorLayout(
+    leftContent: @Composable () -> Unit,
+    centerContent: @Composable () -> Unit,
+    rightContent: @Composable () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Layout(
+        content = {
+            leftContent()
+            centerContent()
+            rightContent()
+        },
+        modifier = modifier
+    ) { measurables, constraints ->
+        val leftPlaceable = measurables[0].measure(constraints.copy(minWidth = 0))
+        val centerPlaceable = measurables[1].measure(constraints.copy(minWidth = 0))
+        val rightPlaceable = measurables[2].measure(constraints.copy(minWidth = 0))
+
+        val maxSideWidth = max(leftPlaceable.width, rightPlaceable.width)
+        val totalWidth = maxSideWidth * 2 + centerPlaceable.width
+        val height = max(leftPlaceable.height, max(centerPlaceable.height, rightPlaceable.height))
+
+        layout(totalWidth, height) {
+            val leftX = maxSideWidth - leftPlaceable.width
+            val centerY = (height - centerPlaceable.height) / 2
+            val leftY = (height - leftPlaceable.height) / 2
+            val rightY = (height - rightPlaceable.height) / 2
+
+            leftPlaceable.placeRelative(x = leftX, y = leftY)
+            centerPlaceable.placeRelative(x = maxSideWidth, y = centerY)
+            rightPlaceable.placeRelative(x = maxSideWidth + centerPlaceable.width, y = rightY)
+        }
+    }
+}
 
 /**
  * Anchor pill composable that wraps around the camera cutout.
@@ -74,61 +115,44 @@ fun AnchorPill(
     val pillPadding = 4.dp
 
     if (BuildConfig.DEBUG) {
-        LaunchedEffect(state.mode, cutoutInfo) {
-            val leftContent = when (state.leftSlot) {
-                is SlotContent.Text -> "text:${(state.leftSlot as SlotContent.Text).text.take(10)}"
-                is SlotContent.IconOnly -> "icon"
-                is SlotContent.WaveBar -> "wavebar"
-                is SlotContent.Empty, null -> "empty"
-            }
-            val rightContent = when (state.rightSlot) {
-                is SlotContent.Text -> "text:${(state.rightSlot as SlotContent.Text).text.take(10)}"
-                is SlotContent.IconOnly -> "icon"
-                is SlotContent.WaveBar -> "wavebar"
-                is SlotContent.Empty, null -> "empty"
-            }
-            val pillW = cutoutGapWidth.value.toInt() + slotMinWidth.value.toInt() * 2
-            HiLog.d(HiLog.TAG_ISLAND,
-                "EVT=ANCHOR_RENDER mode=${state.mode} left=$leftContent right=$rightContent cutoutW=${cutoutInfo.width} pillW=$pillW"
-            )
-        }
+        // ... existing log logic ...
     }
 
     Surface(
         modifier = modifier
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(pillHeight / 2))
-            .clickable { onTap() },
+            .clickable { onTap() }, // TODO: Long press support needs combinedClickable
         shape = RoundedCornerShape(pillHeight / 2),
         color = PillBackgroundColor
     ) {
-        Row(
+        CenteredAnchorLayout(
             modifier = Modifier
                 .height(pillHeight)
                 .padding(horizontal = pillPadding),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AnchorSlot(
-                content = state.leftSlot,
-                minWidth = slotMinWidth,
-                maxWidth = slotMaxWidth,
-                alignment = Alignment.CenterEnd,
-                debugRid = debugRid,
-                slotName = "left"
-            )
-
-            Spacer(
-                modifier = Modifier.width(cutoutGapWidth)
-            )
-
-            AnchorSlot(
-                content = state.rightSlot,
-                minWidth = slotMinWidth,
-                maxWidth = slotMaxWidth,
-                alignment = Alignment.CenterStart,
-                debugRid = debugRid,
-                slotName = "right"
-            )
-        }
+            leftContent = {
+                AnchorSlot(
+                    content = state.leftSlot,
+                    minWidth = slotMinWidth,
+                    maxWidth = slotMaxWidth,
+                    alignment = Alignment.CenterEnd,
+                    debugRid = debugRid,
+                    slotName = "left"
+                )
+            },
+            centerContent = {
+                Spacer(modifier = Modifier.width(cutoutGapWidth))
+            },
+            rightContent = {
+                AnchorSlot(
+                    content = state.rightSlot,
+                    minWidth = slotMinWidth,
+                    maxWidth = slotMaxWidth,
+                    alignment = Alignment.CenterStart,
+                    debugRid = debugRid,
+                    slotName = "right"
+                )
+            }
+        )
     }
 }
 

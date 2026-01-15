@@ -24,16 +24,18 @@
 
 ---
 
-## Recent Updates (v0.9.5-v0.9.6)
+## Recent Updates (v1.0.0)
 
-- Optional iOS-style pill overlay alongside the system island (requires overlay permission).
-- Setup Health screen highlights required vs recommended permissions, plus a "Setup incomplete" banner.
-- Debug/QA "Mark Issue" action writes a timeline marker for diagnostics.
-- Per-app shade-cancel warning for persistent notifications that Android/MIUI cannot clear.
+- **Island Colors:** Full per-app customization support. Choose between **Standard (Black)**, **Dynamic (App Icon)**, or **Custom (Hex)** colors.
+- **Visual Polish:** Standard iOS-style solid black is now the default for a cleaner, native look.
+- **Onboarding Redesign:** Streamlined setup flow with unified permissions and anchor style selection.
+- **Haptic Lab:** New diagnostics tool to test hardware vibration motor capabilities.
+- **Navigation Fixes:** Improved centering logic for the navigation island.
 
 ## 🚀 Features (Highlights)
 
 * **Native HyperOS Visuals** – Notifications rendered as system-style islands.
+* **🎨 Island Colors** – Customize notification colors per app (Standard Black, Dynamic, or Custom).
 * **🎛️ Context Presets** – One-tap notification filtering:
   **OFF / MEETING / DRIVING / HEADPHONES** (non-media only, Focus Mode always overrides).
 * **📊 Notification Summary V2** – iOS-style daily digest with:
@@ -42,7 +44,7 @@
 * **⚡ Smart Priority Engine** – Spam detection, throttling, and adaptive cooldowns.
 * **🎯 Focus Mode** – Quiet-hours rules that override floating behavior and restrict visible types.
 * **🧠 Live Activity Engine** – Smooth updates instead of stacking notifications.
-* **🎨 Adaptive Visuals & Haptics** – App-based accent colors, polished animations, subtle haptic feedback.
+* **📳 Haptics & Lab** – Subtle haptic feedback with a dedicated lab for hardware testing.
 
 ---
 
@@ -67,6 +69,7 @@
 * **📳 Haptics**
   * Subtle “shown” haptic on island display.
   * Distinct “success” haptic on dismiss.
+  * **Haptic Lab:** Test hardware patterns (Tick, Click, Heavy, Buzz).
 
 ### Explainable Notification Decisions
 

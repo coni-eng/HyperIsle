@@ -60,6 +60,7 @@ class AnchorFeature(
         return when (anchorCoordinator.getCurrentMode()) {
             IslandMode.CALL_ACTIVE -> ActiveIsland.PRIORITY_ONGOING_CALL
             IslandMode.NAV_ACTIVE -> ActiveIsland.PRIORITY_NAVIGATION_ACTIVE
+            IslandMode.NAV_EXPANDED -> ActiveIsland.PRIORITY_NAVIGATION_ACTIVE
             IslandMode.NOTIF_EXPANDED -> ActiveIsland.PRIORITY_NOTIFICATION_IMPORTANT
             IslandMode.ANCHOR_IDLE -> 0
         }
@@ -71,6 +72,7 @@ class AnchorFeature(
         return when (anchorCoordinator.getCurrentMode()) {
             IslandMode.CALL_ACTIVE -> IslandPolicy.ONGOING_CALL
             IslandMode.NAV_ACTIVE -> IslandPolicy.NAVIGATION
+            IslandMode.NAV_EXPANDED -> IslandPolicy.NAVIGATION
             IslandMode.NOTIF_EXPANDED -> IslandPolicy.NOTIFICATION
             IslandMode.ANCHOR_IDLE -> IslandPolicy(
                 minVisibleMs = 0L,
@@ -120,7 +122,7 @@ class AnchorFeature(
                             actions.hapticSuccess()
                         }
                     }
-                    IslandMode.NOTIF_EXPANDED -> {
+                    IslandMode.NOTIF_EXPANDED, IslandMode.NAV_EXPANDED -> {
                         // Handled by expanded content or dismiss
                     }
                     IslandMode.ANCHOR_IDLE -> {
@@ -234,7 +236,7 @@ fun AnchorPillWithAnimation(
                         debugRid = debugRid
                     )
                 }
-                IslandMode.NOTIF_EXPANDED -> {
+                IslandMode.NOTIF_EXPANDED, IslandMode.NAV_EXPANDED -> {
                 }
             }
         }

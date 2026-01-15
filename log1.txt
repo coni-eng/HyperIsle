@@ -1,0 +1,150 @@
+PS C:\Users\bekir> adb logcat -v time -s "HI_ISLAND" "HyperIsleAnchor" "HI_NOTIF" "HI_CALL"
+--------- beginning of main
+01-15 11:55:03.611 D/HI_NOTIF(23001): RID=142jsq_1m EVT=NOTIF_RECEIVED pkg=com.whatsapp keyHash=-2134918629
+01-15 11:55:03.611 D/HI_NOTIF(23001): EVT=WHATSAPP_RECEIVED rid=142jsq_1m keyHash=-2134918629 category=call isOngoing=false isGroupSummary=false hasContentIntent=true channelId=905530535531@s.whatsapp.net_7 isClearable=true hasTitle=true hasText=true
+01-15 11:55:03.611 D/HI_ISLAND(23001): [1768467303611][EVT][RID=142jsq_1m][TYPE=RAW][STEP=NL_POSTED] {pkg=com.whatsapp, sbnId=4, tag=null, keyHash=-2134918629, isOngoing=false, isClearable=true, category=call, hasActions=true, actionCount=2, hasFullScreenIntent=false}
+01-15 11:55:03.611 D/HI_ISLAND(23001): RID=142jsq_1m EVT=NOTIF_POSTED ROUTE=IGNORED TYPE=UNKNOWN PKG=com.whatsapp KEY=-2134918629 GK=- EXTRA={category=call,importance=null,isOngoing=false}
+01-15 11:55:03.631 D/HI_NOTIF(23001): RID=142jsq_1m EVT=GROUP_CHECK pkg=com.whatsapp isGroupSummary=false flags=16
+01-15 11:55:03.631 D/HI_ISLAND(23001): [1768467303631][EVT][RID=142jsq_1m][TYPE=FILTER][STEP=FILTER_CHECK][REASON=ALLOWED] {pkg=com.whatsapp}
+01-15 11:55:03.632 D/HI_NOTIF(23001): EVT=WHATSAPP_ALLOWED rid=142jsq_1m step=FILTER_PASSED
+01-15 11:55:03.632 D/HI_NOTIF(23001): EVT=WHATSAPP_QUEUED rid=142jsq_1m step=PROCESS_AND_POST
+01-15 11:55:03.632 D/HI_NOTIF(23001): EVT=WHATSAPP_PROCESSING_START rid=142jsq_1m
+01-15 11:55:03.633 D/HI_NOTIF(23001): EVT=PROCESS_START rid=142jsq_1m
+01-15 11:55:03.643 D/HI_NOTIF(23001): EVT=TYPE_CLASSIFIED rid=142jsq_1m type=CALL
+01-15 11:55:03.653 D/HI_ISLAND(23001): RID=142jsq_1m EVT=NOTIF_DECISION ROUTE=MIUI_ISLAND_BRIDGE TYPE=CALL PKG=com.whatsapp KEY=-2134918629 GK=com.whatsapp:CALL REASON=NEW EXTRA={bridgeId=-781054567,isUpdate=false}
+01-15 11:55:03.656 D/HI_NOTIF(23001): EVT=SHADE_MODE_CHECK pkg=com.whatsapp mode=STASH shouldSnooze=false shouldCancel=false isStash=true
+01-15 11:55:03.658 D/HI_NOTIF(23001): RID=-2134918629 EVT=SELF_CANCEL_MARK stableKey=com.whatsapp|4 ttlMs=5000
+01-15 11:55:03.659 D/HI_ISLAND(23001): [1768467303658][EVT][RID=142jsq_1m][TYPE=INTERCEPT][STEP=CALL_INTERCEPT][REASON=CALL_INCOMING_SNOOZE_OK] {pkg=com.whatsapp, callState=INCOMING, method=snooze, durationMs=60000}
+01-15 11:55:03.664 D/HI_NOTIF(23001): event=onRemoved pkg=com.whatsapp keyHash=-2134918629 reason=SNOOZED
+01-15 11:55:03.665 D/HI_ISLAND(23001): RID=142ju8_18 EVT=NOTIF_REMOVED ROUTE=SYSTEM_NOTIFICATION TYPE=CALL PKG=com.whatsapp KEY=-2134918629 GK=com.whatsapp:CALL REASON=SNOOZED
+01-15 11:55:03.665 D/HI_NOTIF(23001): RID=-2134918629 EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_SNOOZED
+01-15 11:55:03.665 D/HI_NOTIF(23001): RID=-2134918629 EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_SNOOZED
+01-15 11:55:03.665 D/HI_NOTIF(23001): RID=-2134918629 EVT=STATE_RESET_DONE reason=ACTIVE_ISLANDS_EMPTY_SNOOZED
+01-15 11:55:03.667 D/HI_CALL (23001): EVT=DISMISS_ALL_ALLOWED callState=IDLE hasActiveCallModel=false
+01-15 11:55:03.667 D/HI_ISLAND(23001): Dismissing all overlays
+01-15 11:55:03.667 D/HI_ISLAND(23001): RID=0 EVT=OVERLAY_HIDE_CALLED reason=DISMISS_ALL_EVENT
+01-15 11:55:03.667 D/HI_ISLAND(23001): RID=OVL_DISMISS STAGE=OVERLAY ACTION=OVERLAY_DISMISS type=NONE pkg=null
+01-15 11:55:03.667 D/HI_ISLAND(23001): RID=142jub_19 EVT=OVERLAY_DISMISS ROUTE=APP_OVERLAY TYPE=NONE PKG=- KEY=- GK=- REASON=DISMISS_ALL_EVENT
+01-15 11:55:03.668 D/HI_ISLAND(23001): EVT=CALL_STATE_UPDATE hasCall=false isActive=null duration=null
+01-15 11:55:03.668 D/HyperIsleAnchor(23001): EVT=CALL_ANCHOR_UPDATE state=ended
+01-15 11:55:03.668 D/HyperIsleAnchor(23001): EVT=MODE_SWITCH reason=CALL_END
+01-15 11:55:03.668 D/HI_ISLAND(23001): EVT=NAV_STATE_UPDATE hasNav=false instruction=null
+01-15 11:55:03.668 D/HyperIsleAnchor(23001): EVT=NAV_ANCHOR_UPDATE left= right=
+01-15 11:55:03.668 D/HyperIsleAnchor(23001): EVT=MODE_SWITCH reason=NAV_END
+01-15 11:55:03.668 D/HI_ISLAND(23001): RID=0 EVT=ANCHOR_RESTORE reason=DISMISS_ALL_KEEP_ALIVE
+01-15 11:55:03.668 D/HI_ISLAND(23001): EVT=SHRINK_SKIP reason=NOT_EXPANDED currentMode=ANCHOR_IDLE
+01-15 11:55:03.668 D/HyperIsleAnchor(23001): EVT=OVERLAY_SHRINK_TO_ANCHOR reason=DISMISS_ALL_KEEP_ALIVE
+01-15 11:55:03.668 D/HyperIsleAnchor(23001): RID=-1059222284 EVT=ANCHOR_IDLE_SHOW
+01-15 11:55:03.669 D/HI_ISLAND(23001): Found 1 cutouts via Display
+01-15 11:55:03.670 D/HI_ISLAND(23001): EVT=POSITION_CALC screenW=1220 screenCenterX=610 cutoutCenterX=610 cutoutTop=0 desiredX=0 clampedX=0 y=0
+01-15 11:55:03.670 D/HI_ISLAND(23001): Overlay updated (reused) interactive=true
+01-15 11:55:03.670 D/HI_ISLAND(23001): RID=0 EVT=OVERLAY_HIDDEN_OK reason=DISMISS_ALL_EVENT
+01-15 11:55:03.670 D/HI_ISLAND(23001): RID=0 EVT=STATE_RESET_DONE reason=DISMISS_ALL_EVENT
+01-15 11:55:03.702 D/HI_ISLAND(23001): [1768467303702][EVT][RID=142jsq_1m][TYPE=TRANSLATE][STEP=TRANSLATOR_PICK][REASON=CALL] {pkg=com.whatsapp, isOngoingCall=false, actionCount=2}
+01-15 11:55:03.703 D/HI_ISLAND(23001): event=callState ENDED pkg=com.whatsapp keyHash=-2134918629
+01-15 11:55:03.703 D/HI_ISLAND(23001): RID=142jvb_1a EVT=CALL_STATE ROUTE=MIUI_ISLAND_BRIDGE TYPE=CALL PKG=com.whatsapp KEY=-2134918629 GK=- EXTRA={state=ENDED}
+01-15 11:55:03.720 D/HI_ISLAND(23001): RID=ACC_CTX EVT=CTX_UPDATE reason=EVENT fullscreen=true ime=false fg=com.google.android.apps.maps
+01-15 11:55:03.728 D/HI_ISLAND(23001): RID=-2134918629 EVT=MIUI_UI_BUILD type=CALL state=ENDED titleLen=9 contentLen=11 actions=2 actionKeys=act_-2134918629_0|act_-2134918629_1 picKey=pic_-781054567 hiddenKey=hidden_pixel float=true timeout=5 showShade=true firstFloat=true
+01-15 11:55:03.732 D/HI_ISLAND(23001): [1768467303732][EVT][RID=142jsq_1m][TYPE=TRANSLATE][STEP=TRANSLATOR_RESULT] {islandType=CALL, jsonLength=1494, jsonHash=55669fc7, pkg=com.whatsapp}
+01-15 11:55:03.732 D/HI_ISLAND(23001): RID=142jsq_1m EVT=ISLAND_RENDER ROUTE=MIUI_ISLAND_BRIDGE TYPE=CALL PKG=com.whatsapp KEY=-2134918629 GK=com.whatsapp:CALL SLOTS={L:callerAvatar,C:callerName,R:-} ACTIONS=[Geri ara,Mesaj gönd] STYLE=call_incoming EXTRA={bridgeId=-781054567,jsonLen=1494}
+01-15 11:55:03.733 D/HI_NOTIF(23001): EVT=OVERLAY_DECISION rid=142jsq_1m overlaySupported=true canUseOverlay=true forceOverlayRoute=false preferOverlay=false blockMiuiBridge=false
+01-15 11:55:03.733 D/HI_NOTIF(23001): EVT=NOTIF_ROUTE_FINAL pkg=com.whatsapp type=CALL chosen=APP_OVERLAY suppressed=NONE reason=DEFAULT
+01-15 11:55:03.733 D/HI_ISLAND(23001): RID=142jsq_1m EVT=ROUTE_FINAL route=APP_OVERLAY reason=OVERLAY_SELECTED type=CALL pkg=com.whatsapp
+01-15 11:55:03.737 D/HI_ISLAND(23001): Starting foreground service
+01-15 11:55:03.737 D/HI_ISLAND(23001): RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START
+01-15 11:55:03.737 D/HI_ISLAND(23001): Overlay service started
+01-15 11:55:03.738 D/HI_ISLAND(23001): RID=-2134918629 EVT=OVERLAY_FG_FALLBACK source=ACCESSIBILITY fg=com.google.android.apps.maps pkg=com.whatsapp
+01-15 11:55:03.739 D/HI_NOTIF(23001): RID=-2134918629 EVT=CALL_MODEL_BLOCKED reason=SESSION_LOCKED
+01-15 11:55:03.744 D/HI_ISLAND(23001): event=DECISION pkg=com.whatsapp keyHash=-2134918629 showInIsland=true mode=STASH cancelShade=false snoozeShade=false cancelShadeEligible=false cancelShadeSafe=true reason=STASH_MODE
+01-15 11:55:03.744 D/HI_NOTIF(23001): RID=-2134918629 STAGE=HIDE_SYS_NOTIF ACTION=DECISION cancelShade=false allowed=false eligible=false safe=true reason=NOT_ONGOING_CALL pkg=com.whatsapp
+01-15 11:55:03.745 D/HI_ISLAND(23001): RID=-2134918629 EVT=CANCEL_GUARD reason=SHADE_CANCEL_OFF decision={clearable=true,eligible=false,safe=true,routeConfirmed=false} result=SKIP pkg=com.whatsapp
+01-15 11:55:03.745 D/HI_NOTIF(23001): EVT=MIUI_CONFLICT_CHECK pkg=com.whatsapp bridgeSuppressed=false overlayShown=false cancelPerformed=false stashMode=true
+01-15 11:55:04.246 D/HI_ISLAND(23001): EVT=HEARTBEAT_TICK ts=1768467304246 connected=true activeNotifications=5
+01-15 11:55:04.265 D/HI_ISLAND(23001): EVT=HEARTBEAT ts=1768467304265 activeNotifications=5 connected=true
+01-15 11:55:06.158 D/HI_NOTIF(23001): RID=142lrh_1q EVT=NOTIF_RECEIVED pkg=com.google.android.apps.maps keyHash=923818831
+01-15 11:55:06.160 D/HI_ISLAND(23001): [1768467306158][EVT][RID=142lrh_1q][TYPE=RAW][STEP=NL_POSTED] {pkg=com.google.android.apps.maps, sbnId=1, tag=null, keyHash=923818831, isOngoing=true, isClearable=false, category=navigation, hasActions=false, actionCount=0, hasFullScreenIntent=false}
+01-15 11:55:06.161 D/HI_ISLAND(23001): RID=142lrh_1q EVT=NOTIF_POSTED ROUTE=IGNORED TYPE=UNKNOWN PKG=com.google.android.apps.maps KEY=923818831 GK=navigation_status_notification_group EXTRA={category=navigation,importance=null,isOngoing=true}
+01-15 11:55:06.163 D/HI_NOTIF(23001): RID=142lrh_1q EVT=GROUP_CHECK pkg=com.google.android.apps.maps isGroupSummary=false flags=362
+01-15 11:55:06.164 D/HI_ISLAND(23001): [1768467306164][EVT][RID=142lrh_1q][TYPE=FILTER][STEP=FILTER_CHECK][REASON=ALLOWED] {pkg=com.google.android.apps.maps}
+01-15 11:55:06.186 D/HI_ISLAND(23001): RID=142lrh_1q EVT=NOTIF_DECISION ROUTE=MIUI_ISLAND_BRIDGE TYPE=NAVIGATION PKG=com.google.android.apps.maps KEY=923818831 GK=com.google.android.apps.maps:NAVIGATION REASON=NEW EXTRA={bridgeId=1515826978,isUpdate=false}
+01-15 11:55:06.189 D/HI_NOTIF(23001): EVT=SHADE_MODE_CHECK pkg=com.google.android.apps.maps mode=ISLAND_ONLY shouldSnooze=false shouldCancel=false isStash=false
+01-15 11:55:06.219 D/HI_ISLAND(23001): [1768467306218][EVT][RID=142lrh_1q][TYPE=TRANSLATE][STEP=TRANSLATOR_PICK][REASON=NAVIGATION] {pkg=com.google.android.apps.maps, isOngoingCall=false, actionCount=0}
+01-15 11:55:06.279 D/HI_ISLAND(23001): [1768467306278][EVT][RID=142lrh_1q][TYPE=TRANSLATE][STEP=TRANSLATOR_RESULT] {islandType=NAVIGATION, jsonLength=1064, jsonHash=37e98f77, pkg=com.google.android.apps.maps}
+01-15 11:55:06.279 D/HI_ISLAND(23001): RID=142lrh_1q EVT=ISLAND_RENDER ROUTE=MIUI_ISLAND_BRIDGE TYPE=NAVIGATION PKG=com.google.android.apps.maps KEY=923818831 GK=com.google.android.apps.maps:NAVIGATION SLOTS={L:navIcon,C:direction,R:-} ACTIONS=[] STYLE=navigation EXTRA={bridgeId=1515826978,jsonLen=1064}
+01-15 11:55:06.279 D/HI_ISLAND(23001): RID=142lrh_1q EVT=ROUTE_SELECTED route=APP_OVERLAY reason=FORCE_OVERLAY type=NAVIGATION
+01-15 11:55:06.284 D/HI_ISLAND(23001): Overlay service started
+01-15 11:55:06.290 D/HI_ISLAND(23001): Overlay service started
+01-15 11:55:06.321 D/HI_NOTIF(23001): RID=142lw1_1r EVT=NOTIF_RECEIVED pkg=com.google.android.apps.maps keyHash=923818831
+01-15 11:55:06.322 D/HI_ISLAND(23001): [1768467306321][EVT][RID=142lw1_1r][TYPE=RAW][STEP=NL_POSTED] {pkg=com.google.android.apps.maps, sbnId=1, tag=null, keyHash=923818831, isOngoing=true, isClearable=false, category=navigation, hasActions=true, actionCount=1, hasFullScreenIntent=false}
+01-15 11:55:06.322 D/HI_ISLAND(23001): RID=142lw1_1r EVT=NOTIF_POSTED ROUTE=IGNORED TYPE=UNKNOWN PKG=com.google.android.apps.maps KEY=923818831 GK=navigation_status_notification_group EXTRA={category=navigation,importance=null,isOngoing=true}
+01-15 11:55:06.322 D/HI_NOTIF(23001): RID=142lw1_1r EVT=GROUP_CHECK pkg=com.google.android.apps.maps isGroupSummary=false flags=262506
+01-15 11:55:06.322 D/HI_ISLAND(23001): [1768467306322][EVT][RID=142lw1_1r][TYPE=FILTER][STEP=FILTER_CHECK][REASON=ALLOWED] {pkg=com.google.android.apps.maps}
+01-15 11:55:06.364 D/HI_ISLAND(23001): RID=923818831 EVT=NAV_OVERLAY_EMIT pkg=com.google.android.apps.maps result=OK
+01-15 11:55:06.364 D/HI_NOTIF(23001): RID=923818831 EVT=MIN_VISIBLE_TIMER_START gk=com.google.android.apps.maps:NAVIGATION ms=2500
+01-15 11:55:06.365 D/HI_ISLAND(23001): Starting foreground service
+01-15 11:55:06.365 D/HI_ISLAND(23001): RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START
+01-15 11:55:06.370 D/HI_ISLAND(23001): RID=142lw1_1r EVT=NOTIF_DECISION ROUTE=MIUI_ISLAND_BRIDGE TYPE=NAVIGATION PKG=com.google.android.apps.maps KEY=923818831 GK=com.google.android.apps.maps:NAVIGATION REASON=NEW EXTRA={bridgeId=1515826978,isUpdate=false}
+01-15 11:55:06.372 D/HI_NOTIF(23001): EVT=SHADE_MODE_CHECK pkg=com.google.android.apps.maps mode=ISLAND_ONLY shouldSnooze=false shouldCancel=false isStash=false
+01-15 11:55:06.384 D/HI_ISLAND(23001): event=DECISION pkg=com.google.android.apps.maps keyHash=923818831 showInIsland=true mode=ISLAND_ONLY cancelShade=false snoozeShade=false cancelShadeEligible=false cancelShadeSafe=true reason=ISLAND_ONLY_MODE
+01-15 11:55:06.391 D/HI_ISLAND(23001): Starting foreground service
+01-15 11:55:06.391 D/HI_ISLAND(23001): RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START
+01-15 11:55:06.394 D/HI_NOTIF(23001): RID=923818831 STAGE=HIDE_SYS_NOTIF ACTION=DECISION cancelShade=false allowed=false eligible=false safe=true reason=NOT_CLEARABLE pkg=com.google.android.apps.maps
+01-15 11:55:06.395 D/HI_ISLAND(23001): RID=923818831 EVT=CANCEL_GUARD reason=SHADE_CANCEL_OFF decision={clearable=false,eligible=false,safe=true,routeConfirmed=true} result=SKIP pkg=com.google.android.apps.maps
+01-15 11:55:06.395 D/HI_ISLAND(23001): RID=923818831 EVT=SYS_NOTIF_CANCEL_SKIP reason=FORCE_NAV_GUARD pkg=com.google.android.apps.maps
+01-15 11:55:06.397 D/HI_ISLAND(23001): Showing navigation overlay: Navigasyon başlatılıyor…
+01-15 11:55:06.409 D/HI_ISLAND(23001): EVT=NAV_STATE_UPDATE hasNav=true instruction=Navigasyon başlatılı
+01-15 11:55:06.411 D/HI_ISLAND(23001): EVT=MODE_SWITCH from=ANCHOR_IDLE to=NAV_ACTIVE reason=NAV_STATE cutoutW=60 pillW=196
+01-15 11:55:06.411 D/HyperIsleAnchor(23001): EVT=NAV_ANCHOR_UPDATE left=Navigasyon başlatılı right=
+01-15 11:55:06.411 D/HI_ISLAND(23001): RID=923818831 STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NAVIGATION pkg=com.google.android.apps.maps
+01-15 11:55:06.412 D/HI_ISLAND(23001): [1768467306411][EVT][RID=142lw1_1r][TYPE=TRANSLATE][STEP=TRANSLATOR_PICK][REASON=NAVIGATION] {pkg=com.google.android.apps.maps, isOngoingCall=false, actionCount=1}
+01-15 11:55:06.413 D/HI_ISLAND(23001): Found 1 cutouts via Display
+01-15 11:55:06.413 D/HI_ISLAND(23001): EVT=POSITION_CALC screenW=1220 screenCenterX=610 cutoutCenterX=610 cutoutTop=0 desiredX=0 clampedX=0 y=0
+01-15 11:55:06.413 D/HI_ISLAND(23001): Overlay updated (reused) interactive=true
+01-15 11:55:06.442 D/HI_ISLAND(23001): [1768467306441][EVT][RID=142lw1_1r][TYPE=TRANSLATE][STEP=TRANSLATOR_RESULT] {islandType=NAVIGATION, jsonLength=1360, jsonHash=2e2592ff, pkg=com.google.android.apps.maps}
+01-15 11:55:06.442 D/HI_ISLAND(23001): RID=142lw1_1r EVT=ISLAND_RENDER ROUTE=MIUI_ISLAND_BRIDGE TYPE=NAVIGATION PKG=com.google.android.apps.maps KEY=923818831 GK=com.google.android.apps.maps:NAVIGATION SLOTS={L:navIcon,C:direction,R:eta} ACTIONS=[] STYLE=navigation EXTRA={bridgeId=1515826978,jsonLen=1360}
+01-15 11:55:06.442 D/HI_ISLAND(23001): RID=142lw1_1r EVT=ROUTE_SELECTED route=APP_OVERLAY reason=FORCE_OVERLAY type=NAVIGATION
+01-15 11:55:06.444 D/HI_ISLAND(23001): Overlay service started
+01-15 11:55:06.445 D/HI_ISLAND(23001): Overlay service started
+01-15 11:55:06.446 D/HI_ISLAND(23001): RID=923818831 EVT=OVERLAY_SUPPRESS state=ON type=NAVIGATION fg=com.google.android.apps.maps
+01-15 11:55:06.452 D/HI_ISLAND(23001): Starting foreground service
+01-15 11:55:06.452 D/HI_ISLAND(23001): RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START
+01-15 11:55:06.452 D/HI_ISLAND(23001): Starting foreground service
+01-15 11:55:06.452 D/HI_ISLAND(23001): RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START
+01-15 11:55:06.457 D/HI_ISLAND(23001): RID=923818831 EVT=NAV_OVERLAY_EMIT pkg=com.google.android.apps.maps result=OK
+01-15 11:55:06.458 D/HI_NOTIF(23001): RID=923818831 EVT=MIN_VISIBLE_TIMER_START gk=com.google.android.apps.maps:NAVIGATION ms=2500
+01-15 11:55:06.458 D/HI_ISLAND(23001): Showing navigation overlay: Güneybatı yönünde ilerleyin
+01-15 11:55:06.459 D/HI_ISLAND(23001): event=DECISION pkg=com.google.android.apps.maps keyHash=923818831 showInIsland=true mode=ISLAND_ONLY cancelShade=false snoozeShade=false cancelShadeEligible=false cancelShadeSafe=true reason=ISLAND_ONLY_MODE
+01-15 11:55:06.459 D/HI_NOTIF(23001): RID=923818831 STAGE=HIDE_SYS_NOTIF ACTION=DECISION cancelShade=false allowed=false eligible=false safe=true reason=NOT_CLEARABLE pkg=com.google.android.apps.maps
+01-15 11:55:06.460 D/HI_ISLAND(23001): RID=923818831 EVT=CANCEL_GUARD reason=SHADE_CANCEL_OFF decision={clearable=false,eligible=false,safe=true,routeConfirmed=true} result=SKIP pkg=com.google.android.apps.maps
+01-15 11:55:06.460 D/HI_ISLAND(23001): RID=923818831 EVT=SYS_NOTIF_CANCEL_SKIP reason=FORCE_NAV_GUARD pkg=com.google.android.apps.maps
+01-15 11:55:06.463 D/HI_ISLAND(23001): EVT=NAV_STATE_UPDATE hasNav=true instruction=Güneybatı yönünde il
+01-15 11:55:06.464 D/HyperIsleAnchor(23001): EVT=NAV_ANCHOR_UPDATE left=Güneybatı yönünde il right=Varış: 13:33
+01-15 11:55:06.464 D/HI_ISLAND(23001): RID=923818831 STAGE=OVERLAY ACTION=OVERLAY_SHOW type=NAVIGATION pkg=com.google.android.apps.maps
+01-15 11:55:06.465 D/HI_ISLAND(23001): Found 1 cutouts via Display
+01-15 11:55:06.465 D/HI_ISLAND(23001): EVT=POSITION_CALC screenW=1220 screenCenterX=610 cutoutCenterX=610 cutoutTop=0 desiredX=0 clampedX=0 y=0
+01-15 11:55:06.465 D/HI_ISLAND(23001): Overlay updated (reused) interactive=true
+01-15 11:55:08.960 D/HI_NOTIF(23001): RID=923818831 EVT=MIN_VISIBLE_TIMER_END gk=com.google.android.apps.maps:NAVIGATION
+01-15 11:55:09.944 D/HI_NOTIF(23001): RID=142ooo_1y EVT=NOTIF_RECEIVED pkg=com.miui.screenshot keyHash=909924574
+01-15 11:55:09.944 D/HI_ISLAND(23001): [1768467309944][EVT][RID=142ooo_1y][TYPE=RAW][STEP=NL_POSTED] {pkg=com.miui.screenshot, sbnId=1, tag=null, keyHash=909924574, isOngoing=false, isClearable=false, category=null, hasActions=false, actionCount=0, hasFullScreenIntent=false}
+01-15 11:55:09.945 D/HI_ISLAND(23001): RID=142ooo_1y EVT=NOTIF_POSTED ROUTE=IGNORED TYPE=UNKNOWN PKG=com.miui.screenshot KEY=909924574 GK=SCN_autogroup EXTRA={category=null,importance=null,isOngoing=false}
+01-15 11:55:09.945 D/HI_ISLAND(23001): [1768467309945][EVT][RID=142ooo_1y][TYPE=JUNK][STEP=JUNK_CHECK][REASON=EMPTY_CONTENT] {pkg=com.miui.screenshot}
+01-15 11:55:12.170 D/HI_NOTIF(23001): event=onRemoved pkg=com.miui.screenshot keyHash=909924574 reason=APP_CANCEL
+01-15 11:55:12.170 D/HI_ISLAND(23001): RID=142qei_1b EVT=NOTIF_REMOVED ROUTE=SYSTEM_NOTIFICATION TYPE=UNKNOWN PKG=com.miui.screenshot KEY=909924574 GK=- REASON=APP_CANCEL
+01-15 11:55:12.171 D/HI_NOTIF(23001): RID=909924574 EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_APP_CANCEL
+01-15 11:55:12.406 D/HI_ISLAND(23001): RID=ACC_CTX EVT=CTX_UPDATE reason=EVENT fullscreen=true ime=false fg=com.miui.home
+01-15 11:55:12.457 D/HI_ISLAND(23001): RID=923818831 EVT=OVERLAY_SUPPRESS state=OFF type=NAVIGATION fg=com.miui.home
+01-15 11:55:13.193 D/HI_NOTIF(23001): RID=142r6x_1z EVT=NOTIF_RECEIVED pkg=com.google.android.apps.maps keyHash=923818831
+01-15 11:55:13.193 D/HI_ISLAND(23001): [1768467313193][EVT][RID=142r6x_1z][TYPE=RAW][STEP=NL_POSTED] {pkg=com.google.android.apps.maps, sbnId=1, tag=null, keyHash=923818831, isOngoing=true, isClearable=false, category=navigation, hasActions=true, actionCount=1, hasFullScreenIntent=false}
+01-15 11:55:13.194 D/HI_ISLAND(23001): RID=142r6x_1z EVT=NOTIF_POSTED ROUTE=IGNORED TYPE=UNKNOWN PKG=com.google.android.apps.maps KEY=923818831 GK=navigation_status_notification_group EXTRA={category=navigation,importance=null,isOngoing=true}
+01-15 11:55:13.195 D/HI_NOTIF(23001): RID=142r6x_1z EVT=GROUP_CHECK pkg=com.google.android.apps.maps isGroupSummary=false flags=262506
+01-15 11:55:13.195 D/HI_ISLAND(23001): [1768467313195][EVT][RID=142r6x_1z][TYPE=FILTER][STEP=FILTER_CHECK][REASON=ALLOWED] {pkg=com.google.android.apps.maps}
+01-15 11:55:13.209 D/HI_ISLAND(23001): RID=142r6x_1z EVT=NOTIF_DECISION ROUTE=MIUI_ISLAND_BRIDGE TYPE=NAVIGATION PKG=com.google.android.apps.maps KEY=923818831 GK=com.google.android.apps.maps:NAVIGATION REASON=UPDATE EXTRA={bridgeId=1515826978,isUpdate=true}
+01-15 11:55:13.333 D/HI_ISLAND(23001): RID=ACC_CTX EVT=CTX_UPDATE reason=EVENT fullscreen=true ime=false fg=com.google.android.apps.maps
+01-15 11:55:13.354 D/HI_ISLAND(23001): RID=923818831 EVT=OVERLAY_SUPPRESS state=ON type=NAVIGATION fg=com.google.android.apps.maps
+01-15 11:55:15.934 D/HI_NOTIF(23001): RID=142tb2_20 EVT=NOTIF_RECEIVED pkg=com.miui.screenshot keyHash=909924574
+01-15 11:55:15.934 D/HI_ISLAND(23001): [1768467315934][EVT][RID=142tb2_20][TYPE=RAW][STEP=NL_POSTED] {pkg=com.miui.screenshot, sbnId=1, tag=null, keyHash=909924574, isOngoing=false, isClearable=false, category=null, hasActions=false, actionCount=0, hasFullScreenIntent=false}
+01-15 11:55:15.935 D/HI_ISLAND(23001): RID=142tb2_20 EVT=NOTIF_POSTED ROUTE=IGNORED TYPE=UNKNOWN PKG=com.miui.screenshot KEY=909924574 GK=SCN_autogroup EXTRA={category=null,importance=null,isOngoing=false}
+01-15 11:55:15.935 D/HI_ISLAND(23001): [1768467315935][EVT][RID=142tb2_20][TYPE=JUNK][STEP=JUNK_CHECK][REASON=EMPTY_CONTENT] {pkg=com.miui.screenshot}
+01-15 11:55:17.268 D/HI_NOTIF(23001): event=onRemoved pkg=com.miui.screenshot keyHash=909924574 reason=APP_CANCEL
+01-15 11:55:17.268 D/HI_ISLAND(23001): RID=142uc4_1c EVT=NOTIF_REMOVED ROUTE=SYSTEM_NOTIFICATION TYPE=UNKNOWN PKG=com.miui.screenshot KEY=909924574 GK=- REASON=APP_CANCEL
+01-15 11:55:17.268 D/HI_NOTIF(23001): RID=909924574 EVT=OVERLAY_HIDE_CALLED reason=NOTIF_REMOVED_APP_CANCEL

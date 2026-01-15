@@ -592,6 +592,18 @@
     <string name="preset_headphones_desc">Aramaları engelle, içeriğin keyfini çıkar</string>
     <string name="preset_focus_override">Odak Modu aktifken ön ayarları geçersiz kılar.</string>
 
+    <!-- Island Color Settings -->
+    <string name="island_color_settings_title">Island Colors</string>
+    <string name="island_color_settings_desc">Customize notification island color per app</string>
+    <string name="island_color_mode_standard">Standard</string>
+    <string name="island_color_mode_dynamic">Dynamic</string>
+    <string name="island_color_mode_custom">Custom</string>
+    <string name="island_color_dialog_title">Island Appearance</string>
+    <string name="island_color_dialog_mode">Color Mode</string>
+    <string name="island_color_dialog_hex">Hex Color</string>
+    <string name="island_color_dialog_presets">Presets</string>
+    <string name="island_color_preview">Preview</string>
+
     <!-- Summary Upgrades (v0.9.0) -->
     <string name="summary_top_apps_title">En Çok Bildirim Gönderen Uygulamalar (Son 24 Saat)</string>
     <string name="summary_by_time_title">Zamana Göre Bildirimler</string>
@@ -675,6 +687,14 @@
     <!-- Permission Guidance System (v0.9.6) -->
     <string name="perm_overlay_title">Diğer Uygulamaların Üzerinde Görüntüle</string>
     <string name="perm_overlay_desc">Adaları ekranda göstermek için gerekli</string>
+
+    <!-- Additional Permissions -->
+    <string name="perm_accessibility_title">Erişilebilirlik Servisi</string>
+    <string name="perm_accessibility_desc">Jest kontrolleri ve gelişmiş etkileşimler için gerekli.</string>
+    <string name="perm_phone_title">Telefon Aramaları</string>
+    <string name="perm_phone_desc">Aktif arama adalarını göstermek için gerekli.</string>
+    <string name="perm_autostart_title">Otomatik Başlatma</string>
+    <string name="perm_autostart_desc">Yeniden başlatma sonrası servisin çalışması için gerekli.</string>
     <string name="perm_required_section">Gerekli İzinler</string>
     <string name="perm_required_section_desc">Bu izinler HyperIsle\'ın çalışması için gereklidir.</string>
     <string name="perm_recommended_section">Önerilen İzinler</string>
@@ -756,4 +776,24 @@
     <string name="shade_cancel_empty_list">Gizlenecek uygulama yok</string>
     <string name="shade_cancel_empty_list_desc">Once Uygulama Listesi ekranindan uygulamalari ekleyin</string>
     <string name="shade_cancel_guard_skip_reason">SHADE_CANCEL_GUARD</string>
+
+    <!-- Onboarding Redesign -->
+    <string name="permissions_title">İzinler</string>
+    <string name="permissions_desc">HyperIsle\'ın düzgün çalışması için aşağıdaki izinlere ihtiyacı vardır.</string>
+    <string name="anchor_style_title">Ada Tarzını Seç</string>
+    <string name="anchor_style_desc">Adanın ne zaman görüneceğini belirleyin.</string>
+    <string name="mode_always_on">Dinamik Ada (Her Zaman)</string>
+    <string name="mode_always_on_desc">Kameranın etrafındaki ada her zaman görünür ve bildirimlerle genişler.</string>
+    <string name="mode_smart">Akıllı Ada (Otomatik)</string>
+    <string name="mode_smart_desc">Ada gizlidir ve yalnızca bir etkinlik (Müzik, Navigasyon) olduğunda görünür.</string>
+    <string name="feature_overview_title">Hazırsınız!</string>
+    <string name="feature_overview_desc">HyperIsle ile neler yapabileceğinize göz atın:</string>
+    <string name="feature_nav_title">Navigasyon</string>
+    <string name="feature_nav_desc">Adada adım adım yol tarifleri ve varış süresi.</string>
+    <string name="feature_music_title">Müzik Kontrolü</string>
+    <string name="feature_music_desc">Uygulamayı açmadan müziği yönetin.</string>
+    <string name="feature_notif_title">Bildirimler</string>
+    <string name="feature_notif_desc">Hızlı yanıt ve genişletilebilir detaylar.</string>
+    <string name="feature_priority_title">Akıllı Öncelik</string>
+    <string name="feature_priority_desc">Önemli uyarılar (Aramalar, Sayaçlar) her zaman önce gelir.</string>
 </resources>

@@ -1078,7 +1078,7 @@ class AppPreferences(context: Context) {
      */
     suspend fun isAppColorAuto(packageName: String): Boolean {
         val key = "island_color_auto_$packageName"
-        return dao.getSetting(key).toBoolean(true)
+        return dao.getSetting(key).toBoolean(false)
     }
 
     /**
@@ -1086,7 +1086,7 @@ class AppPreferences(context: Context) {
      */
     fun isAppColorAutoFlow(packageName: String): Flow<Boolean> {
         val key = "island_color_auto_$packageName"
-        return dao.getSettingFlow(key).map { it.toBoolean(true) }
+        return dao.getSettingFlow(key).map { it.toBoolean(false) }
     }
 
     /**
@@ -1114,7 +1114,7 @@ class AppPreferences(context: Context) {
         return if (isAuto) {
             com.coni.hyperisle.util.AccentColorResolver.getAccentColor(context, packageName)
         } else {
-            getAppIslandColor(packageName) ?: com.coni.hyperisle.util.AccentColorResolver.getAccentColor(context, packageName)
+            getAppIslandColor(packageName) ?: "#FF000000"
         }
     }
 }

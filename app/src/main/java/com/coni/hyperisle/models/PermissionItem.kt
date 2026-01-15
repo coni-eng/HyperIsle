@@ -3,20 +3,29 @@ package com.coni.hyperisle.models
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Accessibility
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.coni.hyperisle.R
 import com.coni.hyperisle.ui.screens.settings.isIgnoringBatteryOptimizations
+import com.coni.hyperisle.util.isAccessibilityServiceEnabled
+import com.coni.hyperisle.util.isAutostartEnabled
 import com.coni.hyperisle.util.isNotificationServiceEnabled
 import com.coni.hyperisle.util.isOverlayPermissionGranted
+import com.coni.hyperisle.util.isPhonePermissionGranted
 import com.coni.hyperisle.util.isPostNotificationsEnabled
+import com.coni.hyperisle.util.openAccessibilitySettings
 import com.coni.hyperisle.util.openAppNotificationSettings
+import com.coni.hyperisle.util.openAutostartSettings
 import com.coni.hyperisle.util.openBatterySettings
 import com.coni.hyperisle.util.openNotificationListenerSettings
 import com.coni.hyperisle.util.openOverlaySettings
+import com.coni.hyperisle.util.openPhonePermissionSettings
 
 
 
@@ -67,6 +76,48 @@ object PermissionRegistry {
         isGranted = { context -> isOverlayPermissionGranted(context) },
         openSettings = { context -> openOverlaySettings(context) }
     )
+
+    /**
+     * Accessibility Service - RECOMMENDED
+     * Used for advanced gestures and interaction control
+     */
+    val ACCESSIBILITY = PermissionItem(
+        id = "accessibility",
+        titleRes = R.string.perm_accessibility_title,
+        descriptionRes = R.string.perm_accessibility_desc,
+        icon = Icons.Default.Accessibility,
+        isRequired = false,
+        isGranted = { context -> isAccessibilityServiceEnabled(context) },
+        openSettings = { context -> openAccessibilitySettings(context) }
+    )
+
+    /**
+     * Phone Permission - RECOMMENDED
+     * Used for call status detection
+     */
+    val PHONE_CALLS = PermissionItem(
+        id = "phone_calls",
+        titleRes = R.string.perm_phone_title,
+        descriptionRes = R.string.perm_phone_desc,
+        icon = Icons.Default.Call,
+        isRequired = false,
+        isGranted = { context -> isPhonePermissionGranted(context) },
+        openSettings = { context -> openPhonePermissionSettings(context) }
+    )
+
+    /**
+     * Autostart - RECOMMENDED
+     * Ensures service restarts after reboot (OEM specific)
+     */
+    val AUTOSTART = PermissionItem(
+        id = "autostart",
+        titleRes = R.string.perm_autostart_title,
+        descriptionRes = R.string.perm_autostart_desc,
+        icon = Icons.Default.Autorenew,
+        isRequired = false,
+        isGranted = { context -> isAutostartEnabled(context) },
+        openSettings = { context -> openAutostartSettings(context) }
+    )
     
     /**
      * POST_NOTIFICATIONS (Android 13+) - RECOMMENDED
@@ -110,6 +161,9 @@ object PermissionRegistry {
      */
     val recommendedPermissions: List<PermissionItem> = listOf(
         POST_NOTIFICATIONS,
+        ACCESSIBILITY,
+        PHONE_CALLS,
+        AUTOSTART,
         BATTERY_OPTIMIZATION
     )
     

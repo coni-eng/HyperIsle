@@ -85,7 +85,8 @@ import org.json.JSONObject
 fun DiagnosticsScreen(
     onBack: () -> Unit,
     onIslandStylePreviewClick: (() -> Unit)? = null,
-    onNotificationLabClick: (() -> Unit)? = null
+    onNotificationLabClick: (() -> Unit)? = null,
+    onHapticsLabClick: (() -> Unit)? = null
 ) {
     if (!BuildConfig.DEBUG) {
         LaunchedEffect(Unit) { onBack() }
@@ -340,6 +341,20 @@ fun DiagnosticsScreen(
                     )
                 ) {
                     Text("🧪 Notification Lab")
+                }
+            }
+
+            // Haptics Lab Button
+            if (onHapticsLabClick != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onHapticsLabClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text("📳 Haptic Lab")
                 }
             }
 

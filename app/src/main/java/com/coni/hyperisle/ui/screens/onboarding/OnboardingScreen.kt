@@ -1,32 +1,12 @@
 package com.coni.hyperisle.ui.screens.onboarding
 
-import android.Manifest
-import android.annotation.SuppressLint
-import android.content.Context
-import android.content.Intent
 import android.os.Build
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -36,40 +16,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Architecture
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.BatteryStd
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Construction
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Smartphone
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.WifiOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,23 +32,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.coni.hyperisle.R
+import com.coni.hyperisle.models.AnchorVisibilityMode
+import com.coni.hyperisle.models.PermissionRegistry
 import com.coni.hyperisle.util.DeviceUtils
-import com.coni.hyperisle.util.isNotificationServiceEnabled
-import com.coni.hyperisle.util.isPostNotificationsEnabled
 import com.coni.hyperisle.util.toBitmap
 import kotlinx.coroutines.launch
 
-
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun OnboardingScreen(onFinish: () -> Unit) {
-    // 7 Pages
+fun OnboardingScreen(
+    onFinish: () -> Unit,
+    onAnchorModeSelected: (AnchorVisibilityMode) -> Unit = {}
+) {
+    // 7 Pages: Welcome, Explanation, Privacy, Compatibility, Permissions, Anchor, Features
     val pagerState = rememberPagerState(pageCount = { 7 })
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -109,28 +58,27 @@ fun OnboardingScreen(onFinish: () -> Unit) {
         scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
     }
 
-    // --- Permissions State ---
-    var isListenerGranted by remember { mutableStateOf(isNotificationServiceEnabled(context)) }
-    var isPostGranted by remember { mutableStateOf(isPostNotificationsEnabled(context)) }
+    // --- State ---
+    // Track permission updates to refresh UI
+    var permissionsRefreshKey by remember { mutableStateOf(0) }
+    
+    // Check permissions
+    // We use a derived state or just recompose when key changes
+    val hasRequiredPermissions = remember(permissionsRefreshKey) {
+        !PermissionRegistry.hasAnyMissingRequired(context)
+    }
 
     // --- Compatibility Logic ---
     val isXiaomi = remember { DeviceUtils.isXiaomi }
     val isCompatibleOS = remember { DeviceUtils.isCompatibleOS() }
     val canProceedCompat = isXiaomi && isCompatibleOS
 
-    // --- Permission Launcher ---
-    val postPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted -> isPostGranted = isGranted }
-    )
-
     // --- Lifecycle Observer ---
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isListenerGranted = isNotificationServiceEnabled(context)
-                isPostGranted = isPostNotificationsEnabled(context)
+                permissionsRefreshKey++
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -140,6 +88,8 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
+            // Show bottom bar on all pages except first (optional choice, current implementation hides it on page 0?)
+            // Actually original code showed it if pagerState.currentPage > 0
             if (pagerState.currentPage > 0) {
                 Column(
                     modifier = Modifier
@@ -153,7 +103,12 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        repeat(6) { iteration ->
+                        repeat(6) { iteration -> // 6 dots for 7 pages? Original had logic pagerState.currentPage - 1
+                            // Original logic: "currentPage - 1 == iteration".
+                            // If we have 7 pages (indices 0..6).
+                            // If we start showing nav at index 1.
+                            // Index 1 -> dot 0. Index 6 -> dot 5.
+                            // So we need 6 dots.
                             val active = (pagerState.currentPage - 1) == iteration
                             val width = if (active) 32.dp else 10.dp
                             val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
@@ -167,7 +122,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${pagerState.currentPage} of 6",
+                            text = "${pagerState.currentPage} of 6", // Keep consistent with dots
                             style = MaterialTheme.typography.labelSmall,        
                             color = MaterialTheme.colorScheme.onSurfaceVariant  
                         )
@@ -175,9 +130,8 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 
                     // Blocking Logic
                     val canProceed = when (pagerState.currentPage) {
-                        3 -> canProceedCompat
-                        4 -> isPostGranted
-                        5 -> isListenerGranted
+                        3 -> canProceedCompat // Compatibility
+                        4 -> hasRequiredPermissions // Unified Permissions
                         else -> true
                     }
                     val isLastPage = pagerState.currentPage == 6
@@ -238,16 +192,20 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 1 -> ExplanationPage(stepIndex = 2, stepCount = 7)
                 2 -> PrivacyPage(stepIndex = 3, stepCount = 7)
                 3 -> CompatibilityPage(stepIndex = 4, stepCount = 7)
-                4 -> PostPermissionPage(
+                4 -> UnifiedPermissionsPage(
                     stepIndex = 5,
                     stepCount = 7,
-                    isGranted = isPostGranted,
-                    onRequest = {
-                        postPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
+                    onPermissionsUpdated = { permissionsRefreshKey++ }
                 )
-                5 -> ListenerPermissionPage(context, isListenerGranted, stepIndex = 6, stepCount = 7)
-                6 -> OptimizationPage(context, stepIndex = 7, stepCount = 7)
+                5 -> AnchorSelectionPage(
+                    stepIndex = 6,
+                    stepCount = 7,
+                    onModeSelected = onAnchorModeSelected
+                )
+                6 -> FeatureOverviewPage(
+                    stepIndex = 7, 
+                    stepCount = 7
+                )
             }
         }
     }
@@ -546,207 +504,6 @@ fun CompatibilityPage(stepIndex: Int, stepCount: Int) {
 
 // Helper
 data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
-
-// --- 5. POST PERMISSION PAGE ---
-@Composable
-fun PostPermissionPage(stepIndex: Int, stepCount: Int, isGranted: Boolean, onRequest: () -> Unit) {
-    OnboardingPageLayout(
-        stepIndex = stepIndex,
-        stepCount = stepCount,
-        title = stringResource(R.string.show_island),
-        description = stringResource(R.string.perm_post_desc),
-        icon = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Notifications,
-        iconColor = if (isGranted) Color(0xFF34C759) else MaterialTheme.colorScheme.primary
-    ) {
-        // FIX: Standard Button, Disabled when granted, Text changes, No Icon
-        Button(
-            onClick = { if (!isGranted) onRequest() },
-            enabled = !isGranted,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                disabledContainerColor = Color(0xFF34C759),
-                disabledContentColor = Color.White
-            )
-        ) {
-            Text(
-                stringResource(if (isGranted) R.string.perm_granted else R.string.onboarding_enable),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (isGranted) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
-// --- 5a. PHONE PERMISSION PAGE ---
-@Composable
-fun PhonePermissionPage(stepIndex: Int, stepCount: Int, isGranted: Boolean, onRequest: () -> Unit) {
-    OnboardingPageLayout(
-        stepIndex = stepIndex,
-        stepCount = stepCount,
-        title = stringResource(R.string.perm_phone_calls_title),
-        description = stringResource(R.string.perm_phone_calls_desc),
-        icon = if (isGranted) Icons.Default.CheckCircle else Icons.Default.Phone,
-        iconColor = if (isGranted) Color(0xFF34C759) else MaterialTheme.colorScheme.primary
-    ) {
-        Button(
-            onClick = { if (!isGranted) onRequest() },
-            enabled = !isGranted,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                disabledContainerColor = Color(0xFF34C759),
-                disabledContentColor = Color.White
-            )
-        ) {
-            Text(
-                stringResource(if (isGranted) R.string.perm_granted else R.string.grant_permission),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (isGranted) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
-// --- 6. LISTENER PERMISSION PAGE ---
-@Composable
-fun ListenerPermissionPage(context: Context, isGranted: Boolean, stepIndex: Int, stepCount: Int) {
-    OnboardingPageLayout(
-        stepIndex = stepIndex,
-        stepCount = stepCount,
-        title = stringResource(R.string.read_data),
-        description = stringResource(R.string.perm_listener_desc),
-        icon = if (isGranted) Icons.Default.CheckCircle else Icons.Default.NotificationsActive,
-        iconColor = if (isGranted) Color(0xFF34C759) else MaterialTheme.colorScheme.secondary
-    ) {
-        // FIX: Standard Button, Disabled when granted, Text changes, No Icon
-        Button(
-            onClick = {
-                if (!isGranted) {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                }
-            },
-            enabled = !isGranted,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                disabledContainerColor = Color(0xFF34C759),
-                disabledContentColor = Color.White
-            )
-        ) {
-            Text(
-                stringResource(if (isGranted) R.string.perm_granted else R.string.onboarding_enable),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (isGranted) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
-// --- 7. OPTIMIZATION PAGE ---
-@Composable
-@SuppressLint("BatteryLife")
-fun OptimizationPage(context: Context, stepIndex: Int, stepCount: Int) {
-    OnboardingPageLayout(
-        stepIndex = stepIndex,
-        stepCount = stepCount,
-        title = stringResource(R.string.optimization_title),
-        description = stringResource(R.string.optimization_desc),
-        icon = Icons.Default.BatteryStd,
-        iconColor = Color(0xFFFF9800),
-        compactHeader = true
-    ) {
-        OutlinedButton(
-            onClick = {
-                try {
-                    val intent = Intent()
-                    intent.component = android.content.ComponentName(
-                        "com.miui.securitycenter",
-                        "com.miui.permcenter.autostart.AutoStartManagementActivity"
-                    )
-                    context.startActivity(intent)
-                } catch (e: Exception) { }
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text(stringResource(R.string.enable_autostart), style = MaterialTheme.typography.bodyLarge)
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = {
-                try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = "package:${context.packageName}".toUri()
-                    }
-                    context.startActivity(intent)
-                } catch (e: Exception) { }
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text(stringResource(R.string.no_restrictions), style = MaterialTheme.typography.bodyLarge)
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = {
-                try {
-                    // 1. Try standard Android overlay settings
-                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                        data = "package:${context.packageName}".toUri()
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    try {
-                        // 2. Try MIUI / HyperOS specific permission editor
-                        val intent = Intent().apply {
-                            component = android.content.ComponentName(
-                                "com.miui.securitycenter",
-                                "com.miui.permcenter.permissions.PermissionsEditorActivity"
-                            )
-                            putExtra("extra_pkgname", context.packageName)
-                        }
-                        context.startActivity(intent)
-                    } catch (e2: Exception) {
-                        try {
-                            // 3. Fall back to app details settings
-                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                data = "package:${context.packageName}".toUri()
-                            }
-                            context.startActivity(intent)
-                        } catch (e3: Exception) {
-                            // All attempts failed - no-op
-                        }
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text(stringResource(R.string.enable_overlay), style = MaterialTheme.typography.bodyLarge)
-        }
-    }
-}
 
 @Composable
 private fun StepChip(stepIndex: Int, stepCount: Int, modifier: Modifier = Modifier) {

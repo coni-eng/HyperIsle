@@ -45,7 +45,7 @@ import com.coni.hyperisle.ui.AppListViewModel
 import com.coni.hyperisle.ui.components.AccessibilityBanner
 import com.coni.hyperisle.ui.components.AppConfigBottomSheet
 import com.coni.hyperisle.ui.components.SetupBanner
-import com.coni.hyperisle.util.isContextAccessibilityEnabled
+import com.coni.hyperisle.util.isAccessibilityServiceEnabled
 import com.coni.hyperisle.util.openAccessibilitySettings
 import kotlinx.coroutines.launch
 
@@ -78,7 +78,7 @@ fun HomeScreen(
     var bannerDismissedThisSession by remember { mutableStateOf(false) }
     
     // --- ACCESSIBILITY BANNER STATE ---
-    var isAccessibilityEnabled by remember { mutableStateOf(isContextAccessibilityEnabled(context)) }
+    var isAccessibilityEnabled by remember { mutableStateOf(isAccessibilityServiceEnabled(context)) }
     val accessibilitySnoozeUntil by preferences.accessibilityBannerSnoozeUntilFlow.collectAsState(initial = 0L)
     var accessibilityBannerDismissedThisSession by remember { mutableStateOf(false) }
     
@@ -88,7 +88,7 @@ fun HomeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 missingRequiredCount = PermissionRegistry.getMissingRequiredCount(context)
-                isAccessibilityEnabled = isContextAccessibilityEnabled(context)
+                isAccessibilityEnabled = isAccessibilityServiceEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

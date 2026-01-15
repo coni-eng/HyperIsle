@@ -35,17 +35,23 @@ enum class IslandMode {
      * Anchor expands to show notification content.
      * After cooldown/dismiss, shrinks back to previous mode.
      */
-    NOTIF_EXPANDED;
+    NOTIF_EXPANDED,
+
+    /**
+     * Navigation expanded mode - larger navigation display.
+     * Triggered by long press on navigation anchor.
+     */
+    NAV_EXPANDED;
 
     /**
      * Check if this mode is an anchor mode (not expanded).
      */
-    fun isAnchor(): Boolean = this != NOTIF_EXPANDED
+    fun isAnchor(): Boolean = this != NOTIF_EXPANDED && this != NAV_EXPANDED
 
     /**
      * Check if this mode should show content in slots.
      */
-    fun hasSlotContent(): Boolean = this != NOTIF_EXPANDED
+    fun hasSlotContent(): Boolean = this != NOTIF_EXPANDED && this != NAV_EXPANDED
 
     /**
      * Get the fallback mode when transitioning from NOTIF_EXPANDED.

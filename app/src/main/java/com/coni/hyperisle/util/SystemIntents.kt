@@ -14,7 +14,7 @@ import com.coni.hyperisle.service.ContextSignalsAccessibilityService
 /**
  * Opens the hidden Xiaomi Autostart management screen.
  */
-fun openAutoStartSettings(context: Context) {
+fun openAutostartSettings(context: Context) {
     try {
         val intent = Intent()
         intent.component = ComponentName(
@@ -32,6 +32,18 @@ fun openAutoStartSettings(context: Context) {
             Toast.makeText(context, "Settings not found", Toast.LENGTH_SHORT).show()
         }
     }
+}
+
+/**
+ * Checks if Autostart is likely enabled (Best effort check for Xiaomi)
+ * Note: There is no public API to check this reliably on MIUI.
+ * We return false by default to encourage user to check.
+ */
+fun isAutostartEnabled(context: Context): Boolean {
+    // Cannot reliably check on MIUI without root/system privs.
+    // We assume false so the user is prompted to check it.
+    // Alternatively, we could save a preference when user clicks "Enable"
+    return false 
 }
 
 /**
@@ -138,7 +150,7 @@ fun openAppNotificationSettings(context: Context) {
 /**
  * Checks if HyperIsle Accessibility context service is enabled.
  */
-fun isContextAccessibilityEnabled(context: Context): Boolean {
+fun isAccessibilityServiceEnabled(context: Context): Boolean {
     val component = ComponentName(context, ContextSignalsAccessibilityService::class.java)
     val enabledServices = Settings.Secure.getString(
         context.contentResolver,
@@ -161,6 +173,29 @@ fun openAccessibilitySettings(context: Context) {
         } catch (e2: Exception) {
             Toast.makeText(context, "Settings not found", Toast.LENGTH_SHORT).show()
         }
+    }
+}
+
+/**
+ * Checks if Phone permission is granted.
+ */
+fun isPhonePermissionGranted(context: Context): Boolean {
+    return androidx.core.content.ContextCompat.checkSelfPermission(
+        context,
+        android.Manifest.permission.READ_PHONE_STATE
+    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+}
+
+/**
+ * Opens App Info settings to grant Phone permission.
+ */
+fun openPhonePermissionSettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        intent.data = "package:${context.packageName}".toUri()
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "Settings not found", Toast.LENGTH_SHORT).show()
     }
 }
 

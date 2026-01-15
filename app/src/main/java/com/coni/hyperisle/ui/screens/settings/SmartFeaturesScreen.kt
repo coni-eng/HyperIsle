@@ -48,7 +48,7 @@ import com.coni.hyperisle.util.ActionDiagnostics
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.DiagnosticsFileHelper
 import com.coni.hyperisle.util.PriorityDiagnostics
-import com.coni.hyperisle.util.isContextAccessibilityEnabled
+import com.coni.hyperisle.util.isAccessibilityServiceEnabled
 import com.coni.hyperisle.util.openAccessibilitySettings
 import kotlinx.coroutines.launch
 
@@ -98,16 +98,21 @@ fun SmartFeaturesScreen(
     val contextPreset by preferences.contextPresetFlow.collectAsState(initial = ContextPreset.OFF)
 
     // Accessibility context signals (optional)
-    var isAccessibilityContextEnabled by remember { mutableStateOf(isContextAccessibilityEnabled(context)) }
+    var isAccessibilityContextEnabled by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isAccessibilityContextEnabled = isContextAccessibilityEnabled(context)
+                isAccessibilityContextEnabled = isAccessibilityServiceEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    
+    // Initial check
+    LaunchedEffect(Unit) {
+        isAccessibilityContextEnabled = isAccessibilityServiceEnabled(context)
     }
 
     // Debug Diagnostics (debug builds only)

@@ -132,7 +132,7 @@ fun AnchorOverlayHost(
                         )
                     }
                 }
-                IslandMode.NOTIF_EXPANDED -> {
+                IslandMode.NOTIF_EXPANDED, IslandMode.NAV_EXPANDED -> {
                 }
             }
         }

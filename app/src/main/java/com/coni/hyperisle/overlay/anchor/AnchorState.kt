@@ -122,6 +122,7 @@ data class NavAnchorState(
     val eta: String = "",
     val remainingTime: String = "",
     val appIcon: Bitmap? = null,
+    val contentIntent: android.app.PendingIntent? = null,
     /**
      * User-selected left slot info type.
      */

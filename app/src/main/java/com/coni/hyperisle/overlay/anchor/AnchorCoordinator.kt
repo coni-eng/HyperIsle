@@ -42,6 +42,7 @@ class AnchorCoordinator(
     private var activeCallState: CallAnchorState? = null
     private var activeNavState: NavAnchorState? = null
     private var isNotifExpanded: Boolean = false
+    private var isNavExpanded: Boolean = false
     private var expandedNotificationKey: String? = null
 
     init {
@@ -106,6 +107,27 @@ class AnchorCoordinator(
     }
 
     /**
+     * Expand navigation from anchor.
+     */
+    fun expandNavigation() {
+        val prevMode = _anchorState.value.mode
+        if (activeNavState == null) return
+
+        isNavExpanded = true
+        isNotifExpanded = false // Prioritize Nav expansion
+
+        if (BuildConfig.DEBUG) {
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=NAV_EXPAND prevMode=$prevMode")
+        }
+
+        updateAnchorMode()
+
+        if (BuildConfig.DEBUG) {
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=MODE_SWITCH from=$prevMode to=${_anchorState.value.mode} reason=NAV_EXPAND")
+        }
+    }
+
+    /**
      * Expand notification from anchor.
      */
     fun expandNotification(notificationKey: String) {
@@ -135,6 +157,16 @@ class AnchorCoordinator(
      */
     fun shrinkToAnchor(reason: String) {
         val prevMode = _anchorState.value.mode
+        
+        if (isNavExpanded) {
+            isNavExpanded = false
+            updateAnchorMode()
+            if (BuildConfig.DEBUG) {
+                 HiLog.d(HiLog.TAG_ISLAND, "EVT=NAV_SHRINK reason=$reason")
+            }
+            return
+        }
+
         if (prevMode != IslandMode.NOTIF_EXPANDED) {
             if (BuildConfig.DEBUG) {
                 HiLog.d(HiLog.TAG_ISLAND, "EVT=SHRINK_SKIP reason=NOT_EXPANDED currentMode=$prevMode")
@@ -163,6 +195,7 @@ class AnchorCoordinator(
         activeCallState = null
         activeNavState = null
         isNotifExpanded = false
+        isNavExpanded = false
         expandedNotificationKey = null
         _anchorState.value = AnchorState()
 
@@ -178,6 +211,17 @@ class AnchorCoordinator(
      */
     private fun updateAnchorMode() {
         if (isNotifExpanded) {
+            return
+        }
+        
+        if (isNavExpanded && activeNavState != null) {
+            _anchorState.value = AnchorState(
+                mode = IslandMode.NAV_EXPANDED,
+                callState = activeCallState,
+                navState = activeNavState,
+                cutoutRect = _cutoutInfo.value?.rect,
+                modeStartedAtMs = System.currentTimeMillis()
+            )
             return
         }
 
@@ -252,7 +296,7 @@ class AnchorCoordinator(
      * (where the expanded notification replaces it).
      */
     fun shouldShowAnchor(): Boolean {
-        return _anchorState.value.mode != IslandMode.NOTIF_EXPANDED
+        return _anchorState.value.mode != IslandMode.NOTIF_EXPANDED && _anchorState.value.mode != IslandMode.NAV_EXPANDED
     }
 
     /**

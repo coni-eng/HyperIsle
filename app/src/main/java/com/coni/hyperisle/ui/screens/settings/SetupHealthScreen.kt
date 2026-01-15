@@ -70,7 +70,7 @@ import com.coni.hyperisle.util.isNotificationServiceEnabled
 import com.coni.hyperisle.util.isOverlayPermissionGranted
 import com.coni.hyperisle.util.isPostNotificationsEnabled
 import com.coni.hyperisle.util.openAppNotificationSettings
-import com.coni.hyperisle.util.openAutoStartSettings
+import com.coni.hyperisle.util.openAutostartSettings
 import com.coni.hyperisle.util.openBatterySettings
 import com.coni.hyperisle.util.openNotificationListenerSettings
 import com.coni.hyperisle.util.openOverlaySettings
@@ -283,7 +283,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                     icon = Icons.Default.RestartAlt,
                     isGranted = false,
                     forceAction = true,
-                    onClick = { openAutoStartSettings(context) }
+                    onClick = { openAutostartSettings(context) }
                 )
             }
 

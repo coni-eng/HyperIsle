@@ -121,7 +121,8 @@ fun InfoScreen(
     onSmartFeaturesClick: () -> Unit = {},
     onNotificationManagementClick: () -> Unit = {},
     onDiagnosticsClick: () -> Unit = {},
-    onCustomizeClick: () -> Unit = {}
+    onCustomizeClick: () -> Unit = {},
+    onIslandColorsClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -370,6 +371,13 @@ fun InfoScreen(
                                 )
                                 onCustomizeClick()
                             }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(0.2f))
+                        SettingsItem(
+                            icon = Icons.Default.Palette,
+                            title = stringResource(R.string.island_color_settings_title),
+                            subtitle = stringResource(R.string.island_color_settings_desc),
+                            onClick = onIslandColorsClick
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
