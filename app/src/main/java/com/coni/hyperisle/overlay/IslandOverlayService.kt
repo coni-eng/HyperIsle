@@ -171,6 +171,9 @@ class IslandOverlayService : Service() {
         }
 
         if (shouldBeVisible) {
+            // Cancel any pending stop job immediately
+            stopForegroundJob?.cancel()
+            
             // Ensure overlay is showing if it's hidden
             if (!overlayController.isShowing()) {
                 ensureForeground()
@@ -256,6 +259,14 @@ class IslandOverlayService : Service() {
     private var optimisticAudioState: OptimisticAudioState? = null
     private val OPTIMISTIC_REVERT_MS = 800L // Revert optimistic state after 800ms if no confirmation
     private var audioStateRevertJob: Job? = null
+
+    private val shouldStayAlive: Boolean
+        get() = when (currentAnchorMode) {
+            AnchorVisibilityMode.ALWAYS -> true
+            AnchorVisibilityMode.UNLOCKED_ONLY -> !isDeviceLocked
+            AnchorVisibilityMode.LOCK_SCREEN_ONLY -> isDeviceLocked
+            AnchorVisibilityMode.TRIGGERED_ONLY -> false
+        }
 
     override fun onCreate() {
         super.onCreate()
@@ -627,13 +638,6 @@ class IslandOverlayService : Service() {
     private fun scheduleStopIfIdle(reason: String) {
         stopForegroundJob?.cancel()
         stopForegroundJob = serviceScope.launch {
-            val shouldStayAlive = when (currentAnchorMode) {
-                AnchorVisibilityMode.ALWAYS -> true
-                AnchorVisibilityMode.UNLOCKED_ONLY -> !isDeviceLocked
-                AnchorVisibilityMode.LOCK_SCREEN_ONLY -> isDeviceLocked
-                AnchorVisibilityMode.TRIGGERED_ONLY -> false
-            }
-
             // FIX: Restore anchor immediately if needed, otherwise use debounce
             if (shouldStayAlive) {
                 delay(50L)
@@ -2806,7 +2810,9 @@ class IslandOverlayService : Service() {
         currentNotificationModel = null
         isNotificationCollapsed = false
         deferCallOverlay = false
-        overlayController.removeOverlay()
+        
+        // overlayController.removeOverlay() <-- Removed to prevent flicker
+        
         HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
         if (restoreCall && currentCallModel != null) {
             HiLog.d(HiLog.TAG_ISLAND,
@@ -2818,7 +2824,12 @@ class IslandOverlayService : Service() {
                 "RID=$rid EVT=OVERLAY_RESTORE reason=$reason type=ACTIVITY"
             )
             showActivityOverlayFromState()
+        } else if (shouldStayAlive) {
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=ANCHOR_RESTORE reason=DISMISS_NOTIF_KEEP_ALIVE")
+            shrinkToAnchor("DISMISS_NOTIF_KEEP_ALIVE")
+            showAnchorIdleOverlay()
         } else {
+            overlayController.removeOverlay()
             scheduleStopIfIdle(reason)
         }
     }
@@ -2878,10 +2889,19 @@ class IslandOverlayService : Service() {
         isNotificationCollapsed = false
         deferCallOverlay = false
         isCallOverlayActive = false
-        overlayController.removeOverlay()
+        
+        if (shouldStayAlive) {
+            // If anchor should stay alive, switch to anchor instead of removing window
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=ANCHOR_RESTORE reason=DISMISS_ALL_KEEP_ALIVE")
+            shrinkToAnchor("DISMISS_ALL_KEEP_ALIVE")
+            showAnchorIdleOverlay()
+        } else {
+            overlayController.removeOverlay()
+            scheduleStopIfIdle(reason)
+        }
+        
         HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=OVERLAY_HIDDEN_OK reason=$reason")
         HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=STATE_RESET_DONE reason=$reason")
-        scheduleStopIfIdle(reason)
     }
 
     private fun shouldSuppressOverlay(

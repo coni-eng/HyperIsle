@@ -526,10 +526,14 @@ class NotificationReaderService : NotificationListenerService() {
             val isMiuiDevice = android.os.Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) ||
                 android.os.Build.MANUFACTURER.equals("Redmi", ignoreCase = true) ||
                 android.os.Build.MANUFACTURER.equals("POCO", ignoreCase = true)
-            if (isClearableStandard && isMiuiDevice) {
+            
+            // Check if we recently snoozed this notification to prevent loop (stash logic)
+            val isReturningFromSnooze = isSelfCancel(it.key, System.currentTimeMillis(), it.packageName, it.id)
+            
+            if (isClearableStandard && isMiuiDevice && !isReturningFromSnooze) {
                 try {
                     snoozeNotification(it.key, POPUP_SUPPRESS_SNOOZE_MS)
-                    markSelfCancel(it.key, ctx.keyHash)
+                    markSelfCancel(it.key, ctx.keyHash, it.packageName, it.id)
                     if (BuildConfig.DEBUG) {
                         HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_OK pkg=${it.packageName} reason=BEAT_MIUI_ISLAND")
                     }
@@ -537,6 +541,10 @@ class NotificationReaderService : NotificationListenerService() {
                     if (BuildConfig.DEBUG) {
                         HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=IMMEDIATE_SNOOZE_FAIL pkg=${it.packageName} error=${e.message}")
                     }
+                }
+            } else if (isReturningFromSnooze) {
+                if (BuildConfig.DEBUG) {
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=${ctx.rid} EVT=SNOOZE_SKIP_RETURNING pkg=${it.packageName} reason=ALREADY_SNOOZED")
                 }
             }
             
@@ -557,7 +565,7 @@ class NotificationReaderService : NotificationListenerService() {
             val now = System.currentTimeMillis()
             val route = groupKey?.let { keyValue -> activeRoutes[keyValue] }
             val isActiveIsland = route != null
-            val selfCancel = reason == REASON_LISTENER_CANCEL && isSelfCancel(key, now)
+            val selfCancel = reason == REASON_LISTENER_CANCEL && isSelfCancel(key, now, it.packageName, it.id)
             
             // Debug-only logging (PII-free)
             if (BuildConfig.DEBUG) {
@@ -693,25 +701,38 @@ class NotificationReaderService : NotificationListenerService() {
         }
     }
 
-    private fun markSelfCancel(key: String, keyHash: Int) {
+    private fun markSelfCancel(key: String, keyHash: Int, pkg: String, sbnId: Int) {
         val now = System.currentTimeMillis()
-        selfCancelKeys[key] = now
-        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SELF_CANCEL_MARK key=$keyHash rid=$keyHash ttlMs=$SELF_CANCEL_WINDOW_MS")
+        // Use composite key (pkg|id) for stability across snooze cycles
+        val stableKey = "$pkg|$sbnId"
+        selfCancelKeys[stableKey] = now
+        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SELF_CANCEL_MARK stableKey=$stableKey ttlMs=$SELF_CANCEL_WINDOW_MS")
         serviceScope.launch {
             delay(SELF_CANCEL_WINDOW_MS)
-            if (selfCancelKeys[key] == now) {
-                selfCancelKeys.remove(key)
+            if (selfCancelKeys[stableKey] == now) {
+                selfCancelKeys.remove(stableKey)
             }
         }
     }
 
-    private fun isSelfCancel(key: String, now: Long): Boolean {
-        val markTime = selfCancelKeys[key] ?: return false
-        val isSelfCancel = now - markTime <= SELF_CANCEL_WINDOW_MS
-        if (!isSelfCancel) {
-            selfCancelKeys.remove(key)
+    private fun isSelfCancel(key: String, now: Long, pkg: String, sbnId: Int): Boolean {
+        // Check stable key first
+        val stableKey = "$pkg|$sbnId"
+        val markTime = selfCancelKeys[stableKey]
+        
+        if (markTime != null) {
+            val isSelfCancel = now - markTime <= SELF_CANCEL_WINDOW_MS
+            if (isSelfCancel) {
+                // Consume the event so we don't block future notifications
+                selfCancelKeys.remove(stableKey)
+                return true
+            } else {
+                selfCancelKeys.remove(stableKey)
+            }
         }
-        return isSelfCancel
+        
+        // Fallback to original key if needed (though unlikely to be used if we switched to stableKey)
+        return false
     }
 
     private fun remainingMinVisibleMs(groupKey: String, now: Long): Long {
@@ -898,7 +919,7 @@ class NotificationReaderService : NotificationListenerService() {
         }
         try {
             cancelNotification(sbn.key)
-            markSelfCancel(sbn.key, keyHash)
+            markSelfCancel(sbn.key, keyHash, sbn.packageName, sbn.id)
             HiLog.d(HiLog.TAG_ISLAND,
                 "RID=$keyHash EVT=GROUP_SUMMARY_CANCEL_OK type=${type.name} pkg=${sbn.packageName}"
             )
@@ -1345,7 +1366,7 @@ class NotificationReaderService : NotificationListenerService() {
                     shouldSnooze -> {
                         try {
                             snoozeNotification(sbn.key, POPUP_SUPPRESS_SNOOZE_MS)
-                            markSelfCancel(sbn.key, sbn.key.hashCode())
+                            markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
                             HiLog.d(HiLog.TAG_NOTIF, "EVT=NOTIF_SNOOZE_OK pkg=${sbn.packageName} mode=${shadeCancelMode.name} snoozeMs=$POPUP_SUPPRESS_SNOOZE_MS")
                             DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "SNOOZE_OK", kv = mapOf(
                                 "pkg" to sbn.packageName,
@@ -1365,7 +1386,7 @@ class NotificationReaderService : NotificationListenerService() {
                     shouldCancel -> {
                         try {
                             cancelNotification(sbn.key)
-                            markSelfCancel(sbn.key, sbn.key.hashCode())
+                            markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
                             HiLog.d(HiLog.TAG_NOTIF, "EVT=NOTIF_CANCEL_OK pkg=${sbn.packageName} mode=${shadeCancelMode.name}")
                             DebugLog.event("EARLY_INTERCEPT", rid, "INTERCEPT", reason = "CANCEL_OK", kv = mapOf(
                                 "pkg" to sbn.packageName,
@@ -1405,7 +1426,7 @@ class NotificationReaderService : NotificationListenerService() {
                     // Ongoing call: safe to cancel directly
                     try {
                         cancelNotification(sbn.key)
-                        markSelfCancel(sbn.key, sbn.key.hashCode())
+                        markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
                         DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_ONGOING_CANCEL_OK", kv = mapOf(
                             "pkg" to sbn.packageName,
                             "callState" to callState,
@@ -1424,7 +1445,7 @@ class NotificationReaderService : NotificationListenerService() {
                     try {
                         // Snooze for 60 seconds - call will either be answered/declined by then
                         snoozeNotification(sbn.key, 60_000L)
-                        markSelfCancel(sbn.key, sbn.key.hashCode())
+                        markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
                         DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_INCOMING_SNOOZE_OK", kv = mapOf(
                             "pkg" to sbn.packageName,
                             "callState" to callState,
@@ -1437,7 +1458,7 @@ class NotificationReaderService : NotificationListenerService() {
                         HiLog.w(HiLog.TAG_NOTIF, "Snooze failed for incoming call, trying cancel: ${e.message}")
                         try {
                             cancelNotification(sbn.key)
-                            markSelfCancel(sbn.key, sbn.key.hashCode())
+                            markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
                             DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_INCOMING_CANCEL_FALLBACK", kv = mapOf(
                                 "pkg" to sbn.packageName,
                                 "callState" to callState,
@@ -2085,7 +2106,7 @@ class NotificationReaderService : NotificationListenerService() {
             try {
                 delay(SYS_CANCEL_POST_DELAY_MS)
                 cancelNotification(sbn.key)
-                markSelfCancel(sbn.key, keyHash)
+                markSelfCancel(sbn.key, keyHash, sbn.packageName, sbn.id)
                 if (groupKey != null) {
                     startMinVisibleTimer(groupKey, keyHash)
                 }
@@ -2146,7 +2167,7 @@ class NotificationReaderService : NotificationListenerService() {
                     cancelNotification(sbn.key)
                     HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK")
                 }
-                markSelfCancel(sbn.key, keyHash)
+                markSelfCancel(sbn.key, keyHash, sbn.packageName, sbn.id)
                 if (groupKey != null) {
                     startMinVisibleTimer(groupKey, keyHash)
                 }
@@ -2385,7 +2406,7 @@ class NotificationReaderService : NotificationListenerService() {
         try {
             delay(SYS_CANCEL_POST_DELAY_MS)
             cancelNotification(sbn.key)
-            markSelfCancel(sbn.key, keyHash)
+            markSelfCancel(sbn.key, keyHash, sbn.packageName, sbn.id)
             if (groupKey != null) {
                 startMinVisibleTimer(groupKey, keyHash)
             }
@@ -2521,6 +2542,11 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     private fun shouldIgnore(packageName: String): Boolean {
+        // Allow self-notifications in debug builds for diagnostics lab testing
+        if (BuildConfig.DEBUG && packageName == this.packageName) {
+            return false
+        }
+        
         return packageName == this.packageName ||
                 packageName == "android" ||
                 packageName == "com.android.systemui" ||

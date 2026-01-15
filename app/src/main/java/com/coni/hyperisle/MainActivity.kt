@@ -148,9 +148,11 @@ fun MainRootNavigation(
     val summaryEnabled by preferences.summaryEnabledFlow.collectAsState(initial = false)
     val summaryHour by preferences.summaryHourFlow.collectAsState(initial = 21)
 
-    // Ensure service is running if Anchor is enabled (Fix for "Always" mode not showing on app start)
-    LaunchedEffect(Unit) {
-        if (preferences.isAnchorModeEnabled()) {
+    // Ensure service is running if Anchor is enabled (Reactive check)
+    val anchorMode by preferences.anchorModeFlow.collectAsState(initial = com.coni.hyperisle.models.AnchorVisibilityMode.TRIGGERED_ONLY)
+    
+    LaunchedEffect(anchorMode) {
+        if (anchorMode != com.coni.hyperisle.models.AnchorVisibilityMode.TRIGGERED_ONLY) {
             try {
                 val intent = android.content.Intent(context, com.coni.hyperisle.overlay.IslandOverlayService::class.java)
                 intent.action = com.coni.hyperisle.overlay.IslandOverlayService.ACTION_START

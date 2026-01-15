@@ -77,7 +77,6 @@ fun AnchorOverlayHost(
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 0.dp), // Zero vertical padding to overlap camera
         contentAlignment = Alignment.TopCenter
     ) {
@@ -159,7 +158,7 @@ fun AnchorOverlayHost(
             ) + fadeOut(animationSpec = tween(200))
         ) {
             // Add top padding to lower the expanded notification as requested
-            Box(modifier = Modifier.padding(top = 12.dp)) {
+            Box(modifier = Modifier.padding(top = 18.dp)) {
                 expandedContent?.invoke()
             }
         }
