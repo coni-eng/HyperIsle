@@ -415,19 +415,18 @@ class OverlayWindowController(private val context: Context) {
 
     /**
      * Get screen width for position calculations.
+     * Returns the full physical width of the screen (ignoring insets) 
+     * to ensure correct alignment with the physical camera cutout.
      */
     @Suppress("DEPRECATION")
     private fun getScreenWidth(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val windowMetrics = windowManager.currentWindowMetrics
-            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(
-                WindowInsets.Type.systemBars()
-            )
-            windowMetrics.bounds.width() - insets.left - insets.right
+            windowMetrics.bounds.width()
         } else {
             val display = windowManager.defaultDisplay
             val metrics = android.util.DisplayMetrics()
-            display.getMetrics(metrics)
+            display.getRealMetrics(metrics)
             metrics.widthPixels
         }
     }

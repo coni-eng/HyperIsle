@@ -6,6 +6,8 @@ A powerful, type-safe Kotlin library for integrating **Xiaomi HyperOS Dynamic Is
 
 This library abstracts away the undocumented JSON payloads and complex Bundle logic, providing a clean **Kotlin DSL** to build rich, pixel-perfect system notifications.
 
+**Note:** This toolkit is part of the **HyperIsle** project, ensuring seamless compatibility with the latest HyperOS features.
+
 ---
 
 ## 📚 Documentation

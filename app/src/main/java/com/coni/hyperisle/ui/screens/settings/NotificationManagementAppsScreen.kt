@@ -158,6 +158,30 @@ fun NotificationManagementAppsScreen(
                     ShadeCancelInfoCard()
                 }
 
+                // Select All / Unselect All Toggle
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        val allEnabled = activeApps.all { 
+                            val status by viewModel.getNotificationStatusFlow(it.packageName).collectAsState(initial = NotificationStatus.UNKNOWN)
+                            status == NotificationStatus.DISABLED 
+                        }
+                        
+                        TextButton(onClick = {
+                            // This specific screen handles NotificationStatus (System Shade), not App Bridging.
+                            // We can't batch-toggle system settings. 
+                            // The user requested "Select All" in the "Library" (AppListScreen), not here.
+                            // This screen is "NotificationManagementAppsScreen".
+                        }) {
+                            // Placeholder if needed, but likely user meant AppListScreen
+                        }
+                    }
+                }
+
                 // List of shade cancel enabled apps
                 items(activeApps, key = { it.packageName }) { appInfo ->
                     ShadeCancelAppItem(

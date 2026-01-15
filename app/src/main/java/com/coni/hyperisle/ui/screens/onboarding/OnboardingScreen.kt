@@ -49,7 +49,7 @@ fun OnboardingScreen(
     onAnchorModeSelected: (AnchorVisibilityMode) -> Unit = {}
 ) {
     // 7 Pages: Welcome, Explanation, Privacy, Compatibility, Permissions, Anchor, Features
-    val pagerState = rememberPagerState(pageCount = { 7 })
+    val pagerState = rememberPagerState { 7 }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -103,13 +103,8 @@ fun OnboardingScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        repeat(6) { iteration -> // 6 dots for 7 pages? Original had logic pagerState.currentPage - 1
-                            // Original logic: "currentPage - 1 == iteration".
-                            // If we have 7 pages (indices 0..6).
-                            // If we start showing nav at index 1.
-                            // Index 1 -> dot 0. Index 6 -> dot 5.
-                            // So we need 6 dots.
-                            val active = (pagerState.currentPage - 1) == iteration
+                        repeat(7) { iteration -> 
+                            val active = pagerState.currentPage == iteration
                             val width = if (active) 32.dp else 10.dp
                             val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                             Box(
@@ -122,7 +117,7 @@ fun OnboardingScreen(
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${pagerState.currentPage} / 6",
+                            text = "${pagerState.currentPage + 1} / 7",
                             style = MaterialTheme.typography.labelSmall,        
                             color = MaterialTheme.colorScheme.onSurfaceVariant  
                         )

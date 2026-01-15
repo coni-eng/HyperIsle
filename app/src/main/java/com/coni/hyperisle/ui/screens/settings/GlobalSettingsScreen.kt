@@ -22,6 +22,9 @@ import com.coni.hyperisle.models.AnchorVisibilityMode
 import com.coni.hyperisle.ui.components.IslandSettingsControl
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GlobalSettingsScreen(
@@ -31,6 +34,7 @@ fun GlobalSettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferences = remember { AppPreferences(context) }
+    val scrollState = rememberScrollState()
 
     val globalConfig by preferences.globalConfigFlow.collectAsState(initial = IslandConfig(true, true, 5000L))
     val anchorMode by preferences.anchorModeFlow.collectAsState(initial = AnchorVisibilityMode.TRIGGERED_ONLY)
@@ -93,7 +97,10 @@ fun GlobalSettingsScreen(
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+        Column(modifier = Modifier
+            .padding(padding)
+            .verticalScroll(scrollState)
+            .padding(16.dp)) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
             ) {
@@ -128,49 +135,6 @@ fun GlobalSettingsScreen(
                     subtitle = stringResource(R.string.nav_layout_desc),
                     onClick = onNavSettingsClick
                 )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Google Maps Floating Island Blocker
-            val blockGoogleMapsFloatingIsland by preferences.blockGoogleMapsFloatingIslandFlow.collectAsState(initial = true)
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Map,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Column {
-                            Text(
-                                "Google Maps Ada Engelle",
-                                style = MaterialTheme.typography.titleSmall
-                            )
-                            Text(
-                                "Google Maps'in kendi yüzen adasını engelle, sadece HyperIsle'i kullan",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Switch(
-                        checked = blockGoogleMapsFloatingIsland,
-                        onCheckedChange = { checked ->
-                            scope.launch { preferences.setBlockGoogleMapsFloatingIsland(checked) }
-                        }
-                    )
-                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

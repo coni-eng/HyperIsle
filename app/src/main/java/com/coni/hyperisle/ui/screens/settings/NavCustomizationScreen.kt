@@ -63,6 +63,11 @@ import kotlinx.coroutines.launch
 
 
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material3.Switch
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NavCustomizationScreen(
@@ -72,6 +77,7 @@ fun NavCustomizationScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferences = remember { AppPreferences(context) }
+    val scrollState = rememberScrollState()
 
     val globalLayout by preferences.globalNavLayoutFlow.collectAsState(initial = NavContent.DISTANCE_ETA to NavContent.INSTRUCTION)
     val navIslandSize by preferences.navIslandSizeFlow.collectAsState(initial = "COMPACT")
@@ -98,7 +104,10 @@ fun NavCustomizationScreen(
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+        Column(modifier = Modifier
+            .padding(padding)
+            .verticalScroll(scrollState)
+            .padding(16.dp)) {
 
             // Island Size Selection
             Text(
@@ -232,6 +241,49 @@ fun NavCustomizationScreen(
                             }
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Google Maps Floating Island Blocker
+            val blockGoogleMapsFloatingIsland by preferences.blockGoogleMapsFloatingIslandFlow.collectAsState(initial = true)
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Map,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column {
+                            Text(
+                                stringResource(R.string.block_google_maps_title),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                stringResource(R.string.block_google_maps_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = blockGoogleMapsFloatingIsland,
+                        onCheckedChange = { checked ->
+                            scope.launch { preferences.setBlockGoogleMapsFloatingIsland(checked) }
+                        }
+                    )
                 }
             }
         }

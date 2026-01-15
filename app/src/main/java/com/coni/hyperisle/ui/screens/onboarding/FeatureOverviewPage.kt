@@ -37,10 +37,10 @@ fun FeatureOverviewPage(stepIndex: Int, stepCount: Int) {
             )
             
             FeatureCard(
-                title = stringResource(R.string.feature_music_title),
-                description = stringResource(R.string.feature_music_desc),
-                icon = Icons.Default.MusicNote,
-                iconColor = Color(0xFFFF2D55) // Pink/Red
+                title = stringResource(R.string.feature_native_integration_title),
+                description = stringResource(R.string.feature_native_integration_desc),
+                icon = Icons.Default.CheckCircle,
+                iconColor = Color(0xFF34C759) // Green
             )
             
             FeatureCard(

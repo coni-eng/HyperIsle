@@ -79,12 +79,6 @@ fun settingsConfigSpecs(): List<SettingsEntrySpec> = listOf(
         subtitle = stringResource(R.string.backup_section_title)
     ),
     SettingsEntrySpec(
-        id = SettingsLayoutIds.MUSIC,
-        icon = Icons.Default.MusicNote,
-        title = stringResource(R.string.music_island_title),
-        subtitle = stringResource(R.string.music_island_desc)
-    ),
-    SettingsEntrySpec(
         id = SettingsLayoutIds.SMART,
         icon = Icons.Default.AutoAwesome,
         title = stringResource(R.string.smart_features_title),

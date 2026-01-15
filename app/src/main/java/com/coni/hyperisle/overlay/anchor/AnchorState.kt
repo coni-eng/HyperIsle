@@ -84,6 +84,13 @@ sealed class SlotContent {
     data object WaveBar : SlotContent()
 
     /**
+     * Icon with Wave bar animation (for active call).
+     */
+    data class IconWithWaveBar(
+        val icon: SlotIcon
+    ) : SlotContent()
+
+    /**
      * Empty slot.
      */
     data object Empty : SlotContent()

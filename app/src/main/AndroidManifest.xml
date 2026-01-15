@@ -99,6 +99,18 @@
         </receiver>
 
         <receiver
+            android:name=".receiver.CallActionReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.coni.hyperisle.action.CALL_HANGUP" />
+                <action android:name="com.coni.hyperisle.action.CALL_SPEAKER" />
+                <action android:name="com.coni.hyperisle.action.CALL_MUTE" />
+                <action android:name="com.coni.hyperisle.action.CALL_ACCEPT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".receiver.ContextSignalsReceiver"
             android:enabled="true"
             android:exported="false">

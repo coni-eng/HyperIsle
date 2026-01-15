@@ -106,6 +106,9 @@ fun UnifiedPermissionsPage(
                             PermissionRegistry.AUTOSTART.id -> {
                                 setAutostartAcknowledged(context, true)
                                 permission.openSettings(context)
+                                // "Best Effort" UI update for Xiaomi Autostart
+                                checkTrigger++
+                                onPermissionsUpdated()
                             }
                             else -> {
                                 permission.openSettings(context)
@@ -209,7 +212,7 @@ private fun PermissionCard(
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = "REQUIRED",
+                            text = stringResource(R.string.perm_required_label),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             fontSize = 9.sp,

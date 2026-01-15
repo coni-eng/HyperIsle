@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.0.3] - Native Integration & Anchor Redesign
+### Added
+- **Native System Integration:**
+  - Music, Timer, and Recorder notifications are now handled by the system's native island for a seamless experience.
+  - Added specific ignore rules for Xiaomi/HyperOS system apps (Sound Recorder, Screen Recorder, Camera).
+- **Redesigned Active Call Anchor:**
+  - New layout: Icon + Waveform Animation on the Left, Call Duration on the Right.
+  - Enhanced visual hierarchy for active calls.
+
+### Changed
+- **Anchor Dimensions:** Increased default anchor size (Height: 37dp, Slot Width: 54dp) to better match native system aesthetics.
+- **Google Maps Blocker:** Improved "Block Google Maps Island" logic to correctly dismiss the system PiP window.
+- **Onboarding:** Updated Feature Overview to highlight seamless native integration.
+- **Settings:** Moved "Block Google Maps Island" to Navigation Settings and removed obsolete Music Island settings.
+
 ## [v1.0.0] - Visual Polish & Customization
 ### Added
 - **Island Colors:** Per-app customization support.

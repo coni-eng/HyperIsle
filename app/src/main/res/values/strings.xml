@@ -792,8 +792,21 @@
     <string name="feature_nav_desc">Adada adım adım yol tarifleri ve varış süresi.</string>
     <string name="feature_music_title">Müzik Kontrolü</string>
     <string name="feature_music_desc">Uygulamayı açmadan müziği yönetin.</string>
+    <string name="feature_native_integration_title">Kusursuz Entegrasyon</string>
+    <string name="feature_native_integration_desc">Müzik, Zamanlayıcı ve Ses Kaydedici gibi araçlar en iyi deneyim için sisteminizin kendi adası tarafından yönetilir.</string>
     <string name="feature_notif_title">Bildirimler</string>
     <string name="feature_notif_desc">Hızlı yanıt ve genişletilebilir detaylar.</string>
     <string name="feature_priority_title">Akıllı Öncelik</string>
     <string name="feature_priority_desc">Önemli uyarılar (Aramalar, Sayaçlar) her zaman önce gelir.</string>
+
+    <!-- Global Settings Maps Toggle -->
+    <string name="block_google_maps_title">Google Maps Ada Engelle</string>
+    <string name="block_google_maps_desc">Google Maps\'in kendi yüzen adasını engelle, sadece HyperIsle\'i kullan</string>
+
+    <!-- Unified Permissions Page -->
+    <string name="perm_required_label">ZORUNLU</string>
+
+    <!-- App List -->
+    <string name="select_all">Tümünü Seç</string>
+    <string name="unselect_all">Tümünü İptal Et</string>
 </resources>

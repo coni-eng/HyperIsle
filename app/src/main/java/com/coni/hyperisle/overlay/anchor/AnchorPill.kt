@@ -47,6 +47,7 @@ import com.coni.hyperisle.util.HiLog
 
 
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.max
 
 private val PillBackgroundColor = Color.Black
@@ -109,9 +110,9 @@ fun AnchorPill(
     
     // Reduced padding and min width for a more compact look as requested
     val cutoutGapWidth = with(density) { cutoutInfo.width.toDp() + 12.dp }
-    val slotMinWidth = 48.dp
+    val slotMinWidth = 54.dp
     val slotMaxWidth = 120.dp
-    val pillHeight = 36.dp
+    val pillHeight = 37.dp
     val pillPadding = 4.dp
 
     if (BuildConfig.DEBUG) {
@@ -208,6 +209,18 @@ private fun AnchorSlot(
                 WaveBarAnimation(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
+            }
+            is SlotContent.IconWithWaveBar -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = if (alignment == Alignment.CenterEnd) 
+                        Arrangement.End else Arrangement.Start,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    SlotIconContent(content.icon, size = 14.dp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    WaveBarAnimation()
+                }
             }
             is SlotContent.Empty, null -> {
             }
@@ -321,15 +334,17 @@ fun CallAnchorPill(
     modifier: Modifier = Modifier,
     debugRid: Int = 0
 ) {
-    val leftSlot = if (callState.isActive) {
-        SlotContent.WaveBar
-    } else {
-        SlotContent.IconOnly(SlotIcon.Vector(Icons.Default.Phone, "Call"))
-    }
+    // Redesigned Call Anchor (v1.0.3)
+    // Left: Icon + Waveform Animation
+    // Right: Duration
+    
+    val leftSlot = SlotContent.IconWithWaveBar(
+        icon = SlotIcon.Vector(Icons.Default.Phone, "Call")
+    )
 
     val rightSlot = SlotContent.Text(
         text = callState.durationText.ifEmpty { "00:00" },
-        textColor = 0xFF34C759.toInt()
+        textColor = ActiveGreenColor.toArgb()
     )
 
     val anchorState = AnchorState(
@@ -344,7 +359,7 @@ fun CallAnchorPill(
         state = anchorState,
         cutoutInfo = cutoutInfo,
         onTap = onTap,
-        onLongPress = onLongPress,
+        onLongPress = onLongPress, // Ensure this callback triggers expansion
         modifier = modifier,
         debugRid = debugRid
     )

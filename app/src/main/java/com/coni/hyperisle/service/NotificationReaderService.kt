@@ -1131,7 +1131,9 @@ class NotificationReaderService : NotificationListenerService() {
                 return
             }
 
-            if (isMedia) {
+            if (type == NotificationType.MEDIA) {
+                // DISABLED: Xiaomi native island handles Media (User Request)
+                /*
                 emitMediaOverlayEvent(sbn, title, text, subText)
                 when (musicIslandMode) {
                     MusicIslandMode.SYSTEM_ONLY -> return
@@ -1145,8 +1147,12 @@ class NotificationReaderService : NotificationListenerService() {
                         return
                     }
                 }
-            } else if (isTimer) {
-                emitTimerOverlayEvent(sbn, title)
+                */
+                return
+            } else if (type == NotificationType.TIMER) {
+                // DISABLED: Xiaomi native island handles Timer (User Request)
+                // emitTimerOverlayEvent(sbn, title)
+                return
             }
 
             // --- SMART PRIORITY CHECK ---
@@ -1245,7 +1251,17 @@ class NotificationReaderService : NotificationListenerService() {
                 HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_NAV_BLOCKED pkg=${sbn.packageName} - Preventing system floating island")
                 // Cancel the original notification to prevent system floating island
                 try {
-                    NotificationManagerCompat.from(this).cancel(sbn.id)
+                    // FIX: Use cancelNotification(key) instead of NotificationManagerCompat.cancel(id)
+                    // NotificationManagerCompat.cancel(id) only works for notifications posted by THIS app.
+                    // To cancel another app's notification, we must use the ListenerService method.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        cancelNotification(sbn.key)
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_CANCEL_REQ success=true key=${sbn.key}")
+                    } else {
+                         @Suppress("DEPRECATION")
+                         cancelNotification(sbn.packageName, sbn.tag, sbn.id)
+                         HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_CANCEL_REQ success=true legacy=true")
+                    }
                 } catch (e: Exception) {
                     HiLog.w(HiLog.TAG_NOTIF, "Failed to cancel Google Maps notification: ${e.message}")
                 }
@@ -2594,7 +2610,11 @@ class NotificationReaderService : NotificationListenerService() {
         return packageName == this.packageName ||
                 packageName == "android" ||
                 packageName == "com.android.systemui" ||
-                packageName.contains("miui.notification")
+                packageName.contains("miui.notification") ||
+                packageName == "com.android.soundrecorder" ||
+                packageName == "com.miui.soundrecorder" ||
+                packageName == "com.miui.screenrecorder" ||
+                packageName == "com.android.camera"
     }
 
     /**

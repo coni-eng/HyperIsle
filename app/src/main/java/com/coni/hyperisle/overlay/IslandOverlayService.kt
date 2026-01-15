@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -97,6 +98,7 @@ import com.coni.hyperisle.util.CallManager
 import com.coni.hyperisle.util.ContextStateManager
 import com.coni.hyperisle.util.Haptics
 import com.coni.hyperisle.util.HiLog
+import com.coni.hyperisle.receiver.CallActionReceiver
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
@@ -1298,6 +1300,68 @@ class IslandOverlayService : Service() {
                     null
                 }
 
+            // NEW: Use AnchorOverlayHost if enabled and appropriate
+            if (isAnchorModeEnabled && activeIsOngoing && !showSplit && !isMediaExpanded) {
+                // Update anchor state for current call
+                val anchorState = CallAnchorState(
+                    notificationKey = activeModel.notificationKey,
+                    packageName = activeModel.packageName,
+                    callerName = activeModel.callerName,
+                    durationText = activeModel.durationText,
+                    isIncoming = false,
+                    isActive = true
+                )
+                anchorCoordinator?.updateCallState(anchorState)
+                
+                AnchorOverlayHost(
+                    anchorCoordinator = anchorCoordinator!!,
+                    expandedContent = if (isExpanded) {
+                        {
+                            ActiveCallExpandedPill(
+                                callerLabel = activeModel.callerName,
+                                durationText = activeModel.durationText,
+                                onHangUp = {
+                                    handleCallAction(
+                                        pendingIntent = activeModel.hangUpIntent,
+                                        actionType = "hangup",
+                                        rid = rid,
+                                        pkg = activeModel.packageName
+                                    )
+                                },
+                                onSpeaker = {
+                                    handleCallAction(
+                                        pendingIntent = activeModel.speakerIntent,
+                                        actionType = "speaker",
+                                        rid = rid,
+                                        pkg = activeModel.packageName
+                                    )
+                                },
+                                onMute = {
+                                    handleCallAction(
+                                        pendingIntent = activeModel.muteIntent,
+                                        actionType = "mute",
+                                        rid = rid,
+                                        pkg = activeModel.packageName
+                                    )
+                                },
+                                canSpeaker = activeModel.canSpeaker,
+                                canMute = activeModel.canMute,
+                                isSpeakerOn = activeModel.isSpeakerOn,
+                                isMuted = activeModel.isMuted,
+                                debugRid = rid
+                            )
+                        }
+                    } else null,
+                    onAnchorTap = {
+                         handleCallTap(rid, activeModel.packageName, activeModel.contentIntent)
+                    },
+                    onAnchorLongPress = { isExpanded = true },
+                    debugRid = rid
+                )
+                // Early return to skip legacy container
+                return@showOverlay
+            }
+
             SwipeDismissContainer(
                 rid = rid,
                 stateLabel = layoutState,
@@ -1811,6 +1875,8 @@ class IslandOverlayService : Service() {
             },
             modifier = Modifier
                 .widthIn(max = LocalConfiguration.current.screenWidthDp.dp - 32.dp)
+                // Ensure content is centered
+                .wrapContentWidth(Alignment.CenterHorizontally)
                 // Increased top padding to lower the expanded notification below anchor (42dp)
                 .padding(start = 20.dp, end = 20.dp, top = 42.dp, bottom = 8.dp)
         ) {
@@ -2374,14 +2440,29 @@ class IslandOverlayService : Service() {
         rid: Int,
         pkg: String?
     ): Boolean {
-        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_START action=$actionType hasIntent=${pendingIntent != null} pkg=$pkg")
+        // NEW: Create fallback intent targeting CallActionReceiver if notification intent is missing
+        val effectiveIntent = pendingIntent ?: run {
+            val action = when (actionType) {
+                "hangup", "decline", "reject" -> CallActionReceiver.ACTION_HANGUP
+                "answer", "accept" -> CallActionReceiver.ACTION_ACCEPT
+                "speaker" -> CallActionReceiver.ACTION_SPEAKER
+                "mute" -> CallActionReceiver.ACTION_MUTE
+                else -> null
+            }
+            if (action != null) {
+                 val intent = Intent(applicationContext, CallActionReceiver::class.java).apply { this.action = action }
+                 PendingIntent.getBroadcast(applicationContext, action.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            } else null
+        }
+
+        HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_START action=$actionType hasIntent=${pendingIntent != null} hasFallback=${effectiveIntent != pendingIntent} pkg=$pkg")
         
         // Use enhanced CallManager for all call actions with AudioManager fallbacks
         val result = when (actionType) {
             "answer", "accept" -> {
                 // PRIMARY: TelecomManager.acceptRingingCall()
-                // FALLBACK: PendingIntent from notification
-                val acceptResult = CallManager.acceptCall(applicationContext, pendingIntent)
+                // FALLBACK: PendingIntent from notification or Receiver
+                val acceptResult = CallManager.acceptCall(applicationContext, effectiveIntent)
                 HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${acceptResult.success} method=${acceptResult.method} pkg=$pkg")
                 
                 // Schedule verification if TelecomManager was used
@@ -2389,11 +2470,11 @@ class IslandOverlayService : Service() {
                     serviceScope.launch {
                         val verified = CallManager.verifyCallAccepted(applicationContext)
                         HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACCEPT_VERIFIED verified=$verified pkg=$pkg")
-                        if (!verified && pendingIntent != null) {
+                        if (!verified && effectiveIntent != null) {
                             // Retry with PendingIntent if verification failed
                             HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACCEPT_RETRY method=PENDING_INTENT pkg=$pkg")
                             try {
-                                pendingIntent.send()
+                                effectiveIntent.send()
                             } catch (e: Exception) {
                                 HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACCEPT_RETRY_FAIL reason=${e.javaClass.simpleName}")
                             }
@@ -2404,8 +2485,8 @@ class IslandOverlayService : Service() {
             }
             "hangup", "decline", "reject" -> {
                 // PRIMARY: TelecomManager.endCall()
-                // FALLBACK: PendingIntent from notification
-                val endResult = CallManager.endCall(applicationContext, pendingIntent)
+                // FALLBACK: PendingIntent from notification or Receiver
+                val endResult = CallManager.endCall(applicationContext, effectiveIntent)
                 HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=$actionType success=${endResult.success} method=${endResult.method} pkg=$pkg")
                 endResult.success
             }
@@ -2423,7 +2504,7 @@ class IslandOverlayService : Service() {
                 applyOptimisticAudioState(isSpeakerOn = desiredSpeaker, isMuted = null, rid = rid)
                 
                 // BUG#1 FIX: AudioManager fallback for speaker toggle when MIUI sends actions=0
-                val speakerResult = CallManager.toggleSpeaker(applicationContext, pendingIntent)
+                val speakerResult = CallManager.toggleSpeaker(applicationContext, effectiveIntent)
                 if (BuildConfig.DEBUG) {
                     HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=speaker success=${speakerResult.success} method=${speakerResult.method}")
                 }
@@ -2453,7 +2534,7 @@ class IslandOverlayService : Service() {
                 applyOptimisticAudioState(isSpeakerOn = null, isMuted = desiredMute, rid = rid)
                 
                 // BUG#1 FIX: AudioManager fallback for mute toggle when MIUI sends actions=0
-                val muteResult = CallManager.toggleMute(applicationContext, pendingIntent)
+                val muteResult = CallManager.toggleMute(applicationContext, effectiveIntent)
                 if (BuildConfig.DEBUG) {
                     HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_RESULT action=mute success=${muteResult.success} method=${muteResult.method}")
                 }
@@ -2471,13 +2552,13 @@ class IslandOverlayService : Service() {
             }
             else -> {
                 // Unknown action type - try PendingIntent directly
-                if (pendingIntent == null) {
+                if (effectiveIntent == null) {
                     HiLog.w(HiLog.TAG_ISLAND, "No PendingIntent for unknown call action: $actionType")
                     HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_FAIL action=$actionType reason=NO_INTENT pkg=$pkg")
                     false
                 } else {
                     try {
-                        pendingIntent.send()
+                        effectiveIntent.send()
                         HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=CALL_ACTION_OK action=$actionType method=PENDING_INTENT pkg=$pkg")
                         true
                     } catch (e: Exception) {

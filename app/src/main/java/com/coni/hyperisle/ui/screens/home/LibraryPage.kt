@@ -57,22 +57,22 @@ fun LibraryPage(
         ) {
             FilledTonalButton(
                 onClick = {
-                    if (allSelected) {
-                        viewModel.disableApps(selectedApps.map { it.packageName })
-                    } else {
-                        viewModel.enableApps(unselectedApps.map { it.packageName })
-                    }
+                    viewModel.toggleSelectAll(apps)
                 },
                 enabled = hasApps
             ) {
+                // If ALL visible apps are enabled, show "Unselect All"
+                // Otherwise show "Select All"
+                val allVisibleEnabled = apps.all { it.isBridged }
+                
                 Icon(
-                    if (allSelected) Icons.Default.ClearAll else Icons.Default.DoneAll,
+                    if (allVisibleEnabled) Icons.Default.ClearAll else Icons.Default.DoneAll,
                     contentDescription = null
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (allSelected) stringResource(R.string.deselect_all_apps)
-                    else stringResource(R.string.select_all_apps)
+                    if (allVisibleEnabled) stringResource(R.string.unselect_all)
+                    else stringResource(R.string.select_all)
                 )
             }
         }

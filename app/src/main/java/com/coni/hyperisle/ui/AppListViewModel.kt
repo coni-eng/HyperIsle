@@ -160,6 +160,24 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     fun updateGlobalConfig(config: IslandConfig) {
         viewModelScope.launch { preferences.updateGlobalConfig(config) }
     }
+    
+    // --- SELECT ALL / UNSELECT ALL (v1.0.3) ---
+    fun toggleSelectAll(apps: List<AppInfo>) {
+        viewModelScope.launch {
+            // Check if all provided apps are already enabled
+            val allEnabled = apps.all { it.isBridged }
+            
+            if (allEnabled) {
+                // If all are enabled -> Unselect All
+                val pkgs = apps.map { it.packageName }
+                preferences.removeAllowedPackages(pkgs)
+            } else {
+                // If some or none are enabled -> Select All (Enable remaining ones)
+                val pkgs = apps.map { it.packageName }
+                preferences.addAllowedPackages(pkgs)
+            }
+        }
+    }
 
     // --- BLOCKED TERMS (FIX FOR ISSUE #6) ---
     val globalBlockedTermsFlow = preferences.globalBlockedTermsFlow

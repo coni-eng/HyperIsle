@@ -1,6 +1,7 @@
 package com.coni.hyperisle.overlay.features
 
 import android.app.PendingIntent
+import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.overlay.engine.ActiveIsland
@@ -15,6 +17,7 @@ import com.coni.hyperisle.overlay.engine.IslandActions
 import com.coni.hyperisle.overlay.engine.IslandEvent
 import com.coni.hyperisle.overlay.engine.IslandPolicy
 import com.coni.hyperisle.overlay.engine.IslandRoute
+import com.coni.hyperisle.receiver.CallActionReceiver
 import com.coni.hyperisle.ui.components.ActiveCallCompactPill
 import com.coni.hyperisle.ui.components.ActiveCallExpandedPill
 import com.coni.hyperisle.ui.components.IncomingCallPill
@@ -97,6 +100,7 @@ class CallFeature : IslandFeature {
     ) {
         val callState = state as? CallState ?: return
         val rid = uiState.debugRid
+        val context = LocalContext.current
 
         when (callState) {
             is CallState.Incoming -> {
@@ -109,14 +113,18 @@ class CallFeature : IslandFeature {
                         if (BuildConfig.DEBUG) {
                             HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=INPUT_DECLINE_CLICK")
                         }
-                        actions.endCall(callState.declineIntent)
+                        val intent = Intent(context, CallActionReceiver::class.java).apply { action = CallActionReceiver.ACTION_HANGUP }
+                        val pi = PendingIntent.getBroadcast(context, 101, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                        actions.endCall(callState.declineIntent ?: pi)
                         actions.dismiss("CALL_DECLINE")
                     },
                     onAccept = {
                         if (BuildConfig.DEBUG) {
                             HiLog.d(HiLog.TAG_INPUT, "RID=$rid EVT=INPUT_ACCEPT_CLICK")
                         }
-                        actions.acceptCall(callState.acceptIntent)
+                        val intent = Intent(context, CallActionReceiver::class.java).apply { action = CallActionReceiver.ACTION_ACCEPT }
+                        val pi = PendingIntent.getBroadcast(context, 102, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                        actions.acceptCall(callState.acceptIntent ?: pi)
                         // Don't dismiss - wait for ONGOING state
                     },
                     debugRid = rid
@@ -128,13 +136,19 @@ class CallFeature : IslandFeature {
                         callerLabel = callState.callerName,
                         durationText = callState.durationText,
                         onHangUp = {
-                            actions.endCall(callState.hangUpIntent)
+                            val intent = Intent(context, CallActionReceiver::class.java).apply { action = CallActionReceiver.ACTION_HANGUP }
+                            val pi = PendingIntent.getBroadcast(context, 103, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                            actions.endCall(callState.hangUpIntent ?: pi)
                         },
                         onSpeaker = {
-                            actions.toggleSpeaker(callState.speakerIntent)
+                            val intent = Intent(context, CallActionReceiver::class.java).apply { action = CallActionReceiver.ACTION_SPEAKER }
+                            val pi = PendingIntent.getBroadcast(context, 104, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                            actions.toggleSpeaker(callState.speakerIntent ?: pi)
                         },
                         onMute = {
-                            actions.toggleMute(callState.muteIntent)
+                            val intent = Intent(context, CallActionReceiver::class.java).apply { action = CallActionReceiver.ACTION_MUTE }
+                            val pi = PendingIntent.getBroadcast(context, 105, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                            actions.toggleMute(callState.muteIntent ?: pi)
                         },
                         debugRid = rid
                     )
