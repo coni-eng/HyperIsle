@@ -1,13 +1,13 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format follows [Keep a Changelog](https://keepachangelog.com/),
+and we aim to use [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [v1.0.3] - Native Integration & Anchor Redesign
+## [v0.9.9] - Native Integration & Anchor Redesign
 ### Added
 - **Native System Integration:**
   - Music, Timer, and Recorder notifications are now handled by the system's native island for a seamless experience.
@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Onboarding:** Updated Feature Overview to highlight seamless native integration.
 - **Settings:** Moved "Block Google Maps Island" to Navigation Settings and removed obsolete Music Island settings.
 
-## [v1.0.0] - Visual Polish & Customization
+## [v0.9.8] - Visual Polish & Customization
 ### Added
 - **Island Colors:** Per-app customization support.
   - **Standard:** Default iOS-style solid black.
