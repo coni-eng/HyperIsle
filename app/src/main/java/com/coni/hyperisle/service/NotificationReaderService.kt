@@ -855,6 +855,12 @@ class NotificationReaderService : NotificationListenerService() {
 
         clearIslandState(groupKey)
 
+        // v1.0.3 FIX: Ensure call session is cleared from CallManager when notification is removed
+        // This prevents stale session lock issues that block long-press expansion
+        if (groupKey.endsWith(":CALL") || activeCallTimers.containsKey(groupKey)) {
+             com.coni.hyperisle.util.CallManager.clearSession()
+        }
+
         if (activeIslands.isEmpty()) {
             IslandCooldownManager.clearLastActiveIsland()
             if (OverlayEventBus.emitDismissAll()) {
@@ -1500,9 +1506,15 @@ class NotificationReaderService : NotificationListenerService() {
                 } else {
                     // Incoming call: use snooze first (preserves ringtone)
                     try {
-                        // Snooze for 60 seconds - call will either be answered/declined by then
+                        // SNOOZE LOGIC:
+                        // Snoozing suppresses the heads-up notification (HUN) immediately
+                        // while keeping the call ringing in the background.
+                        // We use a shorter snooze to ensure it clears the HUN window.
                         snoozeNotification(sbn.key, 60_000L)
+                        
+                        // Mark as self-cancelled so we don't process the removal event as a dismiss
                         markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
+                        
                         DebugLog.event("CALL_INTERCEPT", rid, "INTERCEPT", reason = "CALL_INCOMING_SNOOZE_OK", kv = mapOf(
                             "pkg" to sbn.packageName,
                             "callState" to callState,

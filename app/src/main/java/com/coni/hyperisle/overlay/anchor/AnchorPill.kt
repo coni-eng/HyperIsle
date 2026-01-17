@@ -110,9 +110,9 @@ fun AnchorPill(
     
     // Reduced padding and min width for a more compact look as requested
     val cutoutGapWidth = with(density) { cutoutInfo.width.toDp() + 12.dp }
-    val slotMinWidth = 54.dp
+    val slotMinWidth = 48.dp
     val slotMaxWidth = 120.dp
-    val pillHeight = 37.dp
+    val pillHeight = 34.dp
     val pillPadding = 4.dp
 
     if (BuildConfig.DEBUG) {
@@ -215,7 +215,7 @@ private fun AnchorSlot(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = if (alignment == Alignment.CenterEnd) 
                         Arrangement.End else Arrangement.Start,
-                    modifier = Modifier.padding(horizontal = 8.dp)
+                    modifier = Modifier.padding(horizontal = 4.dp) // Reduced padding for tighter icon
                 ) {
                     SlotIconContent(content.icon, size = 14.dp)
                     Spacer(modifier = Modifier.width(4.dp))

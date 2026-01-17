@@ -130,10 +130,10 @@ class CallTranslator(context: Context) : BaseTranslator(context) {
             rightText = context.getString(R.string.call_incoming)
         } else {
             val subText = extras.getStringCompatOrEmpty(Notification.EXTRA_TEXT).trim().ifBlank { null }
-            // Priority: 1. System-provided time (subText with ":"), 2. Our timer, 3. Fallback label
+            // Priority: 1. Our calculated timer (most accurate), 2. System time, 3. Fallback
             rightText = when {
-                !subText.isNullOrEmpty() && subText.contains(":") -> subText
                 durationSeconds != null -> formatDuration(durationSeconds)
+                !subText.isNullOrEmpty() && subText.contains(":") -> subText
                 else -> context.getString(R.string.call_ongoing)
             }
         }

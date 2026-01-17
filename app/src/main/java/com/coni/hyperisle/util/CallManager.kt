@@ -52,6 +52,19 @@ object CallManager {
     private const val SESSION_LOCK_MS = 3000L // 3 seconds lock after call ends
     
     /**
+     * Clear the active call session.
+     * Should be called when the call notification is removed.
+     */
+    fun clearSession() {
+        if (activeSession != null) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=CALL_SESSION_CLEARED oldKey=${activeSession?.callKey} reason=MANUAL_CLEAR")
+            }
+            activeSession = null
+        }
+    }
+
+    /**
      * HARDENING: Generate or retrieve stable callKey for the current call session.
      * 
      * Priority order:
@@ -65,34 +78,23 @@ object CallManager {
         callHandle: String?,
         direction: String = "UNKNOWN"
     ): String {
-        val currentState = getCallState(context)
-        val now = android.os.SystemClock.elapsedRealtime()
-        
-        // HARDENING: If IDLE and within lock period, return empty (no call)
-        if (currentState == CallState.IDLE) {
-            if (now < sessionLockedUntil) {
-                if (BuildConfig.DEBUG) {
-                    HiLog.d(HiLog.TAG_ISLAND, "EVT=CALLKEY_BLOCKED reason=SESSION_LOCKED lockRemaining=${sessionLockedUntil - now}ms")
-                }
-                return ""
-            }
-            // Clear session on IDLE
-            if (activeSession != null) {
-                if (BuildConfig.DEBUG) {
-                    HiLog.d(HiLog.TAG_ISLAND, "EVT=CALL_SESSION_CLEARED oldKey=${activeSession?.callKey}")
-                }
-                activeSession = null
-            }
-            return ""
-        }
-        
-        // Reuse existing session if available
+        // Reuse existing session if available (Prioritize persistence over TelephonyState)
         val session = activeSession
         if (session != null) {
             if (BuildConfig.DEBUG) {
                 HiLog.d(HiLog.TAG_ISLAND, "EVT=CALLKEY_REUSED value=${session.callKey}")
             }
             return session.callKey
+        }
+        
+        val now = android.os.SystemClock.elapsedRealtime()
+        
+        // Only block creation if we are in the explicit lock period AND no session exists
+        if (now < sessionLockedUntil) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d(HiLog.TAG_ISLAND, "EVT=CALLKEY_BLOCKED reason=SESSION_LOCKED lockRemaining=${sessionLockedUntil - now}ms")
+            }
+            return ""
         }
         
         // Create new session
@@ -332,7 +334,8 @@ object CallManager {
                 if (BuildConfig.DEBUG) {
                     HiLog.d(HiLog.TAG_ISLAND, "EVT=CALL_STATE_IDLE_TRANSITION old=${lastCallState.name} callKey=${activeSession?.callKey}")
                 }
-                lockSessionOnIdle()
+                // Don't auto-lock session here anymore - trust NotificationReaderService to clear it
+                // lockSessionOnIdle()
             }
             
             lastCallState = newState
