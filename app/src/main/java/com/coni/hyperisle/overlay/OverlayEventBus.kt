@@ -75,6 +75,13 @@ object OverlayEventBus {
     }
 
     /**
+     * Emit a download event.
+     */
+    fun emitDownload(model: DownloadOverlayModel): Boolean {
+        return tryEmit(OverlayEvent.DownloadEvent(model))
+    }
+
+    /**
      * Emit a dismiss event for a specific notification.
      */
     fun emitDismiss(notificationKey: String? = null): Boolean {

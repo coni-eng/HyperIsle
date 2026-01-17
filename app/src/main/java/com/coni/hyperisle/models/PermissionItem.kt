@@ -35,8 +35,8 @@ import com.coni.hyperisle.util.openPhonePermissionSettings
  */
 data class PermissionItem(
     val id: String,
-    @StringRes val titleRes: Int,
-    @StringRes val descriptionRes: Int,
+    @param:StringRes val titleRes: Int,
+    @param:StringRes val descriptionRes: Int,
     val icon: ImageVector,
     val isRequired: Boolean,
     val isGranted: (Context) -> Boolean,

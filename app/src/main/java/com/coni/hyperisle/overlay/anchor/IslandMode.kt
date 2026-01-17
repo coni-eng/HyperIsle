@@ -31,6 +31,13 @@ enum class IslandMode {
     NAV_ACTIVE,
 
     /**
+     * Download active mode - anchor displays download progress.
+     * LeftSlot: download icon
+     * RightSlot: progress bar
+     */
+    DOWNLOAD_ACTIVE,
+
+    /**
      * Notification expanded mode - full notification display.
      * Anchor expands to show notification content.
      * After cooldown/dismiss, shrinks back to previous mode.

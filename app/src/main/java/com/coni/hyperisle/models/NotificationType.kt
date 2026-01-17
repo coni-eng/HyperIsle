@@ -5,7 +5,7 @@ import com.coni.hyperisle.R
 
 
 
-enum class NotificationType(@StringRes val labelRes: Int) {
+enum class NotificationType(@param:StringRes val labelRes: Int) {
     STANDARD(R.string.type_standard),
     PROGRESS(R.string.type_progress),
     MEDIA(R.string.type_media),

@@ -132,6 +132,15 @@ fun AnchorOverlayHost(
                         )
                     }
                 }
+                IslandMode.DOWNLOAD_ACTIVE -> {
+                    AnchorPill(
+                        state = anchorState,
+                        cutoutInfo = effectiveCutoutInfo,
+                        onTap = onAnchorTap,
+                        onLongPress = onAnchorLongPress,
+                        debugRid = debugRid
+                    )
+                }
                 IslandMode.NOTIF_EXPANDED, IslandMode.NAV_EXPANDED -> {
                 }
             }

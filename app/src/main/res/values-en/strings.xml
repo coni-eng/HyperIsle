@@ -718,12 +718,15 @@
 
     <!-- iOS Pill Overlay (v0.9.5) -->
     <string name="channel_ios_overlay">iOS Style Overlay</string>
+    <string name="channel_ios_overlay_ghost">iOS Style Overlay (Ghost)</string>
     <string name="overlay_service_active">Overlay service active</string>
     <string name="ios_pill_overlay_title">iOS Style Pill Overlay</string>
     <string name="ios_pill_overlay_desc">Show iOS-style pill notifications in addition to the MIUI island</string>
     <string name="overlay_permission_required">Overlay permission required</string>
     <string name="overlay_permission_desc">Display over other apps permission is required to show iOS-style pills</string>
     <string name="grant_overlay_permission">Grant permission</string>
+    <string name="ghost_mode_title">Ghost Mode</string>
+    <string name="ghost_mode_desc">Minimize the foreground service notification</string>
 
     <!-- Per-App Shade Cancel (v0.9.5) -->
     <string name="shade_cancel_not_clearable_banner">Some lock screen or persistent notifications (e.g. WhatsApp) cannot be removed by Android/MIUI. The island still shows, but the system notification may remain.</string>

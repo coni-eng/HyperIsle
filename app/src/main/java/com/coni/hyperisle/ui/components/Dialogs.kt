@@ -184,7 +184,7 @@ fun AppConfigBottomSheet(
                 // Only show for messaging/social style apps (STANDARD type enabled)
                 if (typeConfig.contains("STANDARD")) {
                     val shadeCancelEnabled by viewModel.isShadeCancelFlow(app.packageName).collectAsState(initial = false)
-                    val shadeCancelMode by viewModel.getShadeCancelModeFlow(app.packageName).collectAsState(initial = ShadeCancelMode.SAFE)
+                    val shadeCancelMode by viewModel.getShadeCancelModeFlow(app.packageName).collectAsState(initial = ShadeCancelMode.ISLAND_ONLY)
                     
                     ShadeCancelCard(
                         enabled = shadeCancelEnabled,
@@ -376,7 +376,7 @@ fun AppearanceSettingsContent(
 fun ShadeCancelCard(
     enabled: Boolean,
     onToggle: (Boolean) -> Unit,
-    selectedMode: ShadeCancelMode = ShadeCancelMode.SAFE,
+    selectedMode: ShadeCancelMode = ShadeCancelMode.ISLAND_ONLY,
     onModeChange: (ShadeCancelMode) -> Unit = {}
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
@@ -449,13 +449,13 @@ fun ShadeCancelCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onModeChange(ShadeCancelMode.SAFE) }
+                            .clickable { onModeChange(ShadeCancelMode.ISLAND_ONLY) }
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         androidx.compose.material3.RadioButton(
-                            selected = selectedMode == ShadeCancelMode.SAFE,
-                            onClick = { onModeChange(ShadeCancelMode.SAFE) }
+                            selected = selectedMode == ShadeCancelMode.ISLAND_ONLY,
+                            onClick = { onModeChange(ShadeCancelMode.ISLAND_ONLY) }
                         )
                         Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {

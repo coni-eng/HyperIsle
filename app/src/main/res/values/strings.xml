@@ -697,6 +697,9 @@
     <string name="perm_autostart_desc">Yeniden başlatma sonrası servisin çalışması için gerekli.</string>
     <string name="perm_required_section">Gerekli İzinler</string>
     <string name="perm_required_section_desc">Bu izinler HyperIsle\'ın çalışması için gereklidir.</string>
+    <string name="maps_pip_fix_title">Maps Yüzen Pencereyi Kapat</string>
+    <string name="maps_pip_fix_desc">Stabil bir deneyim için Google Maps ayarlarından \'Resim içinde Resim\' iznini kapatmalısınız.</string>
+    <string name="maps_pip_fix_cta">Ayarlara Git</string>
     <string name="perm_recommended_section">Önerilen İzinler</string>
     <string name="perm_recommended_section_desc">Daha kararlı bir deneyim için önerilir.</string>
     
@@ -751,15 +754,19 @@
 
     <!-- iOS Pill Overlay (v0.9.5) -->
     <string name="channel_ios_overlay">iOS Stil Overlay</string>
+    <string name="channel_ios_overlay_ghost">iOS Style Overlay (Ghost)</string>
     <string name="overlay_service_active">Overlay servisi aktif</string>
     <string name="ios_pill_overlay_title">iOS Stil Pill Overlay</string>
     <string name="ios_pill_overlay_desc">MIUI ada\'ya ek olarak iOS tarzı pill bildirimleri göster</string>
     <string name="overlay_permission_required">Overlay izni gerekli</string>
     <string name="overlay_permission_desc">iOS tarzı pill\'leri göstermek için diğer uygulamaların üzerinde görüntüleme izni gerekli</string>
     <string name="grant_overlay_permission">İzin Ver</string>
+    <string name="ghost_mode_title">Ghost Mode</string>
+    <string name="ghost_mode_desc">Minimize the foreground service notification</string>
     <string name="overlay_reply">Yanıtla</string>
     <string name="overlay_send">Gönder</string>
     <string name="shade_cancel_not_clearable_banner">Some lock screen or persistent notifications (e.g. WhatsApp) cannot be removed by Android/MIUI. The island still shows, but the system notification may remain.</string>
+    <string name="shade_cancel_maps_not_clearable_banner">Google Maps navigation notifications are persistent on MIUI/HyperOS. Disable Google Maps floating notifications in system settings to hide the system island.</string>
 
     <!-- Shade Cancel Screen UX (v1.0.0) -->
     <string name="shade_cancel_screen_info_title">Neden bu ayar gerekli?</string>

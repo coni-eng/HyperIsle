@@ -22,6 +22,8 @@ object HiLog {
     const val TAG_NOTIF = "HI_NOTIF"
     const val TAG_STYLE = "HI_STYLE"
     const val TAG_CALL = "HI_CALL"
+    const val TAG_DOWNLOAD = "HI_DOWNLOAD"
+    const val TAG_GHOST = "HI_GHOST"
     const val TAG_PREF = "HI_PREF"
     const val TAG_PERF = "HI_PERF"
 

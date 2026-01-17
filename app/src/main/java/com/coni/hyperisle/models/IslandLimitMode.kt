@@ -5,7 +5,7 @@ import com.coni.hyperisle.R
 
 
 
-enum class IslandLimitMode(@StringRes val titleRes: Int, @StringRes val descRes: Int) {
+enum class IslandLimitMode(@param:StringRes val titleRes: Int, @param:StringRes val descRes: Int) {
     FIRST_COME(R.string.mode_fcfs_title, R.string.mode_fcfs_desc),
     MOST_RECENT(R.string.mode_recent_title, R.string.mode_recent_desc),
     PRIORITY(R.string.mode_priority_title, R.string.mode_priority_desc)

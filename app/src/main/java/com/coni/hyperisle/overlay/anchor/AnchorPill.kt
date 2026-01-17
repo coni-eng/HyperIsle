@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -218,7 +219,7 @@ private fun AnchorSlot(
             is SlotContent.IconWithWaveBar -> {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = if (alignment == Alignment.CenterEnd) 
+                    horizontalArrangement = if (alignment == Alignment.CenterEnd)
                         Arrangement.End else Arrangement.Start,
                     modifier = Modifier.padding(horizontal = 4.dp) // Reduced padding for tighter icon
                 ) {
@@ -226,6 +227,16 @@ private fun AnchorSlot(
                     Spacer(modifier = Modifier.width(4.dp))
                     WaveBarAnimation()
                 }
+            }
+            is SlotContent.ProgressBar -> {
+                DownloadProgressBar(
+                    progress = content.progress,
+                    indeterminate = content.indeterminate,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .height(6.dp)
+                        .width(72.dp)
+                )
             }
             is SlotContent.Empty, null -> {
             }
@@ -325,6 +336,30 @@ private fun WaveBar(height: Dp, color: Color) {
             .clip(RoundedCornerShape(2.dp))
             .background(color)
     )
+}
+
+@Composable
+private fun DownloadProgressBar(
+    progress: Float,
+    indeterminate: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (indeterminate) {
+        LinearProgressIndicator(
+            modifier = modifier
+                .clip(RoundedCornerShape(4.dp)),
+            color = ActiveGreenColor,
+            trackColor = Color(0xFF3A3A3C)
+        )
+    } else {
+        LinearProgressIndicator(
+            progress = { progress.coerceIn(0f, 1f) },
+            modifier = modifier
+                .clip(RoundedCornerShape(4.dp)),
+            color = ActiveGreenColor,
+            trackColor = Color(0xFF3A3A3C)
+        )
+    }
 }
 
 /**

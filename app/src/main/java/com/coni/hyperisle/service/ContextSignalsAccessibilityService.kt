@@ -4,9 +4,9 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Rect
 import android.os.SystemClock
-import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import com.coni.hyperisle.BuildConfig
 import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.AccessibilityContextSignals
 import com.coni.hyperisle.util.AccessibilityContextState
@@ -53,6 +53,13 @@ class ContextSignalsAccessibilityService : AccessibilityService() {
         var isFullscreen = false
         var isImeVisible = false
         var foregroundPackage: String? = null
+        val rootBounds = Rect()
+        val rootNode = rootInActiveWindow
+        val eventPackage = event?.packageName?.toString()
+        val candidatePackage = eventPackage ?: rootNode?.packageName?.toString()
+        var isPip = false
+        var rootWidth = 0
+        var candidateWidth = 0
 
         val windows = windows ?: emptyList()
         for (window in windows) {
@@ -67,16 +74,39 @@ class ContextSignalsAccessibilityService : AccessibilityService() {
                     ) {
                         isFullscreen = true
                     }
+                    val windowPkg = window.root?.packageName?.toString()
+                    if (candidatePackage != null && windowPkg == candidatePackage) {
+                        candidateWidth = maxOf(candidateWidth, bounds.width())
+                    }
                     if (foregroundPackage == null) {
-                        foregroundPackage = window.root?.packageName?.toString()
+                        foregroundPackage = windowPkg
                     }
                 }
             }
         }
 
+        if (rootNode != null) {
+            rootNode.getBoundsInScreen(rootBounds)
+            rootWidth = rootBounds.width()
+        }
+
         if (foregroundPackage == null) {
-            foregroundPackage = event?.packageName?.toString()
-                ?: rootInActiveWindow?.packageName?.toString()
+            foregroundPackage = candidatePackage
+        }
+
+        if (candidatePackage == "com.google.android.apps.maps" &&
+            candidateWidth > 0 &&
+            candidateWidth < (screenWidth * 0.9f)
+        ) {
+            isPip = true
+            isFullscreen = false
+        }
+        if (BuildConfig.DEBUG) {
+            val pkg = foregroundPackage ?: "unknown"
+            val logWidth = if (candidateWidth > 0) candidateWidth else rootWidth
+            HiLog.d(HiLog.TAG_ISLAND,
+                "RID=ACC_CTX EVT=ACC_CTX_BOUNDS pkg=$pkg width=$logWidth screenW=$screenWidth isPip=$isPip"
+            )
         }
 
         val signals = AccessibilityContextSignals(

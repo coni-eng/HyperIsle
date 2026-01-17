@@ -50,6 +50,7 @@ class OverlayWindowController(private val context: Context) {
     private var hasLoggedWindowFlags = false
     private var lastScreenWidth: Int = 0
     private var lastOrientation: Int = Configuration.ORIENTATION_UNDEFINED
+    private var extraYOffsetPx: Int = 0
 
     // Current overlay state
     var currentEvent: OverlayEvent? by mutableStateOf(null)
@@ -384,6 +385,12 @@ class OverlayWindowController(private val context: Context) {
         }
     }
 
+    fun setExtraYOffsetPx(offsetPx: Int, reason: String) {
+        if (extraYOffsetPx == offsetPx) return
+        extraYOffsetPx = offsetPx
+        updatePosition(reason)
+    }
+
     /**
      * Check if position update is needed due to orientation/metrics change.
      */
@@ -403,6 +410,7 @@ class OverlayWindowController(private val context: Context) {
             is OverlayEvent.MediaEvent -> event.model.notificationKey.hashCode()
             is OverlayEvent.TimerEvent -> event.model.notificationKey.hashCode()
             is OverlayEvent.NavigationEvent -> event.model.notificationKey.hashCode()
+            is OverlayEvent.DownloadEvent -> event.model.stableKey.hashCode()
             is OverlayEvent.DismissEvent,
             OverlayEvent.DismissAllEvent -> 0
         }
@@ -421,7 +429,9 @@ class OverlayWindowController(private val context: Context) {
     @Suppress("DEPRECATION")
     private fun getScreenWidth(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val windowMetrics = windowManager.currentWindowMetrics
+            // Use maximumWindowMetrics to get full physical display size
+            // This ignores current windowing mode (PiP, Split Screen) which fixes layout shifts
+            val windowMetrics = windowManager.maximumWindowMetrics
             windowMetrics.bounds.width()
         } else {
             val display = windowManager.defaultDisplay
@@ -467,14 +477,15 @@ class OverlayWindowController(private val context: Context) {
             // Fallback to status bar height when no cutout
             getStatusBarHeight()
         }
-        
+        val adjustedY = y + extraYOffsetPx
+
         HiLog.d(HiLog.TAG_ISLAND,
             "EVT=POSITION_CALC screenW=$screenWidth screenCenterX=$screenCenterX " +
             "cutoutCenterX=${cutoutInfo?.centerX} cutoutTop=${cutoutInfo?.top} " +
-            "desiredX=$desiredX clampedX=$clampedX y=$y"
+            "desiredX=$desiredX clampedX=$clampedX y=$adjustedY"
         )
-        
-        return PositionResult(clampedX, y)
+
+        return PositionResult(clampedX, adjustedY)
     }
 
     /**

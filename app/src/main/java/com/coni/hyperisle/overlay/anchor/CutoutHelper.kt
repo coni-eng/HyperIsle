@@ -21,7 +21,7 @@ object CutoutHelper {
      * Get the camera cutout information.
      * Returns null if no cutout is detected.
      * 
-     * API 30+: Uses currentWindowMetrics.windowInsets.displayCutout (reliable)
+     * API 30+: Uses maximumWindowMetrics.windowInsets.displayCutout (stable)
      * API 28-29: Falls back to deprecated defaultDisplay.cutout
      */
     @Suppress("DEPRECATION")
@@ -33,9 +33,9 @@ object CutoutHelper {
         try {
             val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             
-            // API 30+: Use currentWindowMetrics for reliable cutout detection
+            // API 30+: Use maximumWindowMetrics for stable cutout detection
             val cutout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val metrics = windowManager.currentWindowMetrics
+                val metrics = windowManager.maximumWindowMetrics
                 metrics.windowInsets.displayCutout
             } else {
                 // API 28-29: Fallback to deprecated defaultDisplay.cutout
@@ -79,11 +79,7 @@ object CutoutHelper {
     fun getScreenWidth(context: Context): Int {
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val windowMetrics = windowManager.currentWindowMetrics
-            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(
-                android.view.WindowInsets.Type.systemBars()
-            )
-            windowMetrics.bounds.width() - insets.left - insets.right
+            windowManager.maximumWindowMetrics.bounds.width()
         } else {
             val metrics = android.util.DisplayMetrics()
             windowManager.defaultDisplay.getMetrics(metrics)

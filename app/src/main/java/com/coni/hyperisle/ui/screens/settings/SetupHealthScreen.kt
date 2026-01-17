@@ -1,10 +1,14 @@
 package com.coni.hyperisle.ui.screens.settings
 
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.PowerManager
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +37,8 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,6 +81,7 @@ import com.coni.hyperisle.util.openBatterySettings
 import com.coni.hyperisle.util.openNotificationListenerSettings
 import com.coni.hyperisle.util.openOverlaySettings
 
+private const val MAPS_PACKAGE = "com.google.android.apps.maps"
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,6 +101,8 @@ fun SetupHealthScreen(onBack: () -> Unit) {
     var isPostGranted by remember { mutableStateOf(isPostNotificationsEnabled(context)) }
     var isBatteryOptimized by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
     var isPhoneCallsGranted by remember { mutableStateOf(CallManager.hasCallPermission(context)) }
+    var mapsPipAllowed by remember { mutableStateOf(isMapsPipAllowed(context)) }
+    val showMapsPipWarning = mapsPipAllowed != false
 
     // --- LIFECYCLE ---
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -105,6 +114,7 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                 isPostGranted = isPostNotificationsEnabled(context)
                 isBatteryOptimized = isIgnoringBatteryOptimizations(context)
                 isPhoneCallsGranted = CallManager.hasCallPermission(context)
+                mapsPipAllowed = isMapsPipAllowed(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -272,6 +282,13 @@ fun SetupHealthScreen(onBack: () -> Unit) {
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
+
+            if (showMapsPipWarning) {
+                MapsPipFixCard(
+                    onClick = { openMapsAppSettings(context) }
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             // --- 4. DEVICE OPTIMIZATION ---
             HealthSectionTitle(stringResource(R.string.device_optimization))
@@ -467,9 +484,88 @@ fun HealthItem(
     }
 }
 
+@Composable
+fun MapsPipFixCard(onClick: () -> Unit) {
+    val warningContainer = Color(0xFFFFF3E0)
+    val warningBorder = Color(0xFFFFB74D)
+    val warningAccent = Color(0xFFF57C00)
+    val warningText = Color(0xFF5D4037)
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = warningContainer),
+        border = BorderStroke(1.dp, warningBorder),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Warning, null, tint = warningAccent)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = stringResource(R.string.maps_pip_fix_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = warningText
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.maps_pip_fix_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = warningText.copy(alpha = 0.9f)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = onClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = warningAccent,
+                    contentColor = Color.White
+                )
+            ) {
+                Text(stringResource(R.string.maps_pip_fix_cta))
+            }
+        }
+    }
+}
+
 fun isIgnoringBatteryOptimizations(context: Context): Boolean {
     val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     return pm.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+fun isMapsPipAllowed(context: Context): Boolean? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
+    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return null
+    return try {
+        val appInfo = context.packageManager.getApplicationInfo(MAPS_PACKAGE, 0)
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
+            appInfo.uid,
+            MAPS_PACKAGE
+        )
+        mode == AppOpsManager.MODE_ALLOWED
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    } catch (_: SecurityException) {
+        null
+    }
+}
+
+fun openMapsAppSettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = "package:$MAPS_PACKAGE".toUri()
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        try {
+            val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallbackIntent)
+        } catch (_: Exception) { }
+    }
 }
 
 /**

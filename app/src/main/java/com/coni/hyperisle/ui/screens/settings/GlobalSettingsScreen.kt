@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Anchor
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +39,7 @@ fun GlobalSettingsScreen(
 
     val globalConfig by preferences.globalConfigFlow.collectAsState(initial = IslandConfig(true, true, 5000L))
     val anchorMode by preferences.anchorModeFlow.collectAsState(initial = AnchorVisibilityMode.TRIGGERED_ONLY)
+    val ghostModeEnabled by preferences.ghostModeEnabledFlow.collectAsState(initial = false)
     var showAnchorDialog by remember { mutableStateOf(false) }
 
     if (showAnchorDialog) {
@@ -123,6 +125,48 @@ fun GlobalSettingsScreen(
                     subtitle = AnchorVisibilityMode.getDisplayName(anchorMode),
                     onClick = { showAnchorDialog = true }
                 )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Ghost Mode Toggle
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.VisibilityOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column {
+                            Text(
+                                stringResource(R.string.ghost_mode_title),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                stringResource(R.string.ghost_mode_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = ghostModeEnabled,
+                        onCheckedChange = { checked ->
+                            scope.launch { preferences.setGhostModeEnabled(checked) }
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

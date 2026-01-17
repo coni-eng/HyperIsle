@@ -26,6 +26,7 @@ object IslandEventAdapter {
             is OverlayEvent.MediaEvent -> toMediaEvent(event.model)
             is OverlayEvent.TimerEvent -> toTimerEvent(event.model)
             is OverlayEvent.NavigationEvent -> toNavigationEvent(event.model)
+            is OverlayEvent.DownloadEvent -> null
             is OverlayEvent.DismissEvent -> IslandEvent.Dismiss(
                 notificationKey = event.notificationKey ?: "",
                 reason = "NOTIF_REMOVED"

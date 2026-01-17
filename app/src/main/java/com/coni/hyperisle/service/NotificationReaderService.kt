@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.os.Build
+import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.annotation.RequiresPermission
@@ -38,6 +39,8 @@ import com.coni.hyperisle.models.MusicIslandMode
 import com.coni.hyperisle.models.NotificationType
 import com.coni.hyperisle.models.ShadeCancelMode
 import com.coni.hyperisle.overlay.CallOverlayState
+import com.coni.hyperisle.overlay.DownloadOverlayModel
+import com.coni.hyperisle.overlay.DownloadStatus
 import com.coni.hyperisle.overlay.IosCallOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationOverlayModel
 import com.coni.hyperisle.overlay.IosNotificationReplyAction
@@ -60,6 +63,7 @@ import com.coni.hyperisle.util.ContextStateManager
 import com.coni.hyperisle.util.DebugTimeline
 import com.coni.hyperisle.util.FocusActionHelper
 import com.coni.hyperisle.util.ForegroundAppDetector
+import com.coni.hyperisle.util.CallManager
 import com.coni.hyperisle.util.Haptics
 import com.coni.hyperisle.util.HiLog
 import com.coni.hyperisle.util.IslandActivityStateMachine
@@ -174,6 +178,11 @@ class NotificationReaderService : NotificationListenerService() {
     private val minVisibleUntil = ConcurrentHashMap<String, Long>()
     private val minVisibleJobs = ConcurrentHashMap<String, Job>()
     private val pendingDismissJobs = ConcurrentHashMap<String, Job>()
+    private val lastCancelByStableKey = ConcurrentHashMap<String, Long>()
+    private val pendingMapsCancelJobs = ConcurrentHashMap<String, Job>()
+    private val downloadLastUpdateMs = ConcurrentHashMap<String, Long>()
+    private val downloadCompletionJobs = ConcurrentHashMap<String, Job>()
+    private val activeDownloadSessions = ConcurrentHashMap<String, DownloadOverlayModel>()
 
     // Call timer tracking: groupKey -> (startTime, timerJob)
     private val activeCallTimers = ConcurrentHashMap<String, Pair<Long, Job>>()
@@ -190,10 +199,24 @@ class NotificationReaderService : NotificationListenerService() {
     private val SELF_CANCEL_WINDOW_MS = 5000L
     private val SYS_CANCEL_POST_DELAY_MS = 200L
     private val POPUP_SUPPRESS_SNOOZE_MS = 500L  // Snooze duration to suppress popup, then show silently in status bar
+    private val NAV_POPUP_SUPPRESS_SNOOZE_MS = 60000L  // Keep Maps floating island suppressed during nav
+    private val MAPS_AGGRESSIVE_SNOOZE_MS = 60 * 60 * 1000L
+    private val CALL_INCOMING_CANCEL_FALLBACK_DELAY_MS = 700L
+    private val NAV_SPARSE_DEDUPE_WINDOW_MS = 5000L
+    private val NAV_SPARSE_EMIT_DELAY_MS = 200L
+    private val MAPS_RECANCEL_WINDOW_MS = 3500L
+    private val MAPS_RECANCEL_THROTTLE_MS = 150L
     private val OVERLAY_DEFAULT_COLLAPSE_MS = 4000L
+    private val DOWNLOAD_THROTTLE_MS = 150L
+    private val DOWNLOAD_COMPLETE_HIDE_MS = 1000L
     private val SHADE_CANCEL_HINT_NOTIFICATION_ID = 9105
     private val SHADE_CANCEL_HINT_COOLDOWN_MS = 24 * 60 * 60 * 1000L
     private val SHADE_CANCEL_HINT_PREFS = "shade_cancel_hint"
+    private var lastNavigationModel: NavigationOverlayModel? = null
+    private var lastNavigationModelUpdatedAtMs: Long = 0L
+    private var pendingNavSparseJob: Job? = null
+    private var pendingNavSparseModel: NavigationOverlayModel? = null
+    private var pendingNavSparseRid: Int? = null
 
     private lateinit var preferences: AppPreferences
     private lateinit var callTranslator: CallTranslator
@@ -354,6 +377,10 @@ class NotificationReaderService : NotificationListenerService() {
         }
         serviceScope.cancel()
         IslandKeyManager.clearAll()
+        downloadCompletionJobs.values.forEach { it.cancel() }
+        downloadCompletionJobs.clear()
+        activeDownloadSessions.clear()
+        downloadLastUpdateMs.clear()
     }
 
     // --- Heartbeat for Diagnostics (Debug Only) ---
@@ -432,7 +459,50 @@ class NotificationReaderService : NotificationListenerService() {
                     "hasFullScreenIntent" to (it.notification.fullScreenIntent != null)
                 )
             })
-            
+
+            val extras = it.notification.extras
+            var mapsNavDelayMs = 0L
+            val isMapsPackage = it.packageName == "com.google.android.apps.maps"
+            val category = it.notification.category
+            val isMapsRelevantCategory = category == Notification.CATEGORY_NAVIGATION ||
+                category == Notification.CATEGORY_SERVICE ||
+                category == Notification.CATEGORY_TRANSPORT
+            val isMediaStyle = extras.getStringCompatOrEmpty(Notification.EXTRA_TEMPLATE)
+                .contains("MediaStyle")
+            val hasExitNavAction = hasMapsExitNavigationAction(it.notification)
+            val shouldAggressiveMapsCancel = isMapsPackage &&
+                ((ctx.isOngoing && (isMapsRelevantCategory || isMediaStyle)) || hasExitNavAction)
+            if (shouldAggressiveMapsCancel) {
+                val stableKey = "${it.packageName}|${it.id}"
+                val nowElapsed = SystemClock.elapsedRealtime()
+                val lastCancelAt = lastCancelByStableKey[stableKey]
+                val inWindow = lastCancelAt != null && (nowElapsed - lastCancelAt) <= MAPS_RECANCEL_WINDOW_MS
+                val sinceLast = lastCancelAt?.let { nowElapsed - it } ?: Long.MAX_VALUE
+                val delayMs = if (inWindow && sinceLast < MAPS_RECANCEL_THROTTLE_MS) {
+                    MAPS_RECANCEL_THROTTLE_MS - sinceLast
+                } else {
+                    0L
+                }
+                mapsNavDelayMs = delayMs
+                lastCancelByStableKey[stableKey] = nowElapsed
+                if (BuildConfig.DEBUG) {
+                    HiLog.d(HiLog.TAG_NOTIF,
+                        "RID=${ctx.rid} EVT=MAPS_NAV_DETECTED stableKey=$stableKey delayMs=$delayMs"
+                    )
+                }
+                if (delayMs > 0L) {
+                    if (BuildConfig.DEBUG) {
+                        HiLog.d(HiLog.TAG_NOTIF,
+                            "RID=${ctx.rid} EVT=RECANCEL_WINDOW_HIT stableKey=$stableKey delayMs=$delayMs"
+                        )
+                    }
+                    scheduleMapsNavCancel(it, ctx.rid, stableKey, delayMs)
+                } else {
+                    pendingMapsCancelJobs.remove(stableKey)?.cancel()
+                    performMapsNavCancel(it, ctx.rid, stableKey)
+                }
+            }
+
             // UI Snapshot: NOTIF_POSTED - Initial intake
             if (BuildConfig.DEBUG) {
                 val snapshotCtx = IslandUiSnapshotLogger.ctxFromSbn(ctx.rid, it, "UNKNOWN")
@@ -488,12 +558,16 @@ class NotificationReaderService : NotificationListenerService() {
             }
             
             DebugLog.event("FILTER_CHECK", ctx.rid, "FILTER", reason = "ALLOWED", kv = mapOf("pkg" to it.packageName))
-            
+
             // WhatsApp telemetry: log when passed filter
             if (it.packageName == "com.whatsapp" || it.packageName == "com.whatsapp.w4b") {
                 HiLog.d(HiLog.TAG_NOTIF, "EVT=WHATSAPP_ALLOWED rid=${ctx.rid} step=FILTER_PASSED")
             }
-            
+
+            if (handleDownloadProgress(it)) {
+                return
+            }
+
             if (shouldSkipUpdate(it)) {
                 DebugLog.event("DEDUP_CHECK", ctx.rid, "DEDUP", reason = "DROP_RATE_LIMIT", kv = mapOf("pkg" to it.packageName))
                 // WhatsApp telemetry: log when rate-limited
@@ -552,8 +626,206 @@ class NotificationReaderService : NotificationListenerService() {
                 }
             }
             
-            serviceScope.launch { processAndPost(it, ctx) }
+            if (mapsNavDelayMs > 0L) {
+                serviceScope.launch {
+                    delay(mapsNavDelayMs)
+                    processAndPost(it, ctx)
+                }
+            } else {
+                serviceScope.launch { processAndPost(it, ctx) }
+            }
         }
+    }
+
+    private fun performMapsNavCancel(
+        sbn: StatusBarNotification,
+        rid: String,
+        stableKey: String
+    ) {
+        try {
+            snoozeNotification(sbn.key, MAPS_AGGRESSIVE_SNOOZE_MS)
+            markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
+            if (BuildConfig.DEBUG) {
+                HiLog.d(HiLog.TAG_NOTIF,
+                    "RID=$rid EVT=MAPS_NAV_SNOOZE_OK stableKey=$stableKey snoozeMs=$MAPS_AGGRESSIVE_SNOOZE_MS"
+                )
+            }
+            return
+        } catch (e: Exception) {
+            HiLog.w(HiLog.TAG_NOTIF,
+                "RID=$rid EVT=MAPS_NAV_SNOOZE_FAIL stableKey=$stableKey error=${e.message}"
+            )
+        }
+        if (BuildConfig.DEBUG) {
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=MAPS_NAV_CANCEL_TRY stableKey=$stableKey")
+        }
+        try {
+            cancelNotification(sbn.key)
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=MAPS_NAV_CANCEL_OK stableKey=$stableKey")
+        } catch (e: Exception) {
+            HiLog.w(HiLog.TAG_NOTIF, "RID=$rid EVT=MAPS_NAV_CANCEL_FAIL stableKey=$stableKey error=${e.message}")
+        }
+    }
+
+    private fun scheduleMapsNavCancel(
+        sbn: StatusBarNotification,
+        rid: String,
+        stableKey: String,
+        delayMs: Long
+    ) {
+        pendingMapsCancelJobs.remove(stableKey)?.cancel()
+        val job = serviceScope.launch {
+            if (delayMs > 0L) delay(delayMs)
+            performMapsNavCancel(sbn, rid, stableKey)
+            pendingMapsCancelJobs.remove(stableKey)
+        }
+        pendingMapsCancelJobs[stableKey] = job
+    }
+
+    private fun hasMapsExitNavigationAction(notification: Notification): Boolean {
+        val actions = notification.actions ?: return false
+        val keywords = listOf(
+            "navigasyondan çık",
+            "navigasyondan cik",
+            "exit navigation",
+            "stop navigation",
+            "end navigation"
+        )
+        return actions.any { action ->
+            val title = action.title?.toString()?.trim()?.lowercase(Locale.getDefault()) ?: return@any false
+            keywords.any { title.contains(it) }
+        }
+    }
+
+    private fun buildDownloadStableKey(sbn: StatusBarNotification): String {
+        return "${sbn.packageName}|${sbn.id}|${sbn.tag ?: ""}"
+    }
+
+    private fun isDownloadProgressNotification(
+        sbn: StatusBarNotification,
+        extras: android.os.Bundle
+    ): Boolean {
+        val isProgressCategory = sbn.notification.category == Notification.CATEGORY_PROGRESS
+        val hasProgressExtras = extras.containsKey(Notification.EXTRA_PROGRESS) ||
+            extras.containsKey(Notification.EXTRA_PROGRESS_MAX) ||
+            extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE)
+        return isProgressCategory || hasProgressExtras
+    }
+
+    private fun handleDownloadProgress(sbn: StatusBarNotification): Boolean {
+        val extras = sbn.notification.extras
+        if (!isDownloadProgressNotification(sbn, extras)) return false
+
+        val stableKey = buildDownloadStableKey(sbn)
+        val progress = extras.getInt(Notification.EXTRA_PROGRESS, 0)
+        val max = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
+        val indeterminate = extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE)
+
+        HiLog.d(
+            HiLog.TAG_DOWNLOAD,
+            "DOWNLOAD_DETECTED",
+            mapOf(
+                "stableKey" to stableKey,
+                "pkg" to sbn.packageName,
+                "progress" to progress,
+                "max" to max
+            )
+        )
+
+        val status = if (max > 0 && progress >= max) {
+            DownloadStatus.COMPLETED
+        } else {
+            DownloadStatus.ACTIVE
+        }
+
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val lastUpdate = downloadLastUpdateMs[stableKey] ?: 0L
+        val throttled = (nowElapsed - lastUpdate) < DOWNLOAD_THROTTLE_MS
+        if (throttled && status != DownloadStatus.COMPLETED) {
+            HiLog.d(HiLog.TAG_DOWNLOAD, "DOWNLOAD_THROTTLED", mapOf("stableKey" to stableKey))
+            return true
+        }
+        downloadLastUpdateMs[stableKey] = nowElapsed
+
+        val title = extras.getStringCompat(Notification.EXTRA_TITLE)?.trim().orEmpty()
+        val text = extras.getStringCompat(Notification.EXTRA_TEXT)?.trim().orEmpty()
+        val subText = extras.getStringCompat(Notification.EXTRA_SUB_TEXT)?.trim().orEmpty()
+
+        val model = DownloadOverlayModel(
+            stableKey = stableKey,
+            packageName = sbn.packageName,
+            progress = progress,
+            maxProgress = max,
+            indeterminate = indeterminate,
+            title = title,
+            text = text,
+            subText = subText,
+            status = status
+        )
+
+        activeDownloadSessions[stableKey] = model
+        downloadCompletionJobs.remove(stableKey)?.cancel()
+
+        if (status == DownloadStatus.COMPLETED) {
+            HiLog.d(HiLog.TAG_DOWNLOAD, "DOWNLOAD_COMPLETED", mapOf("stableKey" to stableKey))
+            scheduleDownloadCompletionRemoval(stableKey, sbn.packageName)
+        }
+
+        HiLog.d(
+            HiLog.TAG_DOWNLOAD,
+            "DOWNLOAD_UPDATE",
+            mapOf("stableKey" to stableKey, "p" to progress, "max" to max)
+        )
+
+        if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) {
+            return true
+        }
+        if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) {
+            return true
+        }
+
+        OverlayEventBus.emitDownload(model)
+        return true
+    }
+
+    private fun scheduleDownloadCompletionRemoval(stableKey: String, packageName: String) {
+        downloadCompletionJobs.remove(stableKey)?.cancel()
+        val job = serviceScope.launch {
+            delay(DOWNLOAD_COMPLETE_HIDE_MS)
+            emitDownloadRemoved(stableKey, packageName)
+        }
+        downloadCompletionJobs[stableKey] = job
+    }
+
+    private fun emitDownloadRemoved(stableKey: String, packageName: String) {
+        downloadCompletionJobs.remove(stableKey)?.cancel()
+        activeDownloadSessions.remove(stableKey)
+        downloadLastUpdateMs.remove(stableKey)
+
+        HiLog.d(HiLog.TAG_DOWNLOAD, "DOWNLOAD_REMOVED", mapOf("stableKey" to stableKey))
+
+        OverlayEventBus.emitDownload(
+            DownloadOverlayModel(
+                stableKey = stableKey,
+                packageName = packageName,
+                progress = 0,
+                maxProgress = 0,
+                indeterminate = false,
+                status = DownloadStatus.REMOVED
+            )
+        )
+    }
+
+    private fun handleDownloadRemoved(sbn: StatusBarNotification): Boolean {
+        val extras = sbn.notification.extras
+        val stableKey = buildDownloadStableKey(sbn)
+        val hasSession = activeDownloadSessions.containsKey(stableKey) ||
+            downloadCompletionJobs.containsKey(stableKey)
+        if (!hasSession && !isDownloadProgressNotification(sbn, extras)) {
+            return false
+        }
+        emitDownloadRemoved(stableKey, sbn.packageName)
+        return true
     }
 
     override fun onNotificationRemoved(
@@ -564,6 +836,9 @@ class NotificationReaderService : NotificationListenerService() {
         sbn?.let {
             val key = it.key
             val keyHash = key.hashCode()
+            if (handleDownloadRemoved(it)) {
+                return
+            }
             val groupKey = sbnKeyToGroupKey[key]
             val reasonName = mapRemovalReason(reason)
             val now = System.currentTimeMillis()
@@ -667,7 +942,7 @@ class NotificationReaderService : NotificationListenerService() {
             selfCancelKeys.remove(key)
             callActionCache.remove(key)
 
-            if (!isActiveIsland && activeIslands.isEmpty()) {
+            if (!isActiveIsland && activeIslands.isEmpty() && activeDownloadSessions.isEmpty()) {
                 IslandCooldownManager.clearLastActiveIsland()
                 if (OverlayEventBus.emitDismissAll()) {
                     HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=OVERLAY_HIDE_CALLED reason=ACTIVE_ISLANDS_EMPTY_$reasonName")
@@ -1253,10 +1528,29 @@ class NotificationReaderService : NotificationListenerService() {
             // --- GOOGLE MAPS FLOATING ISLAND BLOCKER ---
             // Prevent Google Maps from showing its own floating island alongside ours
             val blockGoogleMapsFloatingIsland = preferences.blockGoogleMapsFloatingIslandFlow.first()
-            if (blockGoogleMapsFloatingIsland && sbn.packageName == "com.google.android.apps.maps" && type == NotificationType.NAVIGATION) {
+            val mapsStableKey = "${sbn.packageName}|${sbn.id}"
+            val recentMapsCancel = if (sbn.packageName == "com.google.android.apps.maps" &&
+                type == NotificationType.NAVIGATION
+            ) {
+                val lastCancelAt = lastCancelByStableKey[mapsStableKey]
+                lastCancelAt != null && (SystemClock.elapsedRealtime() - lastCancelAt) <= MAPS_RECANCEL_WINDOW_MS
+            } else {
+                false
+            }
+            if (blockGoogleMapsFloatingIsland &&
+                sbn.packageName == "com.google.android.apps.maps" &&
+                type == NotificationType.NAVIGATION &&
+                !recentMapsCancel
+            ) {
                 HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_NAV_BLOCKED pkg=${sbn.packageName} - Preventing system floating island")
                 // Cancel the original notification to prevent system floating island
                 try {
+                    try {
+                        snoozeNotification(sbn.key, NAV_POPUP_SUPPRESS_SNOOZE_MS)
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_SNOOZE_REQ success=true snoozeMs=$NAV_POPUP_SUPPRESS_SNOOZE_MS")
+                    } catch (e: Exception) {
+                        HiLog.w(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_SNOOZE_FAIL error=${e.message}")
+                    }
                     // FIX: Use cancelNotification(key) instead of NotificationManagerCompat.cancel(id)
                     // NotificationManagerCompat.cancel(id) only works for notifications posted by THIS app.
                     // To cancel another app's notification, we must use the ListenerService method.
@@ -1490,6 +1784,7 @@ class NotificationReaderService : NotificationListenerService() {
             // WARNING: On some devices, cancelling call notification may affect ringtone.
             // If ringtone stops during incoming calls, consider using snoozeNotification instead.
             if (type == NotificationType.CALL) {
+                val callsOnlyIslandEnabled = preferences.isCallsOnlyIslandEnabled()
                 val contentIntent = sbn.notification.contentIntent
                 if (contentIntent != null) {
                     val bridgeIdForIntent = groupKey.hashCode()
@@ -1558,8 +1853,46 @@ class NotificationReaderService : NotificationListenerService() {
                             ))
                         }
                     }
+                    if (callsOnlyIslandEnabled) {
+                        scheduleIncomingCallCancelFallback(
+                            key = sbn.key,
+                            pkg = sbn.packageName,
+                            id = sbn.id,
+                            rid = rid
+                        )
+                    }
                 }
                 // Continue processing to show call UI in Dynamic Island (don't return)
+            }
+            
+            // --- NAVIGATION INTERCEPTION: Aggressively block Maps/Waze system notifications ---
+            // This is critical to prevent system PiP windows from appearing.
+            // By cancelling the notification immediately, we remove the "foreground service" link
+            // that keeps the PiP window alive.
+            if (type == NotificationType.NAVIGATION || isNavigation) {
+                // Aggressively cancel ALL notifications from this package if it's a navigation app
+                // This includes group summaries which often hold the PiP session alive
+                try {
+                    // 1. Cancel the main notification
+                    cancelNotification(sbn.key)
+                    markSelfCancel(sbn.key, sbn.key.hashCode(), sbn.packageName, sbn.id)
+                    
+                    // 2. Try to find and cancel any group summary for this package
+                    // Navigation apps often use a group summary (ranker) that keeps the session active
+                    activeNotifications?.filter { 
+                        it.packageName == sbn.packageName && 
+                        (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0 
+                    }?.forEach { summary ->
+                        cancelNotification(summary.key)
+                        markSelfCancel(summary.key, summary.key.hashCode(), summary.packageName, summary.id)
+                        HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=NAV_GROUP_CANCEL pkg=${sbn.packageName} key=${summary.key}")
+                    }
+                    
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=NAV_BLOCK_OK pkg=${sbn.packageName}")
+                } catch (e: Exception) {
+                    HiLog.w(HiLog.TAG_NOTIF, "RID=$rid EVT=NAV_BLOCK_FAIL pkg=${sbn.packageName} error=${e.message}")
+                }
+                // Continue to show island
             }
 
             // --- MAX_ISLANDS check with replacement ---
@@ -2085,6 +2418,7 @@ class NotificationReaderService : NotificationListenerService() {
         val pkg = sbn.packageName
         val keyHash = sbn.key.hashCode()
         val clearable = sbn.isClearable
+        val isGoogleMaps = pkg == "com.google.android.apps.maps"
         
         // v1.0.0: Always intercept STANDARD and CALL notifications
         // STANDARD: Always cancel clearable notifications (messages, alerts)
@@ -2099,7 +2433,24 @@ class NotificationReaderService : NotificationListenerService() {
         }
         
         val shadeCancelMode = preferences.getShadeCancelMode(pkg)
-        
+        val blockGoogleMapsFloatingIsland = if (isGoogleMaps && type == NotificationType.NAVIGATION) {
+            preferences.blockGoogleMapsFloatingIslandFlow.first()
+        } else {
+            false
+        }
+        val effectiveShadeCancelMode = if (blockGoogleMapsFloatingIsland &&
+            isGoogleMaps &&
+            type == NotificationType.NAVIGATION &&
+            shadeCancelMode != ShadeCancelMode.AGGRESSIVE
+        ) {
+            HiLog.d(HiLog.TAG_NOTIF,
+                "RID=$keyHash EVT=SHADE_MODE_OVERRIDE reason=FORCE_NAV_AGGRESSIVE pkg=$pkg prev=${shadeCancelMode.name}"
+            )
+            ShadeCancelMode.AGGRESSIVE
+        } else {
+            shadeCancelMode
+        }
+
         // Use IslandDecisionEngine for decoupled decision
         val decision = IslandDecisionEngine.computeDecision(
             context = applicationContext,
@@ -2107,7 +2458,7 @@ class NotificationReaderService : NotificationListenerService() {
             type = type,
             isAppAllowedForIsland = true, // Already verified by caller
             shadeCancelEnabled = shadeCancelEnabled,
-            shadeCancelMode = shadeCancelMode,
+            shadeCancelMode = effectiveShadeCancelMode,
             isOngoingCall = isOngoingCall
         )
         val routeConfirmed = when (route) {
@@ -2137,8 +2488,11 @@ class NotificationReaderService : NotificationListenerService() {
             else -> "OK"
         }
 
-        if (!decision.cancelShadeEligible && decision.ineligibilityReason == "NOT_CLEARABLE" && shadeCancelEnabled) {
-            maybeShowNotClearableHint(pkg, keyHash)
+        if (!decision.cancelShadeEligible &&
+            decision.ineligibilityReason == "NOT_CLEARABLE" &&
+            shadeCancelEnabled
+        ) {
+            maybeShowNotClearableHint(pkg, keyHash, blockGoogleMapsFloatingIsland)
         }
         
         // INSTRUMENTATION: Shade cancel decision
@@ -2243,14 +2597,20 @@ class NotificationReaderService : NotificationListenerService() {
             
             // For STANDARD notifications: use snooze to keep in status bar (iOS-like stacking)
             // For other types (NAVIGATION, etc.): use cancel as before
-            val useSnoozeForStacking = type == NotificationType.STANDARD && clearable
+            val useSnoozeForStacking = (type == NotificationType.STANDARD && clearable) ||
+                (type == NotificationType.NAVIGATION && blockGoogleMapsFloatingIsland)
+            val snoozeMs = if (type == NotificationType.NAVIGATION && blockGoogleMapsFloatingIsland) {
+                NAV_POPUP_SUPPRESS_SNOOZE_MS
+            } else {
+                POPUP_SUPPRESS_SNOOZE_MS
+            }
             
             try {
                 delay(SYS_CANCEL_POST_DELAY_MS)
                 if (useSnoozeForStacking) {
                     // Snooze briefly - notification will reappear silently in status bar
-                    snoozeNotification(sbn.key, POPUP_SUPPRESS_SNOOZE_MS)
-                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_SNOOZE_OK snoozeMs=$POPUP_SUPPRESS_SNOOZE_MS")
+                    snoozeNotification(sbn.key, snoozeMs)
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_SNOOZE_OK snoozeMs=$snoozeMs")
                 } else {
                     cancelNotification(sbn.key)
                     HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SYS_NOTIF_CANCEL_OK")
@@ -2318,7 +2678,7 @@ class NotificationReaderService : NotificationListenerService() {
             decision.cancelShadeSafe &&
             routeConfirmed &&
             decision.ineligibilityReason == "NOT_CLEARABLE" &&
-            shadeCancelMode == ShadeCancelMode.AGGRESSIVE &&
+            effectiveShadeCancelMode == ShadeCancelMode.AGGRESSIVE &&
             type != NotificationType.CALL
         ) {
             attemptAggressiveShadeCancel(sbn, type, keyHash)
@@ -2448,7 +2808,46 @@ class NotificationReaderService : NotificationListenerService() {
         return appPriorityList.indexOf(packageName).takeIf { it != -1 } ?: Int.MAX_VALUE
     }
 
-    private fun maybeShowNotClearableHint(pkg: String, keyHash: Int) {
+    private fun scheduleIncomingCallCancelFallback(
+        key: String,
+        pkg: String,
+        id: Int,
+        rid: String
+    ) {
+        val keyHash = key.hashCode()
+        serviceScope.launch {
+            delay(CALL_INCOMING_CANCEL_FALLBACK_DELAY_MS)
+            val callState = CallManager.getCallState(applicationContext)
+            val isRinging = callState == CallManager.CallState.RINGING
+            val isActive = activeNotifications?.any { it.key == key } == true
+            if (!isRinging || !isActive) {
+                HiLog.d(HiLog.TAG_NOTIF,
+                    "RID=$rid EVT=CALL_INCOMING_FALLBACK_SKIP state=${callState.name} active=$isActive pkg=$pkg"
+                )
+                return@launch
+            }
+
+            HiLog.d(HiLog.TAG_NOTIF,
+                "RID=$rid EVT=CALL_INCOMING_FALLBACK_TRY state=${callState.name} pkg=$pkg"
+            )
+            try {
+                cancelNotification(key)
+                markSelfCancel(key, keyHash, pkg, id)
+                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=CALL_INCOMING_FALLBACK_OK pkg=$pkg")
+            } catch (e: Exception) {
+                HiLog.w(HiLog.TAG_NOTIF, "Call fallback cancel failed: ${e.message}")
+                HiLog.d(HiLog.TAG_NOTIF,
+                    "RID=$rid EVT=CALL_INCOMING_FALLBACK_FAIL reason=${e.javaClass.simpleName} pkg=$pkg"
+                )
+            }
+        }
+    }
+
+    private fun maybeShowNotClearableHint(
+        pkg: String,
+        keyHash: Int,
+        blockGoogleMapsFloatingIsland: Boolean
+    ) {
         val prefs = getSharedPreferences(SHADE_CANCEL_HINT_PREFS, MODE_PRIVATE)
         val lastShown = prefs.getLong("not_clearable_last_shown_ms", 0L)
         val now = System.currentTimeMillis()
@@ -2466,11 +2865,18 @@ class NotificationReaderService : NotificationListenerService() {
             return
         }
 
+        val bannerResId = if (blockGoogleMapsFloatingIsland &&
+            pkg == "com.google.android.apps.maps"
+        ) {
+            R.string.shade_cancel_maps_not_clearable_banner
+        } else {
+            R.string.shade_cancel_not_clearable_banner
+        }
         try {
             poster.postSystemNotification(
                 SHADE_CANCEL_HINT_NOTIFICATION_ID,
                 getString(R.string.app_name),
-                getString(R.string.shade_cancel_not_clearable_banner)
+                getString(bannerResId)
             )
         } catch (e: SecurityException) {
             HiLog.w(HiLog.TAG_NOTIF, "Shade cancel hint post blocked: ${e.message}")
@@ -2479,7 +2885,9 @@ class NotificationReaderService : NotificationListenerService() {
             )
             return
         }
-        HiLog.d(HiLog.TAG_NOTIF, "RID=$keyHash EVT=SHADE_CANCEL_HINT_SHOWN reason=NOT_CLEARABLE pkg=$pkg")
+        HiLog.d(HiLog.TAG_NOTIF,
+            "RID=$keyHash EVT=SHADE_CANCEL_HINT_SHOWN reason=NOT_CLEARABLE pkg=$pkg"
+        )
     }
 
     private suspend fun attemptAggressiveShadeCancel(
@@ -3274,6 +3682,8 @@ class NotificationReaderService : NotificationListenerService() {
         val appIcon = getAppIconBitmap(sbn.packageName)
         val accentColor = com.coni.hyperisle.util.AccentColorResolver.getAccentColor(this, sbn.packageName)
         
+        val actionCount = sbn.notification.actions?.size ?: 0
+
         return NavigationOverlayModel(
             instruction = instruction,
             distance = distance,
@@ -3287,8 +3697,85 @@ class NotificationReaderService : NotificationListenerService() {
             packageName = sbn.packageName,
             notificationKey = sbn.key,
             islandSize = NavIslandSize.COMPACT,
-            accentColor = accentColor
+            accentColor = accentColor,
+            actionCount = actionCount
         )
+    }
+
+    private fun navHasDetails(model: NavigationOverlayModel): Boolean {
+        return model.eta.isNotBlank() || model.distance.isNotBlank() || model.remainingTime.isNotBlank()
+    }
+
+    private fun shouldSkipNavUpdate(model: NavigationOverlayModel, nowMs: Long): Boolean {
+        val previous = lastNavigationModel ?: return false
+        if (previous.packageName != model.packageName) return false
+        if (previous.notificationKey != model.notificationKey) return false
+        if (!navHasDetails(previous)) return false
+        if (navHasDetails(model)) return false
+        val elapsedMs = nowMs - lastNavigationModelUpdatedAtMs
+        return elapsedMs in 0..NAV_SPARSE_DEDUPE_WINDOW_MS
+    }
+
+    private fun cancelPendingNavSparse(reason: String) {
+        val pendingRid = pendingNavSparseRid
+        if (pendingNavSparseJob != null && BuildConfig.DEBUG && pendingRid != null) {
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$pendingRid EVT=NAV_SPARSE_CANCEL reason=$reason")
+        }
+        pendingNavSparseJob?.cancel()
+        pendingNavSparseJob = null
+        pendingNavSparseModel = null
+        pendingNavSparseRid = null
+    }
+
+    private fun emitNavigationModel(
+        model: NavigationOverlayModel,
+        rid: Int,
+        nowMs: Long,
+        source: String
+    ): Boolean {
+        val emitted = OverlayEventBus.emitNavigation(model)
+        if (BuildConfig.DEBUG) {
+            HiLog.d(HiLog.TAG_ISLAND,
+                "RID=$rid EVT=NAV_OVERLAY_EMIT src=$source pkg=${model.packageName} result=${if (emitted) "OK" else "DROP"}"
+            )
+        }
+        if (emitted) {
+            lastNavigationModel = model
+            lastNavigationModelUpdatedAtMs = nowMs
+        }
+        return emitted
+    }
+
+    private fun scheduleSparseNavEmit(
+        model: NavigationOverlayModel,
+        rid: Int
+    ) {
+        cancelPendingNavSparse("REPLACED")
+        pendingNavSparseModel = model
+        pendingNavSparseRid = rid
+        if (BuildConfig.DEBUG) {
+            HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=NAV_SPARSE_DELAY ms=$NAV_SPARSE_EMIT_DELAY_MS")
+        }
+        pendingNavSparseJob = serviceScope.launch {
+            delay(NAV_SPARSE_EMIT_DELAY_MS)
+            val pendingModel = pendingNavSparseModel ?: return@launch
+            val pendingRid = pendingNavSparseRid ?: return@launch
+            if (pendingRid != rid) return@launch
+            val nowMs = System.currentTimeMillis()
+            if (shouldSkipNavUpdate(pendingModel, nowMs)) {
+                if (BuildConfig.DEBUG) {
+                    HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=NAV_SPARSE_SKIP reason=SPARSE_DEDUPE")
+                }
+                pendingNavSparseModel = null
+                pendingNavSparseRid = null
+                pendingNavSparseJob = null
+                return@launch
+            }
+            emitNavigationModel(pendingModel, rid, nowMs, "SPARSE_DELAY")
+            pendingNavSparseModel = null
+            pendingNavSparseRid = null
+            pendingNavSparseJob = null
+        }
     }
 
     /**
@@ -3299,15 +3786,26 @@ class NotificationReaderService : NotificationListenerService() {
         if (!shouldRenderOverlay(NotificationType.NAVIGATION, rid)) return false
         if (!OverlayPermissionHelper.hasOverlayPermission(applicationContext)) return false
         if (!OverlayPermissionHelper.startOverlayServiceIfPermitted(applicationContext)) return false
-        
+
         val navModel = buildNavigationOverlayModel(sbn) ?: return false
-        val emitted = OverlayEventBus.emitNavigation(navModel)
-        if (BuildConfig.DEBUG) {
-            HiLog.d(HiLog.TAG_ISLAND,
-                "RID=$rid EVT=NAV_OVERLAY_EMIT pkg=${sbn.packageName} result=${if (emitted) "OK" else "DROP"}"
-            )
+        val nowMs = System.currentTimeMillis()
+        if (shouldSkipNavUpdate(navModel, nowMs)) {
+            if (BuildConfig.DEBUG) {
+                HiLog.d(HiLog.TAG_NOTIF,
+                    "RID=$rid EVT=NAV_UPDATE_SKIP reason=SPARSE_DEDUPE pkg=${sbn.packageName} " +
+                        "actions=${navModel.actionCount} prevActions=${lastNavigationModel?.actionCount}"
+                )
+            }
+            return false
         }
-        return emitted
+
+        if (!navHasDetails(navModel)) {
+            scheduleSparseNavEmit(navModel, rid)
+            return false
+        }
+
+        cancelPendingNavSparse("RICH_UPDATE")
+        return emitNavigationModel(navModel, rid, nowMs, "IMMEDIATE")
     }
 
     private fun extractMediaActions(sbn: StatusBarNotification): List<MediaAction> {

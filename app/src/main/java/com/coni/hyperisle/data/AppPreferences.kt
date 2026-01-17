@@ -893,6 +893,14 @@ class AppPreferences(context: Context) {
         save(SettingsKeys.ANCHOR_VISIBILITY_MODE, mode.name)
     }
 
+    // --- GHOST MODE (foreground notification style) ---
+    val ghostModeEnabledFlow: Flow<Boolean> = dao.getSettingFlow(SettingsKeys.GHOST_MODE_ENABLED)
+        .map { it.toBoolean(false) }
+
+    suspend fun setGhostModeEnabled(enabled: Boolean) {
+        save(SettingsKeys.GHOST_MODE_ENABLED, enabled.toString())
+    }
+
     /**
      * Counts how many apps have shade cancel enabled.
      * Used for diagnostics header.

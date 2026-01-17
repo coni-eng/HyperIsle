@@ -135,6 +135,30 @@ data class TimerOverlayModel(
 )
 
 /**
+ * Download overlay state for anchor rendering.
+ */
+enum class DownloadStatus {
+    ACTIVE,
+    COMPLETED,
+    REMOVED
+}
+
+/**
+ * Data model for download progress overlay (anchor-only).
+ */
+data class DownloadOverlayModel(
+    val stableKey: String,
+    val packageName: String,
+    val progress: Int,
+    val maxProgress: Int,
+    val indeterminate: Boolean,
+    val title: String = "",
+    val text: String = "",
+    val subText: String = "",
+    val status: DownloadStatus = DownloadStatus.ACTIVE
+)
+
+/**
  * Navigation island size mode.
  */
 enum class NavIslandSize {
@@ -172,7 +196,8 @@ data class NavigationOverlayModel(
     val packageName: String,
     val notificationKey: String,
     val islandSize: NavIslandSize = NavIslandSize.COMPACT,
-    val accentColor: String? = null
+    val accentColor: String? = null,
+    val actionCount: Int = 0
 )
 
 /**
@@ -240,6 +265,11 @@ sealed class OverlayEvent {
      * Event to show a navigation pill overlay.
      */
     data class NavigationEvent(val model: NavigationOverlayModel) : OverlayEvent()
+
+    /**
+     * Event to show a download progress state on the anchor.
+     */
+    data class DownloadEvent(val model: DownloadOverlayModel) : OverlayEvent()
 
     /**
      * Event to show a notification pill overlay.

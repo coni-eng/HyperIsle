@@ -2,6 +2,7 @@ package com.coni.hyperisle.overlay.anchor
 
 import android.content.Context
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Phone
 import com.coni.hyperisle.BuildConfig
@@ -41,6 +42,7 @@ class AnchorCoordinator(
 
     private var activeCallState: CallAnchorState? = null
     private var activeNavState: NavAnchorState? = null
+    private var activeDownloadState: DownloadAnchorState? = null
     private var isNotifExpanded: Boolean = false
     private var isNavExpanded: Boolean = false
     private var expandedNotificationKey: String? = null
@@ -103,6 +105,35 @@ class AnchorCoordinator(
             val cutout = _cutoutInfo.value
             val pillW = cutout?.width?.plus(120 + 16) ?: 0
             HiLog.d(HiLog.TAG_ISLAND, "EVT=MODE_SWITCH from=$prevMode to=${_anchorState.value.mode} reason=NAV_STATE cutoutW=${cutout?.width ?: 0} pillW=$pillW")
+        }
+    }
+
+    /**
+     * Update download state for anchor display.
+     */
+    fun updateDownloadState(downloadState: DownloadAnchorState?) {
+        val prevMode = _anchorState.value.mode
+        val wasVisible = prevMode == IslandMode.DOWNLOAD_ACTIVE
+        val previousKey = if (wasVisible) activeDownloadState?.stableKey else null
+        activeDownloadState = downloadState
+
+        updateAnchorMode()
+
+        val nowVisible = _anchorState.value.mode == IslandMode.DOWNLOAD_ACTIVE
+        val currentKey = if (nowVisible) activeDownloadState?.stableKey else null
+        if (!wasVisible && nowVisible && currentKey != null) {
+            HiLog.d(HiLog.TAG_ISLAND, "DOWNLOAD_UI_SHOW", mapOf("stableKey" to currentKey))
+        } else if (wasVisible && !nowVisible && previousKey != null) {
+            HiLog.d(HiLog.TAG_ISLAND, "DOWNLOAD_UI_HIDE", mapOf("stableKey" to previousKey))
+        }
+
+        if (nowVisible) {
+            val state = activeDownloadState ?: return
+            HiLog.d(
+                HiLog.TAG_ISLAND,
+                "DOWNLOAD_UI_UPDATE",
+                mapOf("p" to state.progress, "max" to state.max)
+            )
         }
     }
 
@@ -202,6 +233,7 @@ class AnchorCoordinator(
     fun clearAll() {
         activeCallState = null
         activeNavState = null
+        activeDownloadState = null
         isNotifExpanded = false
         isNavExpanded = false
         expandedNotificationKey = null
@@ -236,6 +268,7 @@ class AnchorCoordinator(
         val newMode = when {
             activeCallState != null -> IslandMode.CALL_ACTIVE
             activeNavState != null -> IslandMode.NAV_ACTIVE
+            activeDownloadState != null -> IslandMode.DOWNLOAD_ACTIVE
             else -> IslandMode.ANCHOR_IDLE
         }
 
@@ -284,6 +317,23 @@ class AnchorCoordinator(
                 }
                 left to right
             }
+            IslandMode.DOWNLOAD_ACTIVE -> {
+                val download = activeDownloadState!!
+                val isIndeterminate = download.indeterminate || download.max <= 0
+                val progressFraction = if (download.max > 0) {
+                    (download.progress.toFloat() / download.max.toFloat()).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+                val left = SlotContent.IconOnly(
+                    SlotIcon.Vector(Icons.Default.Download, "Download")
+                )
+                val right = SlotContent.ProgressBar(
+                    progress = progressFraction,
+                    indeterminate = isIndeterminate
+                )
+                left to right
+            }
             else -> SlotContent.Empty to SlotContent.Empty
         }
 
@@ -293,6 +343,7 @@ class AnchorCoordinator(
             rightSlot = rightSlot,
             callState = activeCallState,
             navState = activeNavState,
+            downloadState = activeDownloadState,
             cutoutRect = _cutoutInfo.value?.rect,
             modeStartedAtMs = System.currentTimeMillis()
         )

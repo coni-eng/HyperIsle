@@ -2,16 +2,16 @@ package com.coni.hyperisle.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Category
-import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.SportsEsports
@@ -39,7 +39,7 @@ fun appCategoryIcon(category: AppCategory, isSelected: Boolean): ImageVector {
         when (category) {
             AppCategory.ALL -> Icons.Filled.Apps
             AppCategory.GAMES -> Icons.Filled.SportsEsports
-            AppCategory.MESSAGING -> Icons.Filled.Chat
+            AppCategory.MESSAGING -> Icons.AutoMirrored.Filled.Chat
             AppCategory.MUSIC -> Icons.Filled.MusicNote
             AppCategory.MAPS -> Icons.Filled.Place
             AppCategory.TIMER -> Icons.Filled.Timer
@@ -49,7 +49,7 @@ fun appCategoryIcon(category: AppCategory, isSelected: Boolean): ImageVector {
         when (category) {
             AppCategory.ALL -> Icons.Outlined.Apps
             AppCategory.GAMES -> Icons.Outlined.SportsEsports
-            AppCategory.MESSAGING -> Icons.Outlined.Chat
+            AppCategory.MESSAGING -> Icons.AutoMirrored.Outlined.Chat
             AppCategory.MUSIC -> Icons.Outlined.MusicNote
             AppCategory.MAPS -> Icons.Outlined.Place
             AppCategory.TIMER -> Icons.Outlined.Timer

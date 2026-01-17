@@ -43,6 +43,11 @@ data class AnchorState(
     val navState: NavAnchorState? = null,
 
     /**
+     * Download-specific state (when mode == DOWNLOAD_ACTIVE).
+     */
+    val downloadState: DownloadAnchorState? = null,
+
+    /**
      * Notification key for expanded mode.
      */
     val expandedNotificationKey: String? = null,
@@ -88,6 +93,14 @@ sealed class SlotContent {
      */
     data class IconWithWaveBar(
         val icon: SlotIcon
+    ) : SlotContent()
+
+    /**
+     * Download progress bar content.
+     */
+    data class ProgressBar(
+        val progress: Float,
+        val indeterminate: Boolean
     ) : SlotContent()
 
     /**
@@ -138,6 +151,18 @@ data class NavAnchorState(
      * User-selected right slot info type.
      */
     val rightInfoType: NavInfoType = NavInfoType.ETA
+)
+
+/**
+ * Download-specific state for anchor display.
+ */
+data class DownloadAnchorState(
+    val stableKey: String,
+    val packageName: String,
+    val progress: Int,
+    val max: Int,
+    val indeterminate: Boolean,
+    val label: String = ""
 )
 
 /**

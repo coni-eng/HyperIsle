@@ -62,6 +62,7 @@ class AnchorFeature(
             IslandMode.NAV_ACTIVE -> ActiveIsland.PRIORITY_NAVIGATION_ACTIVE
             IslandMode.NAV_EXPANDED -> ActiveIsland.PRIORITY_NAVIGATION_ACTIVE
             IslandMode.NOTIF_EXPANDED -> ActiveIsland.PRIORITY_NOTIFICATION_IMPORTANT
+            IslandMode.DOWNLOAD_ACTIVE -> ActiveIsland.PRIORITY_FALLBACK
             IslandMode.ANCHOR_IDLE -> 0
         }
     }
@@ -74,6 +75,14 @@ class AnchorFeature(
             IslandMode.NAV_ACTIVE -> IslandPolicy.NAVIGATION
             IslandMode.NAV_EXPANDED -> IslandPolicy.NAVIGATION
             IslandMode.NOTIF_EXPANDED -> IslandPolicy.NOTIFICATION
+            IslandMode.DOWNLOAD_ACTIVE -> IslandPolicy(
+                minVisibleMs = 0L,
+                collapseAfterMs = null,
+                dismissAfterCollapseMs = null,
+                sticky = true,
+                dismissible = false,
+                allowPassThrough = true
+            )
             IslandMode.ANCHOR_IDLE -> IslandPolicy(
                 minVisibleMs = 0L,
                 collapseAfterMs = null,
@@ -124,6 +133,9 @@ class AnchorFeature(
                     }
                     IslandMode.NOTIF_EXPANDED, IslandMode.NAV_EXPANDED -> {
                         // Handled by expanded content or dismiss
+                    }
+                    IslandMode.DOWNLOAD_ACTIVE -> {
+                        actions.hapticShown()
                     }
                     IslandMode.ANCHOR_IDLE -> {
                         // Optional: Open settings or do nothing
@@ -233,6 +245,15 @@ fun AnchorPillWithAnimation(
                     } ?: IdleAnchorPill(
                         cutoutInfo = cutoutInfo,
                         onTap = onTap,
+                        debugRid = debugRid
+                    )
+                }
+                IslandMode.DOWNLOAD_ACTIVE -> {
+                    AnchorPill(
+                        state = anchorState,
+                        cutoutInfo = cutoutInfo,
+                        onTap = onTap,
+                        onLongPress = onLongPress,
                         debugRid = debugRid
                     )
                 }

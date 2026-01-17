@@ -122,6 +122,9 @@ object SettingsKeys {
     // MIUI bridge island (experimental)
     const val PREF_USE_MIUI_BRIDGE_ISLAND = "pref_use_miui_bridge_island"
 
+    // Ghost mode (foreground service notification)
+    const val GHOST_MODE_ENABLED = "ghost_mode_enabled"
+
     // Island Style Preview (dev toggle)
     const val DEV_ISLAND_STYLE_PREVIEW = "dev_island_style_preview"
     

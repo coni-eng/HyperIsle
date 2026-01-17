@@ -13,6 +13,7 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.IBinder
 import android.telephony.TelephonyManager
+import android.util.TypedValue
 import android.view.MotionEvent
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
@@ -21,6 +22,7 @@ import com.coni.hyperisle.models.AnchorVisibilityMode
 import com.coni.hyperisle.models.NavContent
 import com.coni.hyperisle.overlay.features.NavFeature
 import kotlinx.coroutines.flow.first
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
@@ -120,8 +122,10 @@ class IslandOverlayService : Service() {
 
     companion object {
         private const val TAG = "IslandOverlayService"
-        private const val CHANNEL_ID = "ios_pill_overlay_channel"
+        private const val CHANNEL_ID_NORMAL = "ios_pill_overlay_channel"
+        private const val CHANNEL_ID_GHOST = "ios_pill_overlay_channel_ghost"
         private const val NOTIFICATION_ID = 9999
+        private const val MAPS_PACKAGE = "com.google.android.apps.maps"
 
         const val ACTION_START = "com.coni.hyperisle.overlay.START"
         const val ACTION_STOP = "com.coni.hyperisle.overlay.STOP"
@@ -130,11 +134,14 @@ class IslandOverlayService : Service() {
             "com.google.android.dialer",
             "com.android.incallui"
         )
+        @Volatile
+        var isServiceRunning: Boolean = false
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private lateinit var overlayController: OverlayWindowController
     private lateinit var appPreferences: AppPreferences
+    private val isStarted = AtomicBoolean(false)
 
     // Anchor system
     private var anchorCoordinator: AnchorCoordinator? = null
@@ -204,11 +211,16 @@ class IslandOverlayService : Service() {
     private var currentMediaModel: MediaOverlayModel? by mutableStateOf(null)
     private var currentTimerModel: TimerOverlayModel? by mutableStateOf(null)
     private var currentNavigationModel: NavigationOverlayModel? by mutableStateOf(null)
+    private var currentDownloadModel: DownloadOverlayModel? = null
     private var isNotificationCollapsed: Boolean by mutableStateOf(false)
     private var autoCollapseJob: Job? = null
     private var stopForegroundJob: Job? = null
+    private var contextPositionJob: Job? = null
     private var isForegroundActive = false
+    private var ghostModeEnabled = false
+    private var foregroundChannelId: String = CHANNEL_ID_NORMAL
     private var deferCallOverlay: Boolean = false
+    private var lastContextSignals: AccessibilityContextSignals? = null
     
     // Track user-dismissed calls to prevent re-showing after swipe
     // Uses TTL-based dedupe: key -> dismissTime
@@ -262,6 +274,7 @@ class IslandOverlayService : Service() {
     private var optimisticAudioState: OptimisticAudioState? = null
     private val OPTIMISTIC_REVERT_MS = 800L // Revert optimistic state after 800ms if no confirmation
     private var audioStateRevertJob: Job? = null
+    private val NAV_CALL_OVERLAY_EXTRA_DP = 8f
 
     private val shouldStayAlive: Boolean
         get() = when (currentAnchorMode) {
@@ -271,8 +284,36 @@ class IslandOverlayService : Service() {
             AnchorVisibilityMode.TRIGGERED_ONLY -> false
         }
 
+    private fun resolveNavCallYOffsetPx(): Int {
+        val cutoutInfo = CutoutHelper.getCutoutInfo(applicationContext)
+        val extraPx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            NAV_CALL_OVERLAY_EXTRA_DP,
+            resources.displayMetrics
+        ).toInt()
+        return (cutoutInfo?.height ?: 0) + extraPx
+    }
+
+    private fun updateOverlayYOffset(reason: String) {
+        if (!::overlayController.isInitialized) return
+        val offsetPx = if (currentCallModel != null || currentNavigationModel != null) {
+            resolveNavCallYOffsetPx()
+        } else {
+            0
+        }
+        if (BuildConfig.DEBUG) {
+            HiLog.d(
+                HiLog.TAG_ISLAND,
+                "EVT=OVERLAY_Y_OFFSET reason=$reason px=$offsetPx " +
+                    "callActive=${currentCallModel != null} navActive=${currentNavigationModel != null}"
+            )
+        }
+        overlayController.setExtraYOffsetPx(offsetPx, reason)
+    }
+
     override fun onCreate() {
         super.onCreate()
+        isServiceRunning = true
         HiLog.d(HiLog.TAG_ISLAND, "Service created")
         if (BuildConfig.DEBUG) {
             HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_CREATE STAGE=LIFECYCLE ACTION=OVERLAY_SVC_CREATED")
@@ -281,7 +322,8 @@ class IslandOverlayService : Service() {
 
         overlayController = OverlayWindowController(applicationContext)
         appPreferences = AppPreferences(applicationContext)
-        createNotificationChannel()
+        createNotificationChannels()
+        observeGhostMode()
         
         // Register lock receiver
         val filter = IntentFilter().apply {
@@ -294,6 +336,7 @@ class IslandOverlayService : Service() {
 
         startEventCollection()
         startCallStateGuard()
+        startContextPositionWatcher()
         initAnchorSystem()
 
         // Initial anchor visibility check
@@ -326,6 +369,23 @@ class IslandOverlayService : Service() {
                     }
                 }
                 updateAnchorVisibility()
+            }
+        }
+    }
+
+    private fun observeGhostMode() {
+        serviceScope.launch {
+            appPreferences.ghostModeEnabledFlow.collectLatest { enabled ->
+                val wasEnabled = ghostModeEnabled
+                ghostModeEnabled = enabled
+                val targetChannel = if (enabled) CHANNEL_ID_GHOST else CHANNEL_ID_NORMAL
+                if (wasEnabled != enabled) {
+                    HiLog.d(
+                        HiLog.TAG_GHOST,
+                        if (enabled) "GHOST_MODE_ENABLED" else "GHOST_MODE_DISABLED"
+                    )
+                }
+                updateForegroundNotification(targetChannel)
             }
         }
     }
@@ -416,6 +476,11 @@ class IslandOverlayService : Service() {
                         HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_TAP_NAV pkg=${model.packageName}")
                     }
                     handleNotificationTap(model.contentIntent, rid, model.packageName)
+                }
+            }
+            IslandMode.DOWNLOAD_ACTIVE -> {
+                if (BuildConfig.DEBUG) {
+                    HiLog.d("HyperIsleAnchor", "RID=$rid EVT=ANCHOR_TAP_DOWNLOAD")
                 }
             }
             else -> {
@@ -534,7 +599,7 @@ class IslandOverlayService : Service() {
     private fun updateAnchorNavState(model: NavigationOverlayModel?) {
         val coordinator = anchorCoordinator ?: return
         if (!isAnchorModeEnabled) return
-        
+
         if (model == null) {
             coordinator.updateNavState(null)
             if (BuildConfig.DEBUG) {
@@ -592,6 +657,43 @@ class IslandOverlayService : Service() {
         }
     }
 
+    private fun updateAnchorDownloadState(model: DownloadOverlayModel?) {
+        val coordinator = anchorCoordinator ?: return
+        if (!isAnchorModeEnabled) {
+            currentDownloadModel = null
+            coordinator.updateDownloadState(null)
+            return
+        }
+
+        if (model == null || model.status == DownloadStatus.REMOVED) {
+            currentDownloadModel = null
+            coordinator.updateDownloadState(null)
+            scheduleStopIfIdle("DOWNLOAD_REMOVED")
+            return
+        }
+
+        currentDownloadModel = model
+        val label = listOf(model.title, model.text, model.subText)
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+        coordinator.updateDownloadState(
+            com.coni.hyperisle.overlay.anchor.DownloadAnchorState(
+                stableKey = model.stableKey,
+                packageName = model.packageName,
+                progress = model.progress,
+                max = model.maxProgress,
+                indeterminate = model.indeterminate,
+                label = label
+            )
+        )
+
+        if (!overlayController.isShowing() ||
+            overlayController.currentEvent is OverlayEvent.DismissAllEvent) {
+            ensureForeground()
+            showAnchorIdleOverlay()
+        }
+    }
+
     private fun expandNotificationFromAnchor(notificationKey: String) {
         val coordinator = anchorCoordinator ?: return
         if (!isAnchorModeEnabled) return
@@ -632,17 +734,25 @@ class IslandOverlayService : Service() {
                 }
                 stopForeground(true)
                 isForegroundActive = false
+                isStarted.set(false)
                 stopSelf()
                 return START_NOT_STICKY
             }
             ACTION_START, null -> {
-                HiLog.d(HiLog.TAG_ISLAND, "Starting foreground service")
+                val shouldStartForeground = !(isForegroundActive || isStarted.get())
+                if (shouldStartForeground) {
+                    HiLog.d(HiLog.TAG_ISLAND, "Starting foreground service")
+                } else {
+                    HiLog.d(HiLog.TAG_GHOST, "FOREGROUND_ALREADY_STARTED_SKIP")
+                }
                 // INSTRUMENTATION: Overlay service start
                 if (BuildConfig.DEBUG) {
                     HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_START STAGE=LIFECYCLE ACTION=OVERLAY_SVC_START")
                     IslandRuntimeDump.recordOverlay(null, "SERVICE_START", reason = "ACTION_START")
                 }
-                ensureForeground()
+                if (shouldStartForeground) {
+                    ensureForeground()
+                }
             }
         }
         return START_STICKY
@@ -652,6 +762,14 @@ class IslandOverlayService : Service() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        
+        // HARDENING: Ignore configuration changes if screen width hasn't actually changed significantly
+        // This prevents re-layout triggers when PiP windows enter/exit or system bars toggle
+        // which can cause temporary layout shifts.
+        if (::overlayController.isInitialized) {
+            overlayController.checkAndUpdatePositionIfNeeded()
+        }
+        
         if (BuildConfig.DEBUG) {
             HiLog.d("HyperIsleAnchor", "EVT=CONFIG_CHANGED orientation=${newConfig.orientation}")
         }
@@ -661,6 +779,7 @@ class IslandOverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isServiceRunning = false
         HiLog.d(HiLog.TAG_ISLAND, "Service destroyed")
         if (BuildConfig.DEBUG) {
             HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_DEST STAGE=LIFECYCLE ACTION=OVERLAY_SVC_DESTROYED")
@@ -668,6 +787,7 @@ class IslandOverlayService : Service() {
         }
         autoCollapseJob?.cancel()
         stopForegroundJob?.cancel()
+        contextPositionJob?.cancel()
         callStateGuardJob?.cancel()
         callDurationTickerJob?.cancel()
         anchorCoordinator?.clearAll()
@@ -675,14 +795,19 @@ class IslandOverlayService : Service() {
         overlayController.forceDismissOverlay("SERVICE_DESTROYED")
         serviceScope.cancel()
         isForegroundActive = false
+        isStarted.set(false)
         isCallOverlayActive = false
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
+        createNotificationChannels()
+    }
+
+    private fun createNotificationChannels() {
+        val normalChannel = NotificationChannel(
+            CHANNEL_ID_NORMAL,
             getString(R.string.channel_ios_overlay),
-            NotificationManager.IMPORTANCE_MIN
+            NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = "iOS-style pill overlay service"
             setShowBadge(false)
@@ -691,15 +816,33 @@ class IslandOverlayService : Service() {
             enableLights(false)
             lockscreenVisibility = Notification.VISIBILITY_SECRET
         }
+
+        val ghostChannel = NotificationChannel(
+            CHANNEL_ID_GHOST,
+            getString(R.string.channel_ios_overlay_ghost),
+            NotificationManager.IMPORTANCE_MIN
+        ).apply {
+            description = "Minimal overlay service"
+            setShowBadge(false)
+            setSound(null, null)
+            enableVibration(false)
+            enableLights(false)
+            lockscreenVisibility = Notification.VISIBILITY_SECRET
+        }
+
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
+        manager.createNotificationChannel(normalChannel)
+        manager.createNotificationChannel(ghostChannel)
     }
 
-    private fun createForegroundNotification(): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun createForegroundNotification(
+        channelId: String = foregroundChannelId
+    ): Notification {
+        return NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_stat_island)
             .setContentTitle(getString(R.string.app_name))
             .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
             .setSilent(true)
             .setShowWhen(false)
@@ -710,9 +853,21 @@ class IslandOverlayService : Service() {
     }
 
     private fun ensureForeground() {
-        if (isForegroundActive) return
+        if (isForegroundActive || isStarted.get()) {
+            HiLog.d(HiLog.TAG_GHOST, "FOREGROUND_ALREADY_STARTED_SKIP")
+            return
+        }
+        isStarted.set(true)
         startForeground(NOTIFICATION_ID, createForegroundNotification())
         isForegroundActive = true
+    }
+
+    private fun updateForegroundNotification(channelId: String) {
+        if (foregroundChannelId == channelId) return
+        foregroundChannelId = channelId
+        if (!isForegroundActive) return
+        startForeground(NOTIFICATION_ID, createForegroundNotification(channelId))
+        HiLog.d(HiLog.TAG_GHOST, "FOREGROUND_NOTIF_SWAP", mapOf("channel" to channelId))
     }
 
     private fun scheduleStopIfIdle(reason: String) {
@@ -729,13 +884,15 @@ class IslandOverlayService : Service() {
                 val isIdle = currentCallModel == null &&
                     currentNotificationModel == null &&
                     currentMediaModel == null &&
-                    currentTimerModel == null
+                    currentTimerModel == null &&
+                    currentDownloadModel == null
 
                 if (isIdle) {
                     if (!shouldStayAlive) {
                         HiLog.d(HiLog.TAG_ISLAND, "RID=OVL_STOP EVT=OVERLAY_SVC_STOP reason=$reason")
                         stopForeground(true)
                         isForegroundActive = false
+                        isStarted.set(false)
                         stopSelf()
                     } else {
                         // FIX: Restore anchor if idle and should stay alive
@@ -751,6 +908,35 @@ class IslandOverlayService : Service() {
         serviceScope.launch {
             OverlayEventBus.events.collectLatest { event ->
                 handleOverlayEvent(event)
+            }
+        }
+    }
+
+    private fun startContextPositionWatcher() {
+        contextPositionJob?.cancel()
+        contextPositionJob = serviceScope.launch {
+            AccessibilityContextState.signals.collectLatest { signals ->
+                val previous = lastContextSignals
+                val foregroundChanged = previous?.foregroundPackage != signals.foregroundPackage
+                val fullscreenChanged = previous?.isFullscreen != signals.isFullscreen
+                val imeChanged = previous?.isImeVisible != signals.isImeVisible
+                if (!foregroundChanged && !fullscreenChanged && !imeChanged) {
+                    return@collectLatest
+                }
+
+                lastContextSignals = signals
+                if (BuildConfig.DEBUG) {
+                    HiLog.d(
+                        HiLog.TAG_ISLAND,
+                        "RID=ACC_CTX EVT=CTX_OVERLAY_REFRESH fg=${signals.foregroundPackage ?: "unknown"} " +
+                            "fullscreen=${signals.isFullscreen} ime=${signals.isImeVisible} " +
+                            "overlay=${overlayController.isShowing()}"
+                    )
+                }
+
+                if (overlayController.isShowing()) {
+                    overlayController.updatePosition("CTX_SIGNAL_CHANGE")
+                }
             }
         }
     }
@@ -915,6 +1101,12 @@ class IslandOverlayService : Service() {
                     return
                 }
             }
+            is OverlayEvent.DownloadEvent -> {
+                if (!canRenderOverlay(event.model.stableKey.hashCode(), allowOnKeyguard = false)) {
+                    scheduleStopIfIdle("RENDER_BLOCKED")
+                    return
+                }
+            }
             else -> Unit
         }
 
@@ -924,6 +1116,7 @@ class IslandOverlayService : Service() {
             is OverlayEvent.TimerEvent -> showTimerOverlay(event.model)
             is OverlayEvent.NavigationEvent -> showNavigationOverlay(event.model)
             is OverlayEvent.NotificationEvent -> showNotificationOverlay(event.model)
+            is OverlayEvent.DownloadEvent -> updateAnchorDownloadState(event.model)
             is OverlayEvent.DismissEvent -> dismissOverlay(event.notificationKey, "NOTIF_REMOVED")
             is OverlayEvent.DismissAllEvent -> {
                 // BUG FIX: Guard dismissAllOverlays when call is ONGOING
@@ -1121,6 +1314,7 @@ class IslandOverlayService : Service() {
         currentNotificationModel = null
         currentCallModel = model
         updateAnchorCallState(model)
+        updateOverlayYOffset("CALL_SHOW")
 
         if (!wasCallOverlay) {
             HiLog.d(HiLog.TAG_ISLAND, "Showing call overlay for: ${model.callerName}")
@@ -1606,6 +1800,7 @@ class IslandOverlayService : Service() {
         Haptics.hapticOnIslandShown(applicationContext)
         currentNavigationModel = model
         updateAnchorNavState(model)
+        updateOverlayYOffset("NAV_SHOW")
         
         // Navigation has lower priority than calls and notifications
         if (currentCallModel != null || currentNotificationModel != null) {
@@ -2227,7 +2422,11 @@ class IslandOverlayService : Service() {
         
         val rid = navModel.notificationKey.hashCode()
         val contextSignals by AccessibilityContextState.signals.collectAsState()
-        val suppressOverlay = contextSignals.foregroundPackage == navModel.packageName
+        val suppressOverlay = shouldSuppressOverlay(
+            contextSignals = contextSignals,
+            overlayPackage = navModel.packageName,
+            isCall = false
+        )
         
         LaunchedEffect(suppressOverlay) {
             if (BuildConfig.DEBUG) {
@@ -2880,6 +3079,7 @@ class IslandOverlayService : Service() {
         if (matchesNavigation) {
             currentNavigationModel = null
             updateAnchorNavState(null)
+            updateOverlayYOffset("NAV_CLEAR")
             if (currentCallModel == null && currentNotificationModel == null) {
                 dismissAllOverlays(reason)
             }
@@ -2942,6 +3142,7 @@ class IslandOverlayService : Service() {
             userDismissedCallKeys.remove(notificationKey)
             currentCallModel = null
             updateAnchorCallState(null)
+            updateOverlayYOffset("CALL_CLEAR")
             isCallOverlayActive = false
             if (currentMediaModel != null || currentTimerModel != null) {
                 showActivityOverlayFromState()
@@ -2994,6 +3195,10 @@ class IslandOverlayService : Service() {
                 "RID=$rid EVT=OVERLAY_RESTORE reason=$reason type=ACTIVITY"
             )
             showActivityOverlayFromState()
+        } else if (currentDownloadModel != null && isAnchorModeEnabled) {
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=ANCHOR_RESTORE reason=DOWNLOAD_ACTIVE")
+            shrinkToAnchor("DOWNLOAD_ACTIVE")
+            showAnchorIdleOverlay()
         } else if (shouldStayAlive) {
             HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=ANCHOR_RESTORE reason=DISMISS_NOTIF_KEEP_ALIVE")
             shrinkToAnchor("DISMISS_NOTIF_KEEP_ALIVE")
@@ -3056,6 +3261,7 @@ class IslandOverlayService : Service() {
         currentTimerModel = null
         currentNavigationModel = null
         serviceScope.launch { updateAnchorNavState(null) }
+        updateOverlayYOffset("DISMISS_ALL")
         isNotificationCollapsed = false
         deferCallOverlay = false
         isCallOverlayActive = false
@@ -3064,6 +3270,10 @@ class IslandOverlayService : Service() {
             // If anchor should stay alive, switch to anchor instead of removing window
             HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=ANCHOR_RESTORE reason=DISMISS_ALL_KEEP_ALIVE")
             shrinkToAnchor("DISMISS_ALL_KEEP_ALIVE")
+            showAnchorIdleOverlay()
+        } else if (currentDownloadModel != null && isAnchorModeEnabled) {
+            HiLog.d(HiLog.TAG_ISLAND, "RID=$rid EVT=ANCHOR_RESTORE reason=DOWNLOAD_ACTIVE")
+            shrinkToAnchor("DOWNLOAD_ACTIVE")
             showAnchorIdleOverlay()
         } else {
             overlayController.removeOverlay()
@@ -3085,7 +3295,18 @@ class IslandOverlayService : Service() {
         } else {
             foregroundPackage == overlayPackage
         }
-        return isForegroundTarget
+        val navActive = currentNavigationModel?.packageName == MAPS_PACKAGE
+        val suppress = if (foregroundPackage == MAPS_PACKAGE && navActive) {
+            false
+        } else {
+            isForegroundTarget
+        }
+        if (BuildConfig.DEBUG) {
+            HiLog.d(HiLog.TAG_ISLAND,
+                "EVT=SUPPRESS_CHECK fg=${foregroundPackage} navActive=$navActive result=$suppress"
+            )
+        }
+        return suppress
     }
 
     private fun dismissFromUser(reason: String) {

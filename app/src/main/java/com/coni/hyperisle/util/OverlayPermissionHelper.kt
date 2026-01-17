@@ -3,8 +3,8 @@ package com.coni.hyperisle.util
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
-import android.util.Log
 import androidx.core.net.toUri
+import com.coni.hyperisle.overlay.IslandOverlayService
 
 /**
  * Helper utility for managing overlay (SYSTEM_ALERT_WINDOW) permission.
@@ -69,10 +69,14 @@ object OverlayPermissionHelper {
             HiLog.w(HiLog.TAG_ISLAND, "Cannot start overlay service: permission not granted")
             return false
         }
+        if (IslandOverlayService.isServiceRunning) {
+            HiLog.d(HiLog.TAG_ISLAND, "EVT=OVERLAY_UPDATE_ONLY reason=ALREADY_RUNNING")
+            return true
+        }
 
         return try {
-            val intent = Intent(context, com.coni.hyperisle.overlay.IslandOverlayService::class.java).apply {
-                action = com.coni.hyperisle.overlay.IslandOverlayService.ACTION_START
+            val intent = Intent(context, IslandOverlayService::class.java).apply {
+                action = IslandOverlayService.ACTION_START
             }
             context.startForegroundService(intent)
             HiLog.d(HiLog.TAG_ISLAND, "Overlay service started")
