@@ -461,9 +461,22 @@ class IslandOverlayService : Service() {
         val isActive = model.state == CallOverlayState.ONGOING
         val isIncoming = model.state == CallOverlayState.INCOMING
         
+        // BUG FIX: Only start timer if call is truly active (OFFHOOK)
+        // Also use system chronometer base if available to sync with real call time
         if (isActive && callStartTimeMs == 0L) {
-            callStartTimeMs = System.currentTimeMillis()
-            startCallDurationTicker(model)
+            val callState = CallManager.getCallState(applicationContext)
+            if (callState == CallManager.CallState.OFFHOOK) {
+                // Try to get chronometer base from notification extras if available
+                // This would be in model if we passed it, but for now we reset to now
+                // Ideally we should get this from the notification extras in ReaderService
+                callStartTimeMs = System.currentTimeMillis()
+                startCallDurationTicker(model)
+            }
+        } else if (!isActive) {
+            // Reset timer if not active
+            callStartTimeMs = 0L
+            callDurationTickerJob?.cancel()
+            callDurationTickerJob = null
         }
         
         val callState = CallAnchorState(
@@ -493,17 +506,20 @@ class IslandOverlayService : Service() {
                 val elapsed = System.currentTimeMillis() - callStartTimeMs
                 val durationText = formatCallDuration(elapsed)
                 
-                val updatedState = CallAnchorState(
-                    notificationKey = model.notificationKey,
-                    packageName = model.packageName,
-                    callerName = model.callerName,
-                    durationText = durationText,
-                    isIncoming = false,
-                    isActive = true,
-                    avatarBitmap = model.avatarBitmap
-                )
-                
-                anchorCoordinator?.updateCallState(updatedState)
+                // Update only if text changed to reduce flicker
+                val currentState = anchorCoordinator?.anchorState?.value?.callState
+                if (currentState?.durationText != durationText) {
+                    val updatedState = CallAnchorState(
+                        notificationKey = model.notificationKey,
+                        packageName = model.packageName,
+                        callerName = model.callerName,
+                        durationText = durationText,
+                        isIncoming = false,
+                        isActive = true,
+                        avatarBitmap = model.avatarBitmap
+                    )
+                    anchorCoordinator?.updateCallState(updatedState)
+                }
             }
         }
     }
@@ -633,6 +649,15 @@ class IslandOverlayService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (BuildConfig.DEBUG) {
+            HiLog.d("HyperIsleAnchor", "EVT=CONFIG_CHANGED orientation=${newConfig.orientation}")
+        }
+        // Refresh cutout info on config change (rotation, density, etc.)
+        anchorCoordinator?.refreshCutoutInfo()
+    }
 
     override fun onDestroy() {
         super.onDestroy()

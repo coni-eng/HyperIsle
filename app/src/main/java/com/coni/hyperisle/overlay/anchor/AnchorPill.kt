@@ -7,7 +7,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -97,6 +98,7 @@ fun CenteredAnchorLayout(
  * Layout: [LeftSlot] [CutoutGap] [RightSlot]
  * The CutoutGap is always empty to avoid covering the camera.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AnchorPill(
     state: AnchorState,
@@ -122,7 +124,10 @@ fun AnchorPill(
     Surface(
         modifier = modifier
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(pillHeight / 2))
-            .clickable { onTap() }, // TODO: Long press support needs combinedClickable
+            .combinedClickable(
+                onClick = onTap,
+                onLongClick = onLongPress
+            ),
         shape = RoundedCornerShape(pillHeight / 2),
         color = PillBackgroundColor
     ) {

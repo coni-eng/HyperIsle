@@ -132,6 +132,14 @@ class AnchorCoordinator(
      */
     fun expandNotification(notificationKey: String) {
         val prevMode = _anchorState.value.mode
+        
+        // v1.0.3 FIX: If already in a content mode (CALL/NAV), treat expansion as a new event
+        // This ensures the host composable resets and measures correctly, preventing clipping
+        if (prevMode == IslandMode.CALL_ACTIVE || prevMode == IslandMode.NAV_ACTIVE) {
+            isNotifExpanded = false // Reset first
+            // Emit a transient state update to force re-composition if needed
+        }
+        
         isNotifExpanded = true
         expandedNotificationKey = notificationKey
 

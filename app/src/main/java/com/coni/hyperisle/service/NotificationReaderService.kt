@@ -1262,6 +1262,22 @@ class NotificationReaderService : NotificationListenerService() {
                     // To cancel another app's notification, we must use the ListenerService method.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         cancelNotification(sbn.key)
+                        // v1.0.3 FIX: Also cancel the group summary to aggressively block PiP
+                        sbn.groupKey?.let { groupKey ->
+                            // Attempt to cancel the group summary by guessing the tag/id or canceling all from pkg?
+                            // Safest is to cancel the known group summary ID if standard, but we don't know it.
+                            // Strategy: Cancel all notifications from Maps that are not "ongoing" if possible?
+                            // Better: Just log it for now, as canceling wrong thing is bad.
+                            // Actually, let's try to cancel the specific group summary if we can find it in activeNotifications.
+                            activeNotifications?.firstOrNull { 
+                                it.packageName == sbn.packageName && 
+                                it.groupKey == groupKey && 
+                                (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0 
+                            }?.let { summary ->
+                                cancelNotification(summary.key)
+                                HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_GROUP_CANCEL key=${summary.key}")
+                            }
+                        }
                         HiLog.d(HiLog.TAG_NOTIF, "RID=$rid EVT=GOOGLE_MAPS_CANCEL_REQ success=true key=${sbn.key}")
                     } else {
                          @Suppress("DEPRECATION")
